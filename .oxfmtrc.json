@@ -1,0 +1,73 @@
+{
+  // schema 地址，供编辑器提示与校验使用
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+
+  // 单行最大长度
+  "printWidth": 200,
+  // 缩进宽度（空格数）
+  "tabWidth": 2,
+  // 是否使用 Tab 缩进
+  "useTabs": false,
+  // 是否输出分号
+  "semi": false,
+  // 是否使用单引号
+  "singleQuote": false,
+  // JSX 属性是否使用单引号
+  "jsxSingleQuote": false,
+  // 对象属性引号策略
+  "quoteProps": "as-needed",
+  // 多行尾随逗号策略
+  "trailingComma": "none",
+  // 对象字面量大括号内空格
+  "bracketSpacing": false,
+  // 箭头函数单参数括号策略
+  "arrowParens": "avoid",
+  // 多行标签的 > 是否与最后一行同行
+  "bracketSameLine": false,
+  // HTML/Vue 空白敏感度
+  "htmlWhitespaceSensitivity": "css",
+  // Markdown 文本换行策略
+  "proseWrap": "preserve",
+  // Vue 文件中 script/style 是否额外缩进
+  "vueIndentScriptAndStyle": false,
+  // 行尾符风格
+  "endOfLine": "lf",
+  // 是否格式化嵌入语言（如 Vue 内 JS/CSS）
+  "embeddedLanguageFormatting": "auto",
+  // 对象换行策略
+  "objectWrap": "preserve",
+  // HTML/Vue/JSX 是否强制每行一个属性
+  "singleAttributePerLine": false,
+  // 文件末尾是否插入换行
+  "insertFinalNewline": true,
+
+  // 忽略的文件匹配模式
+  "ignorePatterns": [
+    // 静态资源目录
+    "/public/*",
+    // 构建产物目录
+    "/dist/*",
+    // 依赖目录
+    "/node_modules/**",
+    // 库目录
+    "src/libs/*",
+    // hiprint 目录
+    "src/**/hiprint/*",
+    // Markdown 资源文件
+    "**/*.md",
+    // SVG 资源文件
+    "**/*.svg",
+    // unplugin 自动生成类型文件
+    "src/types/auto-imports.d.ts",
+    "src/types/components.d.ts",
+    // 第三方构建 JS 文件（ES 模块）
+    "**/*.es.js",
+    // 第三方构建 JS 文件（UMD）
+    "**/*.umd.js",
+    // jquery.js
+    "src/**/jquery.js"
+  ],
+
+  // 按文件覆盖格式化选项（当前不使用）
+  "overrides": []
+}

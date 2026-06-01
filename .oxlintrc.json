@@ -1,0 +1,159 @@
+{
+  // schema 地址，供编辑器提示与校验使用
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  // 启用内置插件（仅保留 Vue/TS 相关）
+  "plugins": [
+    // Vue 规则插件
+    "vue",
+    // TypeScript 规则插件
+    "typescript",
+    // Unicorn 规则插件
+    "unicorn"
+  ],
+
+  // 规则类别总开关
+  "categories": {
+    // correctness 类规则总开关
+    "correctness": "off"
+  },
+
+  // 运行环境全局变量集合
+  "env": {
+    // 启用内建全局
+    "builtin": true
+  },
+
+  // oxlint 运行选项
+  "options": {
+    // 开启类型感知规则（需要安装 oxlint-tsgolint）
+    "typeAware": true
+  },
+
+  // 忽略 lint 的文件匹配模式
+  "ignorePatterns": [
+    // 静态资源目录
+    "/public/*",
+    // 构建产物目录
+    "/dist/*",
+    // 依赖目录
+    "/node_modules/**",
+    // 库目录
+    "src/libs/*",
+    // hiprint 目录
+    "src/**/hiprint/*",
+    // SVG 资源文件
+    "**/*.svg",
+    // unplugin 自动生成类型文件
+    "src/types/auto-imports.d.ts",
+    "src/types/components.d.ts",
+    // 第三方构建 JS 文件（ES 模块）
+    "**/*.es.js",
+    // 第三方构建 JS 文件（UMD）
+    "**/*.umd.js",
+    // jquery.js
+    "src/**/jquery.js"
+  ],
+
+  // 全局规则配置
+  "rules": {
+    // 禁止使用已废弃的 destroyed 生命周期
+    "vue/no-deprecated-destroyed-lifecycle": "error",
+    // 禁止在 script setup 中使用 export
+    "vue/no-export-in-script-setup": "error",
+    // 禁止在 await 之后注册生命周期
+    "vue/no-lifecycle-after-await": "error",
+    // 强制从 vue 包导入 API
+    "vue/prefer-import-from-vue": "error",
+    // 校验 defineEmits 的合法性
+    "vue/valid-define-emits": "error",
+    // 禁止滥用 @ts-xxx 注释
+    "@typescript-eslint/ban-ts-comment": "error",
+    // 禁止 Array 构造函数写法
+    "no-array-constructor": "error",
+    // 禁止重复 enum 值
+    "@typescript-eslint/no-duplicate-enum-values": "error",
+    // 禁止多余的非空断言
+    "@typescript-eslint/no-extra-non-null-assertion": "error",
+    // 禁止接口中误用 new 签名
+    "@typescript-eslint/no-misused-new": "error",
+    // 禁止使用 namespace
+    "@typescript-eslint/no-namespace": "error",
+    // 禁止在可选链后追加非空断言
+    "@typescript-eslint/no-non-null-asserted-optional-chain": "error",
+    // 禁止 require 导入
+    "@typescript-eslint/no-require-imports": "off",
+    // 禁止不必要的类型约束
+    "@typescript-eslint/no-unnecessary-type-constraint": "error",
+    // 禁止不安全的声明合并
+    "@typescript-eslint/no-unsafe-declaration-merging": "error",
+    // 禁止不安全函数类型
+    "@typescript-eslint/no-unsafe-function-type": "error",
+    // 禁止使用包装对象类型（String/Number 等）
+    "@typescript-eslint/no-wrapper-object-types": "error",
+    // 优先使用 as const
+    "@typescript-eslint/prefer-as-const": "error",
+    // 优先使用 namespace 关键字写法
+    "@typescript-eslint/prefer-namespace-keyword": "error",
+    // 限制三斜线指令使用
+    "@typescript-eslint/triple-slash-reference": "error"
+  },
+
+  // 按文件类型覆盖规则
+  "overrides": [
+    {
+      // 覆盖生效的文件集合
+      "files": [
+        // TS 文件
+        "**/*.ts",
+        // TSX 文件
+        "**/*.tsx",
+        // MTS 文件
+        "**/*.mts",
+        // CTS 文件
+        "**/*.cts",
+        // Vue 单文件组件
+        "**/*.vue"
+      ],
+      // 覆盖规则项
+      "rules": {
+        // 交给 TS 处理父类构造器校验
+        "constructor-super": "off",
+        // 交给 TS 处理 class 赋值校验
+        "no-class-assign": "off",
+        // 交给 TS 处理 const 赋值校验
+        "no-const-assign": "off",
+        // 交给 TS 处理类成员重复校验
+        "no-dupe-class-members": "off",
+        // 交给 TS 处理对象键重复校验
+        "no-dupe-keys": "off",
+        // 交给 TS 处理函数赋值校验
+        "no-func-assign": "off",
+        // 交给 TS 处理 import 赋值校验
+        "no-import-assign": "off",
+        // 交给 TS 处理原生构造器使用校验
+        "no-new-native-nonconstructor": "off",
+        // 交给 TS 处理对象调用校验
+        "no-obj-calls": "off",
+        // 交给 TS 处理重复声明校验
+        "no-redeclare": "off",
+        // 交给 TS 处理 setter 返回值校验
+        "no-setter-return": "off",
+        // 交给 TS 处理 super 调用时机校验
+        "no-this-before-super": "off",
+        // 交给 TS 处理不安全取反校验
+        "no-unsafe-negation": "off",
+        // 禁止 var
+        "no-var": "off",
+        // 关闭 with 语句规则
+        "no-with": "off",
+        // 优先 const
+        "prefer-const": "off",
+        // 优先使用展开运算符
+        "prefer-spread": "error",
+        // 禁止不安全函数类型
+        "no-unsafe-function-type": "off"
+      }
+    }
+  ]
+}

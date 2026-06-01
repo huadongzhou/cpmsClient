@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.oxlint.tsbuildinfo",
+    "strict": true,
+    "allowJs": true,
+    "jsx": "preserve",
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@orange/*": ["./src/orange/*"],
+      "element-plus/es/utils": ["./node_modules/element-plus/es/utils/index.d.ts"],
+      "element-plus/es/components/form": [
+        "./node_modules/element-plus/es/components/form/index.d.ts"
+      ],
+      "element-plus/es/components/upload": [
+        "./node_modules/element-plus/es/components/upload/index.d.ts"
+      ]
+    },
+    "types": ["node", "vite/client"],
+    "noImplicitAny": false,
+    "removeComments": true,
+    "experimentalDecorators": true,
+    "strictFunctionTypes": false,
+    "strictNullChecks": false,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.vue",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "src/**/*.d.ts",
+    "node_modules/**/*.d.ts"
+  ],
+  "exclude": ["node_modules", "dist", "src/**/__tests__/*"]
+}
