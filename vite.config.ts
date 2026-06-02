@@ -5,6 +5,7 @@ import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import VueSetupExtend from "unplugin-vue-setup-extend-plus/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
+import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -25,7 +26,7 @@ export default defineConfig(() => {
       vue(),
       UnoCSS(),
       AutoImport({
-        imports: ["vue", "vue-router", "pinia", "@vueuse/core"],
+        imports: ["vue", "pinia", "@vueuse/core"],
         resolvers: [ElementPlusResolver()],
         dts: "src/types/auto-imports.d.ts",
       }),
@@ -34,6 +35,11 @@ export default defineConfig(() => {
         dts: "src/types/components.d.ts",
       }),
     ],
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
+      },
+    },
 
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
     //

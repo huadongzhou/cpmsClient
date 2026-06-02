@@ -1,85 +1,71 @@
 <script setup lang="ts" name="HomeView">
-import { invoke } from "@tauri-apps/api/core";
-import { useAppStore } from "@/stores/app";
+import { vLoading } from "element-plus";
+import "element-plus/es/components/loading/style/css";
+import { useIframeContainer } from "@/composables/useIframeContainer";
+import { useIframePayloadBridge } from "@/composables/useIframePayloadBridge";
+import ExampleView from "@/views/example/index.vue";
 
-const appStore = useAppStore();
-const greetMsg = ref("");
-const name = ref("");
+const iframeRef = ref<HTMLIFrameElement>();
+const iframeDomLoaded = ref(false);
+const exampleDrawerVisible = ref(false);
+const { iframe, loadIframeContainer, loading } = useIframeContainer();
+const { queryIframePayload } = useIframePayloadBridge(iframeRef);
+const iframeSrc = computed(() => iframe.value.url || "about:blank");
+const isIframeLoading = computed(() => {
+  return (
+    loading.value ||
+    iframe.value.state === "idle" ||
+    iframe.value.state === "loading" ||
+    (iframe.value.state === "loaded" && Boolean(iframe.value.url) && !iframeDomLoaded.value)
+  );
+});
 
-async function greet() {
-  appStore.increaseGreetCount();
-  greetMsg.value = await invoke<string>("greet", { name: name.value });
+watch(iframeSrc, () => {
+  iframeDomLoaded.value = false;
+});
+
+onMounted(() => {
+  if (iframe.value.state === "idle") {
+    void loadIframeContainer();
+  }
+});
+
+function handleIframeLoad() {
+  iframeDomLoaded.value = true;
 }
 </script>
 
 <template>
-  <main class="container">
-    <h1>CPMS Client</h1>
-
-    <div class="row">
-      <a href="https://vite.dev" target="_blank">
-        <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-      </a>
-      <a href="https://tauri.app" target="_blank">
-        <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-      </a>
-      <a href="https://vuejs.org/" target="_blank">
-        <img src="@/assets/vue.svg" class="logo vue" alt="Vue logo" />
-      </a>
-    </div>
-
-    <form class="greet-form" @submit.prevent="greet">
-      <el-input v-model="name" class="greet-input" placeholder="Enter a name..." clearable />
-      <el-button type="primary" native-type="submit">Greet</el-button>
-    </form>
-
-    <p v-if="greetMsg">{{ greetMsg }}</p>
-    <p>Greet count: {{ appStore.greetCount }}</p>
+  <main v-loading="isIframeLoading" element-loading-text="正在加载业务页面" class="iframe-root">
+    <iframe ref="iframeRef" :src="iframeSrc" class="business-iframe" @load="handleIframeLoad" />
+    <el-button class="example-trigger" type="primary" @click="exampleDrawerVisible = true"
+      >能力检测</el-button
+    >
+    <el-drawer v-model="exampleDrawerVisible" title="客户端能力检测" size="520px" destroy-on-close>
+      <ExampleView :query-iframe-payload="queryIframePayload" />
+    </el-drawer>
   </main>
 </template>
 
 <style scoped>
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+.iframe-root {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: #ffffff;
 }
 
-.row {
-  display: flex;
-  justify-content: center;
+.business-iframe {
+  width: 100%;
+  min-height: 100vh;
+  border: 0;
+  display: block;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #249b73);
-}
-
-.greet-form {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  width: min(420px, calc(100vw - 32px));
-}
-
-.greet-input {
-  flex: 1;
+.example-trigger {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 10;
 }
 </style>

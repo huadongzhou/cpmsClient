@@ -4,7 +4,7 @@
 
 CPMS Client 当前是一个基于 Vue 3、TypeScript、Vite+ 和 Tauri 2 的桌面客户端工程。
 
-项目目前处于 Tauri + Vue 初始骨架阶段：前端为单入口应用，原生层注册了一个 Rust 示例 command，并启用了 `tauri-plugin-opener`。
+项目目前处于 Tauri + Vue 基础架构搭建阶段：前端已具备应用壳层、路由、状态管理、HTTP / Tauri IPC 封装和基础页面入口；原生层保留一个 Rust 示例 command，并已切换为统一 `CommandResult` 返回结构；同时启用了 `tauri-plugin-opener`。
 
 ## 2. 当前技术栈
 
@@ -32,16 +32,16 @@ cpmsClient/
 
   src/                              # Web 前端源码
     main.ts                         # Vue 应用挂载入口
-    App.vue                         # 当前示例页面，后续承载应用根组件
+    App.vue                         # 应用根组件，承载应用壳层
     assets/                         # 图片、样式、字体等前端资源
-    types/                          # 自动生成类型和公共类型声明
+    types/                          # 类型定义；按 app、common、service、task 分类
 
-    router/                         # 前端路由；按业务页面拆分
-    stores/                         # 状态管理；应用、用户、服务状态等
-    api/                            # 通信封装；CPMS HTTP 和 Tauri IPC
-    views/                          # 页面视图；首页、工作台、任务、设置、诊断等
-    components/                     # 可复用组件；布局、通用组件、服务组件等
-    composables/                    # 组合式逻辑；服务状态、命令任务、系统事件等
+    router/                         # 前端路由；当前已包含工作台、服务、任务、设置、诊断入口
+    stores/                         # 状态管理；应用、用户、网络、服务状态、任务状态等
+    api/                            # 通信封装；按 http、request、cpms、localService、tauri、desktop 分类
+    views/                          # 页面视图；工作台、服务、任务、设置、诊断等
+    components/                     # 可复用组件；应用壳层、状态标识、错误提示等
+    composables/                    # 组合式逻辑；错误上报、命令执行等
 
   src-tauri/                        # Tauri / Rust 原生层
     tauri.conf.json                 # Tauri 应用、窗口、打包配置
@@ -72,11 +72,11 @@ cpmsClient/
 
 | 通信链路 | 通信方式 | 用途 | 当前状态 | 当前依据 |
 | --- | --- | --- | --- | --- |
-| Web UI -> Rust Core | Tauri `invoke` 调用 Rust command | 前端请求本地原生能力，如服务控制、脚本执行、配置读取 | 部分实现 | `src/App.vue` 已调用 `invoke("greet", { name })`，`src-tauri/src/lib.rs` 已注册 `greet` command；当前仅为示例字符串返回 |
+| Web UI -> Rust Core | Tauri `invoke` 调用 Rust command | 前端请求本地原生能力，如服务控制、脚本执行、配置读取 | 部分实现 | `src/api/tauri/client.ts` 已封装 `invokeCommand` / `unwrapCommand`，`src/api/tauri/commands.ts` 已集中声明 command 调用；`src-tauri/src/lib.rs` 已注册 `greet` 示例 command |
 | Rust Core -> Web UI | Tauri event `emit` / 前端 `listen` | 原生层向前端推送任务状态、脚本日志、服务状态变化 | 未实现 | 当前未看到 `emit` / `listen` 事件封装 |
-| Web UI -> CPMS Server | HTTP / HTTPS API | 访问 CPMS 后端业务接口 | 未实现 | 当前未看到 `src/api/http.ts`、`cpms.api.ts` 或请求封装 |
-| Web UI / Rust Core -> Local Service | 本地 HTTP 接口 | 访问本机 agent、健康检查或本地服务接口 | 未实现 | 当前未看到本地 HTTP 客户端或服务健康检查实现 |
-| Rust Core -> Web UI | 统一结构化返回 `CommandResult` | 统一 command 成功、失败、日志和业务数据返回格式 | 未实现 | 当前 `greet` 直接返回 `String`，尚未返回统一结果结构 |
+| Web UI -> CPMS Server | HTTP / HTTPS API | 访问 CPMS 后端业务接口 | 部分实现 | `src/api/http/client.ts` 已提供 fetch 请求封装，`src/api/cpms/client.ts` 已提供 CPMS API 客户端入口；尚未落地具体业务接口 |
+| Web UI / Rust Core -> Local Service | 本地 HTTP 接口 | 访问本机 agent、健康检查或本地服务接口 | 部分实现 | 前端已在 `src/stores/app.ts` 维护 `localServiceUrl` 配置；尚未实现本地服务健康检查 |
+| Rust Core -> Web UI | 统一结构化返回 `CommandResult` | 统一 command 成功、失败、日志和业务数据返回格式 | 已实现 | `src-tauri/src/models.rs` 已定义 `CommandResult<T>`；`greet` 示例 command 已返回统一结构；前端 `src/types/common/result.ts` 已定义对应类型 |
 
 ## 5. 客户端能力与实现状态
 
@@ -89,7 +89,7 @@ cpmsClient/
 | 系统托盘 | 未实现 | 未看到 tray 配置或插件 |
 | 单实例运行 | 未实现 | 未看到 single-instance 插件或相关配置 |
 | 开机自启动 | 未实现 | 未看到 autostart 插件或配置 |
-| 系统通知 | 未实现 | 未看到 notification 插件或权限 |
+| 桌面级通知子窗口 | 已实现 | 不使用系统级 notification 插件或权限；主窗口通过 `src/api/desktop/notification.ts` 创建 `notification` Tauri 子窗口，`src/components/common/DesktopNotificationHost.vue` 在桌面右下角显示通知 |
 | 原生菜单 | 未实现 | 未看到菜单配置或 Rust 菜单构建 |
 | 窗口最小化 / 最大化 / 置顶 | 未实现 | 未看到窗口控制 API 封装 |
 | 隐藏到托盘 | 未实现 | 依赖系统托盘能力，当前未实现 |
@@ -99,59 +99,37 @@ cpmsClient/
 
 | 能力 | 当前状态 | 说明 |
 | --- | --- | --- |
-| CPMS 业务接口访问 | 未实现 | 当前没有业务 API 封装 |
-| 登录态维护 | 未实现 | 当前没有路由、store 或登录态模块 |
-| 接口错误处理 | 未实现 | 当前没有统一请求层 |
+| CPMS 业务接口访问 | 部分实现 | 当前已有 `src/api/http/client.ts` 和 `src/api/cpms/client.ts` 请求入口，尚未实现具体业务 API |
+| 登录态维护 | 部分实现 | 当前已有 `src/stores/user.ts` 维护 token 和用户显示名，尚未实现登录页面和接口 |
+| 接口错误处理 | 部分实现 | 当前已有 `HttpError`、`CommandInvokeError` 和应用错误 store |
 | 操作日志记录 | 未实现 | 当前没有日志服务或前端日志模块 |
-| 异常状态提示 | 未实现 | 当前仅有 Tauri 示例页面 |
-| 网络状态提示 | 未实现 | 当前没有网络状态检测 |
+| 异常状态提示 | 部分实现 | 当前已有 `src/components/common/ErrorNotice.vue` 和 `src/stores/app.ts` 错误队列 |
+| 网络状态提示 | 部分实现 | 当前已有 `src/stores/network.ts` 和工作台 / 诊断页网络状态展示 |
 
-### 5.3 本地服务控制能力
-
-| 能力 | 当前状态 | 说明 |
-| --- | --- | --- |
-| 查询 / 启动 / 停止 / 重启服务 | 未实现 | 当前没有服务控制 command 或 service 层 |
-| 检测服务端口 | 未实现 | 当前没有端口检测实现 |
-| 检测进程状态 | 未实现 | 当前没有进程检测实现 |
-| 读取服务日志 | 未实现 | 当前没有日志读取 command |
-| 服务异常提示 | 未实现 | 当前没有服务状态模型或 UI |
-| 服务白名单机制 | 未实现 | 当前没有服务配置或 allowlist |
-
-### 5.4 脚本执行能力
+### 5.3 本地数据能力
 
 | 能力 | 当前状态 | 说明 |
 | --- | --- | --- |
-| 执行预置脚本 | 未实现 | 当前没有脚本执行 command |
-| 查询脚本执行状态 | 未实现 | 当前没有任务模型 |
-| 获取脚本执行日志 | 未实现 | 当前没有 stdout / stderr 采集封装 |
-| 取消执行任务 | 未实现 | 当前没有任务生命周期管理 |
-| 记录执行参数和结果 | 未实现 | 当前没有本地持久化或日志服务 |
-| 脚本白名单和参数校验 | 未实现 | 当前没有安全校验模块 |
-
-### 5.5 本地数据能力
-
-| 能力 | 当前状态 | 说明 |
-| --- | --- | --- |
-| 本地配置存储 | 未实现 | 当前没有配置服务 |
-| 用户偏好设置 | 未实现 | 当前没有偏好设置模块 |
-| 服务状态缓存 | 未实现 | 当前没有服务状态模型 |
+| 本地配置存储 | 部分实现 | 当前 `src/stores/app.ts` 使用 localStorage 保存客户端基础配置 |
+| 用户偏好设置 | 部分实现 | 当前设置页已包含 API 地址、本地服务地址和日志级别 |
+| 服务状态缓存 | 部分实现 | 当前已有服务状态 store，尚未接入真实服务检查 |
 | 操作记录缓存 | 未实现 | 当前没有缓存或存储层 |
 | 本地数据库存储 | 未实现 | 当前没有 SQLite 或数据库模块 |
 | 配置导入导出 | 未实现 | 当前没有导入导出 API |
 
-### 5.6 日志、诊断与安全能力
+### 5.4 日志、诊断与安全能力
 
 | 能力 | 当前状态 | 说明 |
 | --- | --- | --- |
-| 前端错误日志 | 未实现 | 当前没有前端日志采集 |
+| 前端错误日志 | 部分实现 | 当前 `src/main.ts` 捕获 Vue runtime error 和 unhandled rejection，并写入应用错误队列 |
 | 原生层运行日志 | 未实现 | 当前没有 Rust 日志服务 |
 | 脚本执行日志 | 未实现 | 当前没有脚本任务实现 |
 | 服务控制日志 | 未实现 | 当前没有服务控制实现 |
 | 接口请求日志 | 未实现 | 当前没有请求层 |
 | 本地诊断信息导出 | 未实现 | 当前没有诊断导出 command |
 | 日志滚动 | 未实现 | 当前没有日志文件管理 |
-| Tauri command 最小暴露 | 部分实现 | 当前仅暴露 `greet` 示例 command；业务 command 尚未设计 |
-| 参数校验 | 部分实现 | `greet` 只接收 `name: &str`，尚未形成业务校验规范 |
+| Tauri command 最小暴露 | 部分实现 | 当前仅暴露 `greet` 示例 command；前端业务 command 已集中声明但 Rust 业务 command 尚未实现 |
+| 参数校验 | 部分实现 | `greet` 已进行空值校验；服务名、脚本名、路径等业务参数校验尚未实现 |
 | 路径校验 / 敏感信息脱敏 / 配置加密 / 权限检测 / 高风险审计 | 未实现 | 当前没有对应安全模块 |
 
 ## 6. 开发命令

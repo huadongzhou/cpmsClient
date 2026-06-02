@@ -1,7 +1,24 @@
-<script setup lang="ts" name="App"></script>
+<script setup lang="ts" name="App">
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import DesktopNotificationHost from "@/components/common/DesktopNotificationHost.vue";
+import { useClientEventBridge } from "@/composables/useClientEventBridge";
+import { useClientNotificationBridge } from "@/composables/useClientNotificationBridge";
+import { useClientRuntimeBridge } from "@/composables/useClientRuntimeBridge";
+import { useDesktopNotificationBridge } from "@/composables/useDesktopNotificationBridge";
+import HomeView from "@/views/home/index.vue";
+
+const isNotificationWindow = ref(isTauri() && getCurrentWindow().label === "notification");
+
+useDesktopNotificationBridge();
+useClientNotificationBridge();
+useClientEventBridge();
+useClientRuntimeBridge();
+</script>
 
 <template>
-  <RouterView />
+  <DesktopNotificationHost v-if="isNotificationWindow" />
+  <HomeView v-else />
 </template>
 
 <style>
@@ -12,7 +29,7 @@
   font-weight: 400;
 
   color: #0f0f0f;
-  background-color: #f6f6f6;
+  background-color: #f4f6f8;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -25,28 +42,16 @@ body {
   margin: 0;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+html,
+body {
+  min-height: 100vh;
 }
 
-a:hover {
-  color: #535bf2;
+* {
+  box-sizing: border-box;
 }
 
-h1 {
-  text-align: center;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
+#app {
+  min-height: 100vh;
 }
 </style>

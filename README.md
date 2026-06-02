@@ -1,9 +1,47 @@
-# cpmsClient
+## 架构设计
+前端路由：
+- /  空layout页面   只有一个iframe作为容器
+- /example  示例页面   提供客户端能力检测状态
+桌面通知：
+- 根据子窗口 创建桌面通知窗口  默认不显示  只有监听到事件消息时才显示  并渲染通知内容   可以通过关闭按钮隐藏窗口
+托盘：
+- 客户端启动后  创建托盘图标  可以通过托盘图标显示/隐藏客户端窗口
+自启动：
+- 客户端首次启动后  默认自启动  可以通过托盘图标设置自启动
+请求：
+- 满足视图端请求客户端
+- 满足客户端请求线上服务端
+- 满足客户端链接socket
+通信：
+- 满足视图端向客户端发送事件
+- 满足客户端向视图端发送事件
 
-Tauri + Vue + TypeScript application scaffolded with `pnpm create tauri-app`.
+## 项目需求
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+### 需求 1：渲染线上 iframe 容器 地址
 
-## Recommended IDE Setup
+客户端启动后请求线上服务，获取 iframe 容器地址，视图端根据返回地址渲染业务页面。
 
-- [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+流程：
+
+```text
+启动客户端
+  -> 客户端请求线上服务
+  -> 获取 iframe URL
+  -> 视图端从客户端获取 iframe URL 并根据 iframe URL 渲染业务页面
+```
+
+### 需求 2：连接本地 socket 服务
+
+客户端启动后连接本地 socket 服务，等待任务推送，并将收到的任务二次转发（待描述具体实现）。
+
+流程：
+
+```text
+启动客户端
+  -> 连接本地 socket 服务
+  -> 等待任务推送
+  -> 解析任务消息
+  -> 二次转发任务消息  （获取iframe实例内的token  携带给要转发的任务）
+```
+
