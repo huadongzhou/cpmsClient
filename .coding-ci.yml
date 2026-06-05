@@ -38,6 +38,24 @@
       cp src-tauri/target/release/bundle/appimage/*.AppImage artifacts/ 2>/dev/null || true
       echo "========== 已归档产物 =========="
       ls -la artifacts/
+  - name: 推送制品仓库
+    script: |
+      if [ -z "$(find artifacts -maxdepth 1 -type f -print -quit)" ]; then
+        echo "artifacts 目录为空，终止推送"
+        exit 1
+      fi
+
+      npm install -g coding-generic@latest
+
+      PACKAGE_VERSION="${CI_TAG:-${CODING_TAG_NAME:-}}"
+      PACKAGE_VERSION="${PACKAGE_VERSION#v}"
+      if [ -z "$PACKAGE_VERSION" ]; then
+        PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+      fi
+
+      echo "========== 推送制品到 CODING Generic =========="
+      echo "version: ${PACKAGE_VERSION}"
+      coding-generic -u=app-1780655294328:ca4c4d51e8f9d94c775c5bddeaf963a3193491ea --dir --path=artifacts --registry="https://insolu-generic.pkg.coding.net/cpmsclient/app?version=${PACKAGE_VERSION}"
 
 master:
   push:
