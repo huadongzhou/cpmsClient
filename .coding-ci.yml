@@ -47,15 +47,28 @@
 
       npm install -g coding-generic@latest
 
-      PACKAGE_VERSION="${CI_TAG:-${CODING_TAG_NAME:-}}"
-      PACKAGE_VERSION="${PACKAGE_VERSION#v}"
+      REPO_NAME="${CI_REPO_NAME:-${CODING_REPO_NAME:-}}"
+      if [ -z "$REPO_NAME" ]; then
+        REPO_URL="$(git remote get-url origin)"
+        REPO_NAME="$(basename "$REPO_URL" .git)"
+      fi
+
+      TAG_NAME="${CI_TAG:-${CODING_TAG_NAME:-}}"
+      TAG_NAME="${TAG_NAME#refs/tags/}"
+      if [ -z "$TAG_NAME" ]; then
+        TAG_NAME="$(git tag --points-at HEAD | head -n 1)"
+      fi
+
+      PACKAGE_VERSION="${TAG_NAME#v}"
       if [ -z "$PACKAGE_VERSION" ]; then
         PACKAGE_VERSION="$(node -p "require('./package.json').version")"
       fi
+      ARTIFACT_FOLDER="${REPO_NAME}-${TAG_NAME:-$PACKAGE_VERSION}"
 
       echo "========== 推送制品到 CODING Generic =========="
+      echo "folder: ${ARTIFACT_FOLDER}"
       echo "version: ${PACKAGE_VERSION}"
-      coding-generic -u=app-1780655294328:ca4c4d51e8f9d94c775c5bddeaf963a3193491ea --dir --path=artifacts --registry="https://insolu-generic.pkg.coding.net/cpmsclient/app?version=${PACKAGE_VERSION}"
+      coding-generic -u=app-1780655294328:ca4c4d51e8f9d94c775c5bddeaf963a3193491ea --dir --path=artifacts --registry="https://insolu-generic.pkg.coding.net/cpmsclient/app/${ARTIFACT_FOLDER}?version=${PACKAGE_VERSION}"
 
 master:
   push:
