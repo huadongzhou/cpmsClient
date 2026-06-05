@@ -10,7 +10,17 @@
     "prepare": "vp config",
     "fmt": "vp fmt",
     "lint": "vp lint",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:win": "node scripts/build.js win",
+    "build:win:msi": "node scripts/build.js msi",
+    "build:win:nsis": "node scripts/build.js nsis",
+    "build:linux": "node scripts/build.js linux",
+    "build:linux:deb": "node scripts/build.js deb",
+    "build:linux:rpm": "node scripts/build.js rpm",
+    "build:linux:appimage": "node scripts/build.js appimage",
+    "build:linux:x64": "pnpm tauri build --target x86_64-unknown-linux-gnu --bundles deb rpm appimage",
+    "build:linux:arm64": "pnpm tauri build --target aarch64-unknown-linux-gnu --bundles deb rpm appimage",
+    "build:all": "node scripts/build.js all"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
