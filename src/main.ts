@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import { createPinia } from "pinia";
 import { useAppStore } from "@/stores/app";
+import { injectHubClientBridge } from "@/utils/hubBridge";
 import "uno.css";
 
 const pinia = createPinia();
@@ -30,3 +31,6 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 app.mount("#app");
+
+/** 向全局注入 Hub 桥接对象，供 iframe 内的 hub-platform 调用 Tauri 能力。 */
+injectHubClientBridge();

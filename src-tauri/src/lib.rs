@@ -1,6 +1,6 @@
+mod hub;
 mod models;
 
-use std::collections::HashMap;
 use std::fs;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -58,17 +58,6 @@ struct DesktopNotificationPayload {
     title: String,
     message: Option<String>,
     duration_ms: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ClientHttpRequest {
-    method: Option<String>,
-    url: String,
-    headers: Option<HashMap<String, String>>,
-    query: Option<HashMap<String, Value>>,
-    body: Option<Value>,
-    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -147,7 +136,9 @@ fn client_get_iframe_container_state(
 }
 
 #[tauri::command]
-async fn client_refresh_iframe_container(app: AppHandle) -> CommandResult<ClientIframeEventPayload> {
+async fn client_refresh_iframe_container(
+    app: AppHandle,
+) -> CommandResult<ClientIframeEventPayload> {
     CommandResult::ok(refresh_iframe_container(&app).await)
 }
 
@@ -188,79 +179,11 @@ fn client_submit_iframe_payload(
 }
 
 #[tauri::command]
-async fn client_http_request(request: ClientHttpRequest) -> CommandResult<Value> {
-    let method = request
-        .method
-        .as_deref()
-        .unwrap_or("GET")
-        .parse::<reqwest::Method>();
-
-    let method = match method {
-        Ok(value) => value,
-        Err(_) => return CommandResult::fail("HTTP_METHOD_INVALID", "method 非法"),
-    };
-
-    let timeout = Duration::from_millis(request.timeout_ms.unwrap_or(15_000));
-
-    let client = match reqwest::Client::builder().timeout(timeout).build() {
-        Ok(value) => value,
-        Err(error) => return CommandResult::fail("HTTP_CLIENT_BUILD_ERROR", &error.to_string()),
-    };
-
-    let mut builder = client.request(method, &request.url);
-
-    if let Some(headers) = request.headers {
-        for (key, value) in headers {
-            builder = builder.header(key, value);
-        }
+async fn client_http_request(request: hub::ClientHttpRequest) -> CommandResult<Value> {
+    match hub::http_service::execute_client_http_request(request).await {
+        Ok(value) => CommandResult::ok(value),
+        Err(error) => CommandResult::fail("HTTP_REQUEST_ERROR", &error),
     }
-
-    if let Some(query) = request.query {
-        let normalized: Vec<(String, String)> = query
-            .into_iter()
-            .filter_map(|(key, value)| stringify_query_value(value).map(|next| (key, next)))
-            .collect();
-
-        if !normalized.is_empty() {
-            builder = builder.query(&normalized);
-        }
-    }
-
-    if let Some(body) = request.body {
-        builder = builder.json(&body);
-    }
-
-    let response = match builder.send().await {
-        Ok(value) => value,
-        Err(error) => return CommandResult::fail("HTTP_REQUEST_ERROR", &error.to_string()),
-    };
-
-    let status_code = response.status().as_u16();
-    let response_text = match response.text().await {
-        Ok(value) => value,
-        Err(error) => return CommandResult::fail("HTTP_READ_BODY_ERROR", &error.to_string()),
-    };
-
-    let response_payload = if response_text.trim().is_empty() {
-        Value::Null
-    } else {
-        match serde_json::from_str::<Value>(&response_text) {
-            Ok(value) => value,
-            Err(_) => Value::String(response_text),
-        }
-    };
-
-    if status_code >= 400 {
-        return CommandResult::fail(
-            "HTTP_STATUS_ERROR",
-            &format!("客户端代理请求失败，status={status_code}"),
-        );
-    }
-
-    CommandResult::ok(json!({
-        "status": status_code,
-        "data": response_payload,
-    }))
 }
 
 #[tauri::command]
@@ -340,16 +263,6 @@ where
     }
 }
 
-fn stringify_query_value(value: Value) -> Option<String> {
-    match value {
-        Value::Null => None,
-        Value::Bool(raw) => Some(raw.to_string()),
-        Value::Number(raw) => Some(raw.to_string()),
-        Value::String(raw) => Some(raw),
-        Value::Array(_) | Value::Object(_) => Some(value.to_string()),
-    }
-}
-
 fn now_iso_string() -> String {
     format!(
         "{}",
@@ -417,10 +330,20 @@ fn emit_iframe_payload_request(app: &AppHandle, reason: &str) -> String {
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let show_item = MenuItem::with_id(app, TRAY_SHOW, "显示主窗口", true, None::<&str>)?;
     let hide_item = MenuItem::with_id(app, TRAY_HIDE, "隐藏到托盘", true, None::<&str>)?;
-    let autostart_enable_item =
-        MenuItem::with_id(app, TRAY_AUTOSTART_ENABLE, "开启开机自启动", true, None::<&str>)?;
-    let autostart_disable_item =
-        MenuItem::with_id(app, TRAY_AUTOSTART_DISABLE, "关闭开机自启动", true, None::<&str>)?;
+    let autostart_enable_item = MenuItem::with_id(
+        app,
+        TRAY_AUTOSTART_ENABLE,
+        "开启开机自启动",
+        true,
+        None::<&str>,
+    )?;
+    let autostart_disable_item = MenuItem::with_id(
+        app,
+        TRAY_AUTOSTART_DISABLE,
+        "关闭开机自启动",
+        true,
+        None::<&str>,
+    )?;
     let quit_item = MenuItem::with_id(app, TRAY_QUIT, "退出", true, None::<&str>)?;
     let tray_menu = Menu::with_items(
         app,
@@ -452,7 +375,10 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             TRAY_AUTOSTART_DISABLE => {
                 let _ = set_autostart_enabled(app, false);
             }
-            TRAY_QUIT => app.exit(0),
+            TRAY_QUIT => {
+                let _ = hub::system_destroy(app.clone());
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -799,7 +725,30 @@ pub fn run() {
             window_set_always_on_top,
             window_hide,
             window_show,
-            window_close
+            window_close,
+            hub::get_startup_state,
+            hub::save_policy_agreed,
+            hub::save_auth_state,
+            hub::clear_auth_state,
+            hub::save_server_info,
+            hub::save_direct_device,
+            hub::system_init,
+            hub::system_destroy,
+            hub::start_background_tasks,
+            hub::stop_background_tasks,
+            hub::add_printer,
+            hub::disable_printer,
+            hub::fix_printer,
+            hub::init_usb_printer,
+            hub::get_usb_state,
+            hub::close_window_with_confirm,
+            hub::get_app_version,
+            hub::open_external,
+            hub::start_socket_server,
+            hub::stop_socket_server,
+            hub::ping_server,
+            hub::sign_request,
+            hub::sm4_encrypt
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
