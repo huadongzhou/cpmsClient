@@ -83,12 +83,22 @@
       fi
 
 master:
+  push:
+    - name: linux-build
+      <<: *linux-build-env
+      stages: *linux-stages
+
   tag_push:
     - name: linux-release
       <<: *linux-build-env
       stages: *linux-stages
 
 builder:
+  push:
+    - name: linux-build
+      <<: *linux-build-env
+      stages: *linux-stages
+
   tag_push:
     - name: linux-release
       <<: *linux-build-env
