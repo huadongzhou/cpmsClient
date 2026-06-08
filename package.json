@@ -20,6 +20,8 @@
     "build:linux:appimage": "node scripts/build.js appimage",
     "build:linux:x64": "pnpm tauri build --target x86_64-unknown-linux-gnu --bundles deb rpm appimage",
     "build:linux:arm64": "pnpm tauri build --target aarch64-unknown-linux-gnu --bundles deb rpm appimage",
+    "build:linux:deb:x64": "pnpm tauri build --target x86_64-unknown-linux-gnu --bundles deb",
+    "build:linux:deb:arm64": "pnpm tauri build --target aarch64-unknown-linux-gnu --bundles deb",
     "build:all": "node scripts/build.js all"
   },
   "dependencies": {
