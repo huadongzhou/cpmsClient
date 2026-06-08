@@ -219,10 +219,14 @@
       fi
 
 master:
-  # push:
-  #   - name: linux-build
-  #     <<: *linux-build-env
-  #     stages: *linux-stages
+  push:
+    - name: linux-deb-dual-arch
+      <<: *linux-build-env
+      stages: *linux-deb-stages
+
+    - name: linux-release
+      <<: *linux-build-env
+      stages: *linux-stages
 
   tag_push:
     - name: linux-deb-dual-arch
@@ -234,10 +238,14 @@ master:
       stages: *linux-stages
 
 builder:
-  # push:
-  #   - name: linux-build
-  #     <<: *linux-build-env
-  #     stages: *linux-stages
+  push:
+    - name: linux-deb-dual-arch
+      <<: *linux-build-env
+      stages: *linux-deb-stages
+
+    - name: linux-release
+      <<: *linux-build-env
+      stages: *linux-stages
 
   tag_push:
     - name: linux-deb-dual-arch
