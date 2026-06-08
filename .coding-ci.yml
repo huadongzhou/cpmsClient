@@ -34,16 +34,9 @@
       # 先构建 deb + rpm（不需要从 GitHub 下载外部工具）
       pnpm tauri build --bundles deb rpm
 
-      # 再构建 appimage（需要从 GitHub 下载 linuxdeploy，容易 504，带 3 次重试）
-      for attempt in 1 2 3; do
-        echo "AppImage build attempt $attempt/3..."
-        pnpm tauri build --bundles appimage && break
-        if [ "$attempt" -eq 3 ]; then
-          echo "AppImage build failed after 3 attempts"
-          exit 1
-        fi
-        sleep 15
-      done
+      # 再构建 appimage（需要从 GitHub 下载 linuxdeploy，CODING CI 内网容易 504）
+      # 失败不阻断流水线，确保 deb/rpm 核心产物始终可用
+      pnpm tauri build --bundles appimage || echo "WARNING: AppImage build failed (GitHub 504), skipping"
 
   - name: 配置 arm64 交叉编译环境
     script: |

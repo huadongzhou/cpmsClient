@@ -89,7 +89,7 @@ cpmsClient/
 | 系统托盘 | 未实现 | 未看到 tray 配置或插件 |
 | 单实例运行 | 未实现 | 未看到 single-instance 插件或相关配置 |
 | 开机自启动 | 未实现 | 未看到 autostart 插件或配置 |
-| 桌面级通知子窗口 | 已实现 | 不使用系统级 notification 插件或权限；主窗口通过 `src/api/desktop/notification.ts` 创建 `notification` Tauri 子窗口，`src/components/common/DesktopNotificationHost.vue` 在桌面右下角显示通知 |
+| 桌面级通知子窗口 | 已实现 | **系统级 notification 插件不在需求范围内**；由 `src/api/desktop/notification.ts` 创建 `notification` Tauri 子窗口，`src/components/common/DesktopNotificationHost.vue` 在桌面右下角显示通知 |
 | 原生菜单 | 未实现 | 未看到菜单配置或 Rust 菜单构建 |
 | 窗口最小化 / 最大化 / 置顶 | 未实现 | 未看到窗口控制 API 封装 |
 | 隐藏到托盘 | 未实现 | 依赖系统托盘能力，当前未实现 |
@@ -101,7 +101,7 @@ cpmsClient/
 | 能力 | 当前状态 | 说明 |
 | --- | --- | --- |
 | CPMS 业务接口访问 | 部分实现 | 当前已有 `src/api/http/client.ts` 和 `src/api/cpms/client.ts` 请求入口，尚未实现具体业务 API |
-| 登录态维护 | 部分实现 | 当前已有 `src/stores/user.ts` 维护 token 和用户显示名，尚未实现登录页面和接口 |
+| 登录态维护 | 部分实现 | **Client 端不做登录/认证**，仅持久化 Web 端登录后传入的 token 和用户信息；登录页面和认证逻辑由 Web 端负责 |
 | 接口错误处理 | 部分实现 | 当前已有 `HttpError`、`CommandInvokeError` 和应用错误 store |
 | 操作日志记录 | 未实现 | 当前没有日志服务或前端日志模块 |
 | 异常状态提示 | 部分实现 | 当前已有 `src/components/common/ErrorNotice.vue` 和 `src/stores/app.ts` 错误队列 |

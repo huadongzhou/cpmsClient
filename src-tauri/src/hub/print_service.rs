@@ -23,7 +23,7 @@ const DEFAULT_CLIENT_IP: &str = "127.0.0.1";
 struct PrintWorkerHandle {
     state: PrintState,
     stop: Arc<AtomicBool>,
-    join: Option<JoinHandle<()>>,
+    scan_join: Option<JoinHandle<()>>,
 }
 
 struct PrintJobCandidate {
@@ -46,6 +46,14 @@ fn runtime() -> &'static Mutex<Option<PrintWorkerHandle>> {
 
 /// Starts the print worker that scans cache files and submits pending jobs.
 pub fn start_print_worker(app: AppHandle) -> Result<PrintState, String> {
+    if !platform_print_supported() {
+        return Ok(PrintState {
+            print_server_ready: false,
+            status: "unsupported".into(),
+            ..PrintState::default()
+        });
+    }
+
     let mut guard = runtime()
         .lock()
         .map_err(|_| "打印服务状态锁已损坏".to_string())?;
@@ -62,20 +70,23 @@ pub fn start_print_worker(app: AppHandle) -> Result<PrintState, String> {
         .map_err(|error| error.to_string())?;
     fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
 
+    let stop = Arc::new(AtomicBool::new(false));
+    let worker_stop = Arc::clone(&stop);
+    let worker_app = app.clone();
+    let scan_cache_dir = cache_dir.clone();
+    let scan_join =
+        Some(thread::spawn(move || worker_loop(worker_app, scan_cache_dir, worker_stop)));
+
     let state = PrintState {
         print_server_ready: true,
         status: "idle".into(),
         ..PrintState::default()
     };
-    let stop = Arc::new(AtomicBool::new(false));
-    let worker_stop = Arc::clone(&stop);
-    let worker_app = app.clone();
-    let join = thread::spawn(move || worker_loop(worker_app, cache_dir, worker_stop));
 
     *guard = Some(PrintWorkerHandle {
         state: state.clone(),
         stop,
-        join: Some(join),
+        scan_join,
     });
 
     Ok(state)
@@ -83,6 +94,14 @@ pub fn start_print_worker(app: AppHandle) -> Result<PrintState, String> {
 
 /// Stops the print worker and returns the unavailable print state.
 pub fn stop_print_worker() -> Result<PrintState, String> {
+    if !platform_print_supported() {
+        return Ok(PrintState {
+            print_server_ready: false,
+            status: "unsupported".into(),
+            ..PrintState::default()
+        });
+    }
+
     let handle = {
         let mut guard = runtime()
             .lock()
@@ -92,7 +111,7 @@ pub fn stop_print_worker() -> Result<PrintState, String> {
 
     if let Some(mut handle) = handle {
         handle.stop.store(true, Ordering::SeqCst);
-        if let Some(join) = handle.join.take() {
+        if let Some(join) = handle.scan_join.take() {
             let _ = join.join();
         }
     }
@@ -118,6 +137,14 @@ fn fix_runtime() -> &'static Mutex<Option<FixWorkerHandle>> {
 
 /// Starts the printer fix worker that periodically restarts the print worker if it is unavailable.
 pub fn start_printer_fix_worker(app: AppHandle) -> Result<PrintState, String> {
+    if !platform_print_supported() {
+        return Ok(PrintState {
+            print_server_ready: false,
+            status: "unsupported".into(),
+            ..PrintState::default()
+        });
+    }
+
     let mut guard = fix_runtime()
         .lock()
         .map_err(|_| "打印机修复服务状态锁已损坏".to_string())?;
@@ -160,6 +187,14 @@ pub fn start_printer_fix_worker(app: AppHandle) -> Result<PrintState, String> {
 
 /// Stops the printer fix worker and returns the unavailable print state.
 pub fn stop_printer_fix_worker() -> Result<PrintState, String> {
+    if !platform_print_supported() {
+        return Ok(PrintState {
+            print_server_ready: false,
+            status: "unsupported".into(),
+            ..PrintState::default()
+        });
+    }
+
     let handle = {
         let mut guard = fix_runtime()
             .lock()
@@ -239,6 +274,16 @@ fn sleep_until_next_scan(stop: &AtomicBool) {
         thread::sleep(Duration::from_millis(250));
         elapsed += Duration::from_millis(250);
     }
+}
+
+#[cfg(target_os = "linux")]
+fn platform_print_supported() -> bool {
+    true
+}
+
+#[cfg(not(target_os = "linux"))]
+fn platform_print_supported() -> bool {
+    false
 }
 
 fn run_scan(app: &AppHandle, cache_dir: &Path) -> Result<usize, String> {

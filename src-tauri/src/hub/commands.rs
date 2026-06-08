@@ -139,6 +139,10 @@ pub fn system_init(app: AppHandle) -> CommandResult<StartupState> {
             }
             Err(error) => return CommandResult::fail("HUB_USB_START_ERROR", &error),
         }
+
+        if let Err(error) = super::network_service::start_network_monitor(app.clone(), product_type) {
+            return CommandResult::fail("HUB_NETWORK_MONITOR_START_ERROR", &error);
+        }
     }
 
     emit_hub_state(&app, &startup_state);
@@ -148,6 +152,7 @@ pub fn system_init(app: AppHandle) -> CommandResult<StartupState> {
 #[tauri::command]
 /// Releases Hub system capabilities before logout, close, or shutdown.
 pub fn system_destroy(app: AppHandle) -> CommandResult<bool> {
+    let _ = super::network_service::stop_network_monitor();
     let print_state = print_service::stop_print_worker().unwrap_or_else(|_| PrintState {
         print_server_ready: false,
         status: "unavailable".into(),
@@ -176,6 +181,14 @@ pub fn start_background_tasks(app: AppHandle) -> CommandResult<bool> {
         return CommandResult::fail("HUB_USB_START_ERROR", &error);
     }
 
+    let preferences = match load_preferences(&app) {
+        Ok(value) => value,
+        Err(error) => return CommandResult::fail("HUB_PREFERENCES_READ_ERROR", &error),
+    };
+    if let Err(error) = super::network_service::start_network_monitor(app.clone(), preferences.product_type) {
+        return CommandResult::fail("HUB_NETWORK_MONITOR_START_ERROR", &error);
+    }
+
     emit_background_state(&app, true, now_millis());
     CommandResult::ok(true)
 }
@@ -193,12 +206,16 @@ pub fn stop_background_tasks(app: AppHandle) -> CommandResult<bool> {
         return CommandResult::fail("HUB_USB_STOP_ERROR", &error);
     }
 
+    if let Err(error) = super::network_service::stop_network_monitor() {
+        return CommandResult::fail("HUB_NETWORK_MONITOR_STOP_ERROR", &error);
+    }
+
     emit_background_state(&app, false, now_millis());
     CommandResult::ok(true)
 }
 
 #[tauri::command]
-/// Registers or repairs the CPMS virtual printer and returns the new print state.
+/// Starts the print worker (cache scan + upload). Does not register a system-level virtual printer.
 pub fn add_printer(app: AppHandle) -> CommandResult<PrintState> {
     let print_state = match print_service::start_print_worker(app.clone()) {
         Ok(value) => value,
@@ -210,7 +227,7 @@ pub fn add_printer(app: AppHandle) -> CommandResult<PrintState> {
 }
 
 #[tauri::command]
-/// Disables the CPMS virtual printer and returns the new print state.
+/// Stops the print worker. Does not unregister a system-level virtual printer.
 pub fn disable_printer(app: AppHandle) -> CommandResult<PrintState> {
     let print_state = match print_service::stop_print_worker() {
         Ok(value) => value,
@@ -222,8 +239,8 @@ pub fn disable_printer(app: AppHandle) -> CommandResult<PrintState> {
 }
 
 #[tauri::command]
-/// Repairs the CPMS virtual printer if it is unavailable.
-/// Platform-specific implementation can replace the internal stub.
+/// Restarts the print worker if it is unavailable.
+/// Does not interact with OS printer drivers.
 pub fn fix_printer(app: AppHandle) -> CommandResult<PrintState> {
     let print_state = match print_service::start_print_worker(app.clone()) {
         Ok(value) => value,
@@ -341,14 +358,93 @@ pub fn ping_server(host: String) -> CommandResult<Value> {
         return CommandResult::fail("HUB_PING_HOST_EMPTY", "host 不能为空");
     }
 
-    CommandResult::ok(json!({
-        "host": trimmed,
-        "packetLossRate": 0,
-        "minMs": 0,
-        "maxMs": 0,
-        "avgMs": 0,
-        "message": "ping command interface is ready; platform implementation can replace this stub",
+    match do_ping(trimmed) {
+        Ok(value) => CommandResult::ok(value),
+        Err(error) => CommandResult::fail("HUB_PING_ERROR", &error),
+    }
+}
+
+fn do_ping(host: &str) -> Result<Value, String> {
+    let output = if cfg!(target_os = "windows") {
+        std::process::Command::new("ping")
+            .args(["-n", "4", "-w", "4000", host])
+            .output()
+            .map_err(|error| error.to_string())?
+    } else {
+        std::process::Command::new("ping")
+            .args(["-c", "4", "-W", "4", host])
+            .output()
+            .map_err(|error| error.to_string())?
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let text = format!("{stdout}\n{stderr}");
+
+    let packet_loss = parse_ping_packet_loss(&text);
+    let (min_ms, max_ms, avg_ms) = parse_ping_latency(&text);
+
+    Ok(json!({
+        "host": host,
+        "packetLossRate": packet_loss,
+        "minMs": min_ms,
+        "maxMs": max_ms,
+        "avgMs": avg_ms,
+        "message": text.trim(),
     }))
+}
+
+fn parse_ping_packet_loss(text: &str) -> i32 {
+    if let Some(pos) = text.find('%') {
+        let start = text[..pos]
+            .rfind(|character: char| !character.is_ascii_digit() && character != '.')
+            .map(|index| index + 1)
+            .unwrap_or(0);
+        text[start..pos].trim().parse::<f64>().unwrap_or(-1.0) as i32
+    } else {
+        -1
+    }
+}
+
+fn parse_ping_latency(text: &str) -> (i32, i32, i32) {
+    if text.contains("Average") || text.contains("minimum") || text.contains("Maximum") {
+        let min_ms = extract_ms_after_keyword(text, "Minimum");
+        let max_ms = extract_ms_after_keyword(text, "Maximum");
+        let avg_ms = extract_ms_after_keyword(text, "Average");
+        (min_ms, max_ms, avg_ms)
+    } else if text.contains("min/avg/max") {
+        if let Some(line) = text.lines().find(|line| line.contains("min/avg/max")) {
+            if let Some(after_eq) = line.split('=').nth(1) {
+                let parts: Vec<&str> = after_eq.trim().split('/').collect();
+                if parts.len() >= 3 {
+                    let min_ms = parts[0].trim().parse::<f64>().unwrap_or(0.0) as i32;
+                    let avg_ms = parts[1].trim().parse::<f64>().unwrap_or(0.0) as i32;
+                    let max_ms = parts[2].trim().parse::<f64>().unwrap_or(0.0) as i32;
+                    return (min_ms, max_ms, avg_ms);
+                }
+            }
+        }
+        (0, 0, 0)
+    } else {
+        (0, 0, 0)
+    }
+}
+
+fn extract_ms_after_keyword(text: &str, keyword: &str) -> i32 {
+    if let Some(pos) = text.find(keyword) {
+        let after = &text[pos + keyword.len()..];
+        if let Some(eq_pos) = after.find('=') {
+            let num_part = &after[eq_pos + 1..];
+            let end = num_part
+                .find(|character: char| !character.is_ascii_digit() && character != '.')
+                .unwrap_or(num_part.len());
+            num_part[..end].trim().parse::<f64>().unwrap_or(0.0) as i32
+        } else {
+            0
+        }
+    } else {
+        0
+    }
 }
 
 #[tauri::command]

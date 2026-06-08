@@ -1,17 +1,17 @@
 import { unwrapCommand } from "./client";
 import type { PrintState } from "@/types/hub/printer";
 
-/** 注册或修复 CPMS 虚拟打印机。 */
+/** 启动 print worker（cache 扫描 + 上传）。不涉及系统级虚拟打印机注册。 */
 export function addPrinter() {
   return unwrapCommand<PrintState>("add_printer");
 }
 
-/** 禁用或移除 CPMS 虚拟打印机。 */
+/** 停止 print worker。不涉及系统级虚拟打印机移除。 */
 export function disablePrinter() {
   return unwrapCommand<PrintState>("disable_printer");
 }
 
-/** 修复 CPMS 虚拟打印机状态。 */
+/** 重新启动 print worker。不涉及系统级虚拟打印机修复。 */
 export function fixPrinter() {
   return unwrapCommand<PrintState>("fix_printer");
 }

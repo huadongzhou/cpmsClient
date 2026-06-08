@@ -17,9 +17,9 @@ export function injectHubClientBridge() {
     systemDestroy: () => invoke("system_destroy"),
     startBackgroundTasks: () => invoke("start_background_tasks"),
     stopBackgroundTasks: () => invoke("stop_background_tasks"),
-    addPrinter: () => invoke("add_printer"),
-    disablePrinter: () => invoke("disable_printer"),
-    fixPrinter: () => invoke("fix_printer"),
+    addPrinter: () => invoke("add_printer"), // 启动 print worker（不涉及系统级虚拟打印机注册）
+    disablePrinter: () => invoke("disable_printer"), // 停止 print worker
+    fixPrinter: () => invoke("fix_printer"), // 重新启动 print worker
     initUsbPrinter: () => invoke("init_usb_printer"),
     closeWindowWithConfirm: () => invoke("close_window_with_confirm"),
     getAppVersion: () => invoke("get_app_version"),

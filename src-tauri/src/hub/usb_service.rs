@@ -14,9 +14,10 @@ use tauri::{AppHandle, Manager};
 use super::events::{emit_job_error, emit_job_progress, emit_usb_state};
 use super::http_service;
 use super::models::{HubPreferences, ServerData, UsbData, UsbState, UserData};
-use super::preferences::load_preferences;
+use super::preferences::{load_preferences, update_preferences};
 
 const USB_SCAN_INTERVAL: Duration = Duration::from_secs(3);
+const USB_WRITE_SCAN_INTERVAL: Duration = Duration::from_secs(1);
 const USB_DOWNLOAD_PREFIX: &str = "cpms_usb_prn";
 const USB_DOWNLOADING_SUFFIX: &str = "-downloading";
 const USB_DONE_SUFFIX: &str = "-downloaded.json";
@@ -24,11 +25,15 @@ const USB_PRINTING_SUFFIX: &str = "-printing";
 const USB_PRINTED_SUFFIX: &str = "-printed";
 const USB_JOB_LIST_PATH: &str = "/cpms/api/jobs/getUsbJobList";
 const USB_DOWNLOAD_PATH: &str = "/cpms/api/jobs/downLoadUsbPdf";
+const USB_SAVE_JOB_PATH: &str = "/cpms/api/jobs/saveJobInfo";
+const USB_UPDATE_JOB_ERROR_PATH: &str = "/cpms/api/jobs/updateJobErrorStatus";
+const USB_BULK_CHUNK_SIZE: usize = 180 * 1024;
 
 struct UsbWorkerHandle {
     state: UsbState,
     stop: Arc<AtomicBool>,
-    join: Option<JoinHandle<()>>,
+    download_join: Option<JoinHandle<()>>,
+    write_join: Option<JoinHandle<()>>,
 }
 
 #[derive(Clone)]
@@ -57,7 +62,7 @@ fn runtime() -> &'static Mutex<Option<UsbWorkerHandle>> {
     USB_RUNTIME.get_or_init(|| Mutex::new(None))
 }
 
-/// Starts the USB download worker. It is active only when persisted usbData exists.
+/// Starts the USB download and write workers.
 pub fn start_usb_worker(app: AppHandle) -> Result<UsbState, String> {
     let preferences = load_preferences(&app)?;
     let state = state_from_preferences(&preferences, false);
@@ -86,21 +91,31 @@ pub fn start_usb_worker(app: AppHandle) -> Result<UsbState, String> {
         ..state_from_preferences(&preferences, true)
     };
     let stop = Arc::new(AtomicBool::new(false));
-    let worker_stop = Arc::clone(&stop);
-    let worker_app = app.clone();
-    let join = thread::spawn(move || worker_loop(worker_app, cache_dir, worker_stop));
+    let download_stop = Arc::clone(&stop);
+    let write_stop = Arc::clone(&stop);
+    let download_app = app.clone();
+    let write_app = app.clone();
+    let write_cache_dir = cache_dir.clone();
+
+    let download_join = thread::spawn(move || {
+        download_worker_loop(download_app, cache_dir, download_stop)
+    });
+    let write_join = thread::spawn(move || {
+        write_worker_loop(write_app, write_cache_dir, write_stop)
+    });
 
     *guard = Some(UsbWorkerHandle {
         state: running_state.clone(),
         stop,
-        join: Some(join),
+        download_join: Some(download_join),
+        write_join: Some(write_join),
     });
 
     emit_usb_state(&app, running_state.clone());
     Ok(running_state)
 }
 
-/// Stops the USB download worker and returns the last persisted USB state.
+/// Stops the USB workers and returns the last persisted USB state.
 pub fn stop_usb_worker(app: AppHandle) -> Result<UsbState, String> {
     let handle = {
         let mut guard = runtime()
@@ -111,7 +126,10 @@ pub fn stop_usb_worker(app: AppHandle) -> Result<UsbState, String> {
 
     if let Some(mut handle) = handle {
         handle.stop.store(true, Ordering::SeqCst);
-        if let Some(join) = handle.join.take() {
+        if let Some(join) = handle.download_join.take() {
+            let _ = join.join();
+        }
+        if let Some(join) = handle.write_join.take() {
             let _ = join.join();
         }
     }
@@ -138,26 +156,173 @@ pub fn current_usb_state(app: &AppHandle) -> Result<UsbState, String> {
     Ok(state_from_preferences(&preferences, running))
 }
 
-/// Discovers USB printer hardware.
-/// Current placeholder reads persisted `usb_data`; platform enumeration will be plugged in later.
+/// Discovers USB printer hardware via nusb enumeration.
+/// Falls back to persisted `usb_data` if no printer is found.
 pub fn discover_usb_printer(app: &AppHandle) -> Result<Option<UsbData>, String> {
+    match discover_usb_printer_hardware() {
+        Ok(Some(usb_data)) => {
+            let _ = update_preferences(app, |preferences| {
+                preferences.usb_data = Some(usb_data.clone());
+            });
+            return Ok(Some(usb_data));
+        }
+        Ok(None) => {}
+        Err(error) => {
+            emit_job_error(
+                app,
+                json!({
+                    "source": "usb-discovery",
+                    "code": "HUB_USB_DISCOVER_WARNING",
+                    "message": error,
+                }),
+            );
+        }
+    }
+
     let preferences = load_preferences(app)?;
-    // TODO: 预留后续平台枚举逻辑（如通过 libusb / WinUSB 枚举 USB 打印机）
     Ok(preferences.usb_data)
 }
 
+fn discover_usb_printer_hardware() -> Result<Option<UsbData>, String> {
+    let devices = nusb::list_devices().map_err(|error| error.to_string())?;
+
+    for device_info in devices {
+        for interface in device_info.interfaces() {
+            if interface.class() == 7 {
+                let manufacturer = device_info
+                    .manufacturer_string()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("Vendor_{:04X}", device_info.vendor_id()));
+                let product = device_info
+                    .product_string()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("Product_{:04X}", device_info.product_id()));
+                let uuid = generate_stable_uuid(&format!("{}_{}", product, manufacturer));
+
+                return Ok(Some(UsbData {
+                    manufacturer_name: manufacturer,
+                    product_name: product,
+                    uuid,
+                }));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+fn generate_stable_uuid(key: &str) -> String {
+    let result = md5::compute(key.as_bytes());
+    format!(
+        "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+        u32::from_le_bytes([result[0], result[1], result[2], result[3]]),
+        u16::from_le_bytes([result[4], result[5]]),
+        u16::from_le_bytes([result[6], result[7]]),
+        u16::from_le_bytes([result[8], result[9]]),
+        u64::from_le_bytes([0, 0, result[10], result[11], result[12], result[13], result[14], result[15]])
+    )
+}
+
 /// Writes a downloaded job file to the USB printer via bulk-out transfer.
-/// Current placeholder only logs intent; actual bulk write will be implemented later.
 pub fn write_usb_bulk_out(
-    _app: &AppHandle,
-    _job_id: &str,
-    _file_path: &Path,
+    app: &AppHandle,
+    job_id: &str,
+    file_path: &Path,
 ) -> Result<(), String> {
-    // TODO: 预留后续分块写入、预热、调用 saveJobInfo / updateJobErrorStatus 逻辑
+    let preferences = load_preferences(app)?;
+    let Some(usb_data) = preferences.usb_data else {
+        return Err("未配置 USB 打印机".to_string());
+    };
+
+    let file_data = std::fs::read(file_path).map_err(|error| error.to_string())?;
+    if file_data.is_empty() {
+        return Err("USB 打印文件为空".to_string());
+    }
+
+    let rt = tokio::runtime::Runtime::new().map_err(|error| error.to_string())?;
+    rt.block_on(async {
+        do_usb_bulk_write(&usb_data, &file_data).await
+    })
+    .map_err(|error| {
+        let _ = report_usb_job_error(app, &usb_data, job_id, &error);
+        error
+    })?;
+
+    if let Err(error) = report_usb_job_saved(app, &usb_data, job_id) {
+        emit_job_error(
+            app,
+            json!({
+                "source": "usb-write",
+                "code": "HUB_USB_REPORT_SAVE_WARNING",
+                "jobId": job_id,
+                "message": error,
+            }),
+        );
+    }
+
     Ok(())
 }
 
-fn worker_loop(app: AppHandle, cache_dir: PathBuf, stop: Arc<AtomicBool>) {
+async fn do_usb_bulk_write(usb_data: &UsbData, file_data: &[u8]) -> Result<(), String> {
+    let mut devices = nusb::list_devices().map_err(|error| error.to_string())?;
+
+    let device_info = devices
+        .find(|device| {
+            device.manufacturer_string().as_deref() == Some(&usb_data.manufacturer_name)
+                && device.product_string().as_deref() == Some(&usb_data.product_name)
+        })
+        .ok_or("未找到匹配的 USB 打印机")?;
+
+    let device = device_info.open().map_err(|error| error.to_string())?;
+    let config = device
+        .active_configuration()
+        .map_err(|error| error.to_string())?;
+
+    let (interface_number, endpoint_address) = find_printer_bulk_out_endpoint(&config)
+        .ok_or("未找到打印机 Bulk OUT 接口")?;
+
+    let interface = device
+        .claim_interface(interface_number)
+        .map_err(|error| error.to_string())?;
+
+    let total = file_data.len();
+    let mut offset = 0_usize;
+
+    while offset < total {
+        let end = (offset + USB_BULK_CHUNK_SIZE).min(total);
+        let chunk = file_data[offset..end].to_vec();
+
+        let completion = interface.bulk_out(endpoint_address, chunk).await;
+        let transferred = completion
+            .into_result()
+            .map_err(|error| format!("USB Bulk 传输失败: {:?}", error))?;
+
+        offset += transferred.actual_length();
+    }
+
+    Ok(())
+}
+
+fn find_printer_bulk_out_endpoint(
+    config: &nusb::descriptors::Configuration,
+) -> Option<(u8, u8)> {
+    for interface in config.interfaces() {
+        for alt in interface.alt_settings() {
+            if alt.class() == 7 {
+                for endpoint in alt.endpoints() {
+                    if endpoint.address() < 0x80
+                        && endpoint.transfer_type() == nusb::transfer::EndpointType::Bulk
+                    {
+                        return Some((alt.interface_number(), endpoint.address()));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn download_worker_loop(app: AppHandle, cache_dir: PathBuf, stop: Arc<AtomicBool>) {
     while !stop.load(Ordering::SeqCst) {
         if let Err(error) = run_download_scan(&app, &cache_dir) {
             emit_job_error(
@@ -170,13 +335,30 @@ fn worker_loop(app: AppHandle, cache_dir: PathBuf, stop: Arc<AtomicBool>) {
             );
         }
 
-        sleep_until_next_scan(&stop);
+        sleep_until(&stop, USB_SCAN_INTERVAL);
     }
 }
 
-fn sleep_until_next_scan(stop: &AtomicBool) {
+fn write_worker_loop(app: AppHandle, cache_dir: PathBuf, stop: Arc<AtomicBool>) {
+    while !stop.load(Ordering::SeqCst) {
+        if let Err(error) = run_write_scan(&app, &cache_dir) {
+            emit_job_error(
+                &app,
+                json!({
+                    "source": "usb-write-worker",
+                    "code": "HUB_USB_WRITE_WORKER_ERROR",
+                    "message": error,
+                }),
+            );
+        }
+
+        sleep_until(&stop, USB_WRITE_SCAN_INTERVAL);
+    }
+}
+
+fn sleep_until(stop: &AtomicBool, duration: Duration) {
     let mut elapsed = Duration::ZERO;
-    while elapsed < USB_SCAN_INTERVAL && !stop.load(Ordering::SeqCst) {
+    while elapsed < duration && !stop.load(Ordering::SeqCst) {
         thread::sleep(Duration::from_millis(250));
         elapsed += Duration::from_millis(250);
     }
@@ -208,6 +390,101 @@ fn run_download_scan(app: &AppHandle, cache_dir: &Path) -> Result<usize, String>
     }
 
     Ok(downloaded)
+}
+
+fn run_write_scan(app: &AppHandle, cache_dir: &Path) -> Result<usize, String> {
+    let preferences = load_preferences(app)?;
+    if preferences.usb_data.is_none() {
+        return Ok(0);
+    }
+
+    let entries = fs::read_dir(cache_dir).map_err(|error| error.to_string())?;
+    let mut processed = 0_usize;
+
+    for entry in entries.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+        if !name.starts_with(USB_DOWNLOAD_PREFIX) || !name.ends_with(USB_DONE_SUFFIX) {
+            continue;
+        }
+
+        let pdf_path = path.with_extension("").with_extension("");
+        let printing_path = PathBuf::from(format!(
+            "{}{}",
+            path.to_string_lossy(),
+            USB_PRINTING_SUFFIX
+        ));
+        let printed_path = PathBuf::from(format!(
+            "{}{}",
+            path.to_string_lossy(),
+            USB_PRINTED_SUFFIX
+        ));
+
+        if printed_path.exists() || printing_path.exists() {
+            continue;
+        }
+
+        let done_data: UsbDownloadDoneFileData = match fs::read_to_string(&path)
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+        {
+            Some(data) => data,
+            None => continue,
+        };
+
+        if !pdf_path.exists() {
+            continue;
+        }
+
+        let pdf_meta = fs::metadata(&pdf_path).map_err(|error| error.to_string())?;
+        if pdf_meta.len() != done_data.file_size {
+            continue;
+        }
+
+        let _lock = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&printing_path)
+        {
+            Ok(file) => file,
+            Err(_) => continue,
+        };
+
+        emit_job_progress(
+            app,
+            json!({
+                "source": "usb-write-worker",
+                "step": "printing",
+                "jobId": done_data.job_id,
+                "uuid": done_data.uuid,
+                "filePath": pdf_path,
+            }),
+        );
+
+        match write_usb_bulk_out(app, &done_data.job_id, &pdf_path) {
+            Ok(()) => {
+                let _ = fs::rename(&path, &printed_path);
+                let _ = fs::rename(&pdf_path, format!("{}{}", pdf_path.to_string_lossy(), USB_PRINTED_SUFFIX));
+                let _ = fs::remove_file(&printing_path);
+                processed += 1;
+            }
+            Err(error) => {
+                let _ = fs::remove_file(&printing_path);
+                emit_job_error(
+                    app,
+                    json!({
+                        "source": "usb-write-worker",
+                        "code": "HUB_USB_WRITE_ERROR",
+                        "jobId": done_data.job_id,
+                        "message": error,
+                    }),
+                );
+            }
+        }
+    }
+
+    Ok(processed)
 }
 
 fn build_usb_context(preferences: HubPreferences) -> Option<UsbContext> {
@@ -414,6 +691,81 @@ fn write_done_file(
     .map_err(|error| error.to_string())?;
 
     Ok(file_size)
+}
+
+fn report_usb_job_saved(
+    app: &AppHandle,
+    _usb_data: &UsbData,
+    job_id: &str,
+) -> Result<(), String> {
+    let preferences = load_preferences(app)?;
+    let Some(server) = preferences.server else {
+        return Err("服务器未配置".to_string());
+    };
+    let Some(user) = preferences.user else {
+        return Err("用户未登录".to_string());
+    };
+
+    let uri = format!("{USB_SAVE_JOB_PATH}/{job_id}");
+    let url = http_service::build_cpms_url(&server, &uri)?;
+    let token = user.token.as_deref().unwrap_or_default();
+    let headers = http_service::build_signed_headers(Some(token), &uri, "")?;
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut request = client.get(url);
+    for (key, value) in headers {
+        request = request.header(key, value);
+    }
+
+    let response = request.send().map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("saveJobInfo 失败: HTTP {}", response.status()));
+    }
+
+    Ok(())
+}
+
+fn report_usb_job_error(
+    app: &AppHandle,
+    _usb_data: &UsbData,
+    job_id: &str,
+    error_msg: &str,
+) -> Result<(), String> {
+    let preferences = load_preferences(app)?;
+    let Some(server) = preferences.server else {
+        return Err("服务器未配置".to_string());
+    };
+    let Some(user) = preferences.user else {
+        return Err("用户未登录".to_string());
+    };
+
+    let uri = format!("{USB_UPDATE_JOB_ERROR_PATH}/{job_id}");
+    let url = http_service::build_cpms_url(&server, &uri)?;
+    let token = user.token.as_deref().unwrap_or_default();
+    let headers = http_service::build_signed_headers(Some(token), &uri, "")?;
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut request = client.get(url);
+    for (key, value) in headers {
+        request = request.header(key, value);
+    }
+
+    let response = request.send().map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "updateJobErrorStatus 失败: HTTP {}",
+            response.status()
+        ));
+    }
+
+    let _ = error_msg;
+    Ok(())
 }
 
 fn usb_download_file_name(uuid: &str, job_id: &str) -> String {
