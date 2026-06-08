@@ -54,10 +54,20 @@
       apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       # 启用 arm64 架构支持
-      # Ubuntu 主镜像 archive.ubuntu.com 不提供 arm64 包，需切换到 ports.ubuntu.com
+      # archive.ubuntu.com 不提供 arm64，ports.ubuntu.com 不提供 amd64，需两者共存
       dpkg --add-architecture arm64
-      sed -i 's|http://archive.ubuntu.com/ubuntu/|http://ports.ubuntu.com/ubuntu-ports/|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
-      sed -i 's|http://security.ubuntu.com/ubuntu/|http://ports.ubuntu.com/ubuntu-ports/|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+
+      # 1) 撤销之前可能改错的 ports 源，恢复 archive.ubuntu.com
+      sed -i 's|http://ports.ubuntu.com/ubuntu-ports/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+
+      # 2) 为现有源限制只下载 amd64 包
+      sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true
+
+      # 3) 单独添加 arm64 的 ports 源
+      echo 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse' >> /etc/apt/sources.list
+      echo 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse' >> /etc/apt/sources.list
+      echo 'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse' >> /etc/apt/sources.list
+
       apt-get update
 
       # 安装 arm64 运行库（可与 x86_64 版本共存）
