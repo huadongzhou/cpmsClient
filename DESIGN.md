@@ -131,17 +131,206 @@ cpms客户端名称：PrintClient
 
 ### 作业列表接口
 
+以下接口所有 CPMS 请求默认携带：
+
+- `Authorization`：  token，需要鉴权接口携带。
+- `Content-Type`：`application/x-www-form-urlencoded`，文件上传为 `multipart/form-data`。
+- `access_sign`：按 CPMS 签名规则生成。
+- `client=client`
+- `platform=harmony`
+
 #### 响应体
+
+普通作业列表：
+
+- 请求方式：POST
+- 请求路径：`/cpms/api/jobs/list`
+- 请求类型：`application/x-www-form-urlencoded`
+- 请求参数：
+  - `pageNumber`：当前页码。
+  - `pageSize`：每页数量。
+  - `type`：作业类型，`1` 打印、`2` 复印、`3` 扫描。
+  - `title`：作业标题，默认为空字符串。
+  - `searchTime`：查询范围，`now` 今日作业、`history` 历史作业、空字符串为默认范围。
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "records": [
+      {
+        "id": "job-001",
+        "documentName": "测试页.pdf",
+        "commitCount": 1,
+        "color": "Color",
+        "duplex": "OneSided",
+        "jobStatus": 2,
+        "jobStatusName": "待打印",
+        "compileTime": "2026-06-08 10:00:00",
+        "jobPageNum": 1,
+        "outDeviceName": "一楼大厅打印机",
+        "outDeviceSite": "一楼大厅"
+      }
+    ],
+    "total": 1,
+    "size": 20,
+    "current": 1
+  }
+}
+```
+
+USB 作业列表：
+
+- 请求方式：GET
+- 请求路径：`/cpms/api/jobs/getUsbJobList/{uuid}`
+- 说明：`uuid` 为本地识别到的 USB 打印机唯一标识。
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": [
+    {
+      "id": "job-001"
+    },
+    {
+      "jobId": "job-002"
+    }
+  ]
+}
+```
+
+字段说明：
+- `data.records`：普通作业分页数组。
+- `data`：USB 作业数组。
+- `data[].id` / `data[].jobId`：作业 ID，客户端兼容字符串与数字类型。
+- `jobStatus == 2`：待打印状态，Product C 批量取消只允许选择该状态。
 
 ### 设备列表接口
 
 #### 响应体
 
+- 请求方式：GET
+- 请求路径：`/cpms/api/userManager/listAvailDevices`
+- 说明：获取当前用户可用的授权直连打印设备列表。
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": [
+    {
+      "deviceId": "device-001",
+      "deviceName": "一楼大厅打印机",
+      "deviceIp": "192.168.1.120",
+      "deviceAuthenticate": "已认证",
+      "authType": 1
+    }
+  ]
+}
+```
+
+字段说明：
+- `deviceId`：设备 ID，选择机器后会作为 `directDeviceId` 参与任务转发。
+- `deviceName`：设备名称。
+- `deviceIp`：设备 IP。
+- `deviceAuthenticate`：设备认证状态，可选。
+- `authType`：认证类型，可选。
+
 ### 选择机器接口
 
 #### 响应体
 
+选择机器包含服务端更新和客户端本地持久化两步。
+
+服务端更新：
+
+- 请求方式：POST
+- 请求路径：`/cpms/api/userManager/updateDirectDeviceId`
+- 请求类型：`application/x-www-form-urlencoded`
+- 请求参数：
+  - `deviceId`：选择的直连打印设备 ID。
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": true
+}
+```
+
+客户端本地持久化：
+
+```json
+{
+  "success": true,
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "deviceId": "device-001",
+    "deviceName": "一楼大厅打印机",
+    "deviceIp": "192.168.1.120",
+    "deviceAuthenticate": "已认证",
+    "authType": 1
+  },
+  "logs": []
+}
+```
+
+字段说明：
+- `success`：是否保存成功。
+- `data`：本次选择的直连设备。
+- `logs`：客户端命令日志，默认空数组。
+
 ### 转发任务
+
+客户端通过打印任务文件和打印参数转发任务到线上服务。
+
+旧流程：
+
+- 请求方式：POST
+- 请求路径：`/cpms/api/jobs/uploadJobByWebOrH5`
+- 请求类型：`multipart/form-data`
+- 文件字段：`file`
+
+当前主要流程：
+
+- 请求方式：POST
+- 请求路径：`/cpms/api/jobs/xps/exec`
+- 请求类型：`multipart/form-data`
+- 文件字段：`file`
+- Query 参数：
+  - `fileSuffix`：文件后缀，当前为 `pdf`。
+  - `driverType`：驱动类型，当前为 `pdf`。
+  - `clientIp`：客户端 IP。
+  - `printProperties.driverName`
+  - `printProperties.portShared`
+  - `printProperties.terminalType`
+  - `printProperties.pageCount`
+  - `printProperties.copyCount`
+  - `printProperties.paper`
+  - `printProperties.duplexing`
+  - `printProperties.color`
+  - `printProperties.pageOrientation`
+  - `printProperties.documentCollate`
+  - `printProperties.isPSDriver`
+  - `title`
+  - `printProperties.documentName`
+  - `directDeviceId`：用户已选择直连设备时携带。
+  - `productType`：产品类型。
 
 #### 响应体
 
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": null
+}
+```
+
+字段说明：
+- `code`：服务端业务状态码，`200` 表示成功。
+- `message`：服务端提示信息。
+- `data`：转发结果数据，无额外数据时为 `null`。
