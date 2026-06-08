@@ -1,0 +1,105 @@
+# .coding-ci.yml
+# CODING 持续集成配置
+# 支持国产 Linux 系统打包（deb / rpm / appimage）
+
+# 通用 Linux 构建环境
+.linux-build-env: &linux-build-env
+  docker:
+    image: ubuntu:22.04
+
+# 通用构建阶段
+.linux-stages: &linux-stages
+  - name: 安装系统依赖
+    script: |
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y git curl build-essential libssl-dev pkg-config xdg-utils libfuse2 patchelf file
+      apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      apt-get install -y nodejs
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  - name: 安装项目依赖
+    script: |
+      . $HOME/.cargo/env
+      npm install -g pnpm@11.5.0
+      pnpm install
+  - name: 构建应用
+    script: |
+      . $HOME/.cargo/env
+      export APPIMAGE_EXTRACT_AND_RUN=1
+      pnpm build:all
+  - name: 收集产物
+    script: |
+      echo "========== 构建产物 =========="
+      find src-tauri/target/release/bundle -type f
+      mkdir -p artifacts
+      cp src-tauri/target/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
+      cp src-tauri/target/release/bundle/rpm/*.rpm artifacts/ 2>/dev/null || true
+      cp src-tauri/target/release/bundle/appimage/*.AppImage artifacts/ 2>/dev/null || true
+      echo "========== 已归档产物 =========="
+      ls -la artifacts/
+  - name: 推送制品仓库
+    script: |
+      if [ -z "$(find artifacts -maxdepth 1 -type f -print -quit)" ]; then
+        echo "artifacts 目录为空，终止推送"
+        exit 1
+      fi
+
+      npm install -g coding-generic@latest
+
+      REPO_NAME="${CI_REPO_NAME:-${CODING_REPO_NAME:-}}"
+      if [ -z "$REPO_NAME" ]; then
+        REPO_URL="$(git remote get-url origin)"
+        REPO_NAME="$(basename "$REPO_URL" .git)"
+      fi
+
+      TAG_NAME="${CI_TAG:-${CODING_TAG_NAME:-${GIT_TAG:-${CI_COMMIT_TAG:-}}}}"
+      TAG_NAME="${TAG_NAME#refs/tags/}"
+      if [ -z "$TAG_NAME" ]; then
+        TAG_NAME="$(git tag --points-at HEAD | head -n 1)"
+      fi
+      if [ -z "$TAG_NAME" ]; then
+        TAG_NAME="$(date +%Y%m%d%H%M%S)"
+        echo "未获取到 Tag，使用默认版本: $TAG_NAME"
+      fi
+
+      PACKAGE_VERSION="${TAG_NAME#v}"
+      ARTIFACT_FOLDER="${REPO_NAME}-$(echo "$TAG_NAME" | tr '/' '-')"
+      rm -rf "$ARTIFACT_FOLDER"
+      mkdir -p "$ARTIFACT_FOLDER"
+      cp artifacts/* "$ARTIFACT_FOLDER"/
+
+      echo "========== 推送制品到 CODING Generic =========="
+      echo "folder: ${ARTIFACT_FOLDER}"
+      echo "version: ${PACKAGE_VERSION}"
+      set +e
+      coding-generic -u=app-1780655294328:ca4c4d51e8f9d94c775c5bddeaf963a3193491ea --dir --path="$ARTIFACT_FOLDER" --registry="https://insolu-generic.pkg.coding.net/cpmsclient/app?version=${PACKAGE_VERSION}" > coding-generic-upload.log 2>&1
+      UPLOAD_EXIT=$?
+      set -e
+      cat coding-generic-upload.log
+      if [ "$UPLOAD_EXIT" -ne 0 ] || grep -E "Request failed|网络请求错误|page not found|程序发生了一些异常" coding-generic-upload.log; then
+        echo "CODING Generic 上传失败"
+        exit 1
+      fi
+
+master:
+  # push:
+  #   - name: linux-build
+  #     <<: *linux-build-env
+  #     stages: *linux-stages
+
+  tag_push:
+    - name: linux-release
+      <<: *linux-build-env
+      stages: *linux-stages
+
+builder:
+  # push:
+  #   - name: linux-build
+  #     <<: *linux-build-env
+  #     stages: *linux-stages
+
+  tag_push:
+    - name: linux-release
+      <<: *linux-build-env
+      stages: *linux-stages

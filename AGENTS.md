@@ -93,6 +93,7 @@ cpmsClient/
 | 原生菜单 | 未实现 | 未看到菜单配置或 Rust 菜单构建 |
 | 窗口最小化 / 最大化 / 置顶 | 未实现 | 未看到窗口控制 API 封装 |
 | 隐藏到托盘 | 未实现 | 依赖系统托盘能力，当前未实现 |
+| 国产系统 / Linux 打包 | 已配置 | `tauri.conf.json` 已配置 `deb`、`rpm`、`appimage` 目标，支持统信UOS、麒麟、方德等国产 Linux 发行版；需在对应平台或容器内执行构建 |
 | 自动更新 | 未实现 | 未看到 updater 插件或更新配置 |
 
 ### 5.2 业务访问能力
@@ -162,6 +163,33 @@ Tauri 开发和构建命令：
 pnpm tauri dev
 pnpm tauri build
 ```
+
+打包构建命令（单包 / 平台包 / 全量）：
+
+```bash
+# 平台包命令（一次性构建该平台全部格式）
+pnpm build:win          # Windows 平台：msi + nsis
+pnpm build:linux        # Linux 平台：deb + rpm + appimage（国产系统通用）
+
+# 单包命令（一次性构建单个格式）
+pnpm build:win:msi      # Windows MSI 安装包
+pnpm build:win:nsis     # Windows NSIS 安装包
+pnpm build:linux:deb    # Linux Debian 包（统信UOS、银河麒麟桌面版、中科方德）
+pnpm build:linux:rpm    # Linux RPM 包（部分麒麟服务器版）
+pnpm build:linux:appimage # Linux AppImage 通用包
+
+# 指定架构的 Linux 平台包（国产系统常用架构）
+pnpm build:linux:x64    # x86_64 / amd64
+pnpm build:linux:arm64  # aarch64 / arm64（飞腾、鲲鹏）
+
+# 全量命令（一次性构建当前平台支持的全部格式）
+pnpm build:all          # Windows 下构建 msi + nsis；Linux 下构建 deb + rpm + appimage
+```
+
+> **注意**：
+> - 所有命令均已通过 `scripts/build.js` 做平台适配，确保在对应平台上**一次性执行成功**，不会因混入不支持的跨平台格式而报错。
+> - `build:all` 会根据当前宿主平台自动过滤可用格式（Windows 只打 `msi`/`nsis`，Linux 只打 `deb`/`rpm`/`appimage`）。如需真正产出全平台安装包，请在 CI 多平台矩阵中分别执行。
+> - `deb`/`rpm`/`appimage` 需在 Linux 环境（物理机、容器或 WSL）中执行；`msi`/`nsis` 需在 Windows 环境中执行。
 
 环境诊断命令：
 
