@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 node/tuari/
 dist
+.vite-hooks/
 dist-ssr
 .codex/
 .env

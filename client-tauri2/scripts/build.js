@@ -52,7 +52,8 @@ if (filteredBundles.length === 0) {
 }
 
 const bundlesArg = filteredBundles.join(" ");
-const cmd = `pnpm tauri build --bundles ${bundlesArg}`;
+const configArg = platform === "linux" ? "--config src-tauri/tauri.linux.conf.json " : "";
+const cmd = `pnpm tauri build ${configArg}--bundles ${bundlesArg}`;
 
 console.log(`🚀 正在构建: ${bundlesArg}（平台: ${platform}）`);
 console.log(`> ${cmd}\n`);

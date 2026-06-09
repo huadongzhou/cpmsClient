@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "cpmsClient",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "identifier": "com.cpms.client",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm --dir ../client-ui dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
-    "frontendDist": "../dist"
+    "beforeBuildCommand": "pnpm --dir ../client-ui build",
+    "frontendDist": "../../client-ui/dist"
   },
   "app": {
     "windows": [
@@ -36,7 +36,7 @@
     ],
     "linux": {
       "deb": {
-        "depends": ["libwebkit2gtk-4.0-37", "libgtk-3-0", "libappindicator3-1"]
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libappindicator3-1"]
       }
     }
   }

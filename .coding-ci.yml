@@ -32,11 +32,11 @@
       export APPIMAGE_EXTRACT_AND_RUN=1
 
       # 先构建 deb + rpm（不需要从 GitHub 下载外部工具）
-      pnpm tauri build --bundles deb rpm
+      pnpm --dir client-tauri2 tauri build --bundles deb rpm
 
       # 再构建 appimage（需要从 GitHub 下载 linuxdeploy，CODING CI 内网容易 504）
       # 失败不阻断流水线，确保 deb/rpm 核心产物始终可用
-      pnpm tauri build --bundles appimage || echo "WARNING: AppImage build failed (GitHub 504), skipping"
+      pnpm --dir client-tauri2 tauri build --bundles appimage || echo "WARNING: AppImage build failed (GitHub 504), skipping"
 
   - name: 配置 arm64 交叉编译环境
     script: |
@@ -113,11 +113,11 @@
     script: |
       mkdir -p artifacts
       # x86_64 产物（默认 target，路径在 target/release/bundle）
-      cp src-tauri/target/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
-      cp src-tauri/target/release/bundle/rpm/*.rpm artifacts/ 2>/dev/null || true
-      cp src-tauri/target/release/bundle/appimage/*.AppImage artifacts/ 2>/dev/null || true
+      cp client-tauri2/src-tauri/target/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
+      cp client-tauri2/src-tauri/target/release/bundle/rpm/*.rpm artifacts/ 2>/dev/null || true
+      cp client-tauri2/src-tauri/target/release/bundle/appimage/*.AppImage artifacts/ 2>/dev/null || true
       # arm64 产物
-      cp src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
+      cp client-tauri2/src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb artifacts/ 2>/dev/null || true
       echo "========== 已归档产物 =========="
       ls -la artifacts/
 

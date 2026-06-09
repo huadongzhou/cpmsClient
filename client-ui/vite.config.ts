@@ -58,8 +58,8 @@ export default defineConfig(() => {
           }
         : undefined,
       watch: {
-        // 3. tell Vite to ignore watching `src-tauri`
-        ignored: ["**/src-tauri/**"],
+        // 3. tell Vite to ignore Tauri shell build outputs
+        ignored: ["../client-tauri1/src-tauri/**", "../client-tauri2/src-tauri/**"],
       },
     },
   };

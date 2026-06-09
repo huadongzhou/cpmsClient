@@ -1,0 +1,46 @@
+[package]
+name = "cpms-client"
+version = "0.1.5"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "cpms_client_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+tauri = { version = "1", features = ["api-all", "system-tray", "icon-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+auto-launch = "0.5"
+open = "5"
+aes = "0.8"
+base64 = "0.22"
+cipher = { version = "0.4", features = ["alloc", "block-padding"] }
+ecb = { version = "0.1", features = ["alloc"] }
+md5 = "0.7"
+reqwest = { version = "0.12", default-features = false, features = [
+  "blocking",
+  "json",
+  "multipart",
+  "rustls-tls",
+] }
+sm4 = "0.5"
+futures-util = "0.3"
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+tokio = { version = "1", features = ["time"] }
+urlencoding = "2"
+uuid = { version = "1", features = ["v4"] }
+nusb = "0.1"

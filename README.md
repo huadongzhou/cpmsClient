@@ -1,3 +1,32 @@
+## 目录结构
+
+```text
+client-ui/       Vue 前端工程，提供两套 Tauri 壳共用的 UI 产物
+client-tauri2/   Tauri 2 桌面壳，用于 Windows 和新版 Linux
+client-tauri1/   Tauri 1 legacy 桌面壳，用于 libwebkit2gtk-4.0 国产 Linux 环境
+```
+
+常用构建命令：
+
+```bash
+pnpm build                 # 仅构建共用前端
+pnpm build:win             # Tauri 2 Windows: msi, nsis
+pnpm build:mac             # Tauri 2 macOS: app, dmg
+pnpm build:linux           # Tauri 2 Linux: deb, rpm, appimage
+pnpm build:linux:legacy    # Tauri 1 Linux: deb, rpm, appimage
+```
+
+## 发布矩阵
+
+| 平台 | Tauri 版本 | 软件名 | 架构 | 安装包 |
+| --- | --- | --- | --- | --- |
+| Windows | v2 | cpmsClient | x86_64, arm64 | msi, nsis |
+| macOS | v2 | cpmsClient | x86_64, arm64 | app, dmg |
+| Linux | v1 | cpmsClient-v1 | x86_64, arm64 | deb, rpm, appimage |
+| Linux | v2 | cpmsClient-v2 | x86_64, arm64 | deb, rpm, appimage |
+
+GitHub Actions 发布配置位于 `.github/workflows/build-release.yml`。打 tag `v*` 时会构建全部矩阵并上传 Release 附件；普通 push 和 pull request 只执行构建校验。
+
 ## 架构设计
 前端路由：
 - /  空layout页面   只有一个iframe作为容器
