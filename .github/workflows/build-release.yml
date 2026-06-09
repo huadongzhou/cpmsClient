@@ -151,12 +151,17 @@ jobs:
           done
           du -h "$bundle_root"/deb/*
 
+      - name: Prepare Linux artifacts
+        run: |
+          mkdir -p upload
+          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/* upload/
+          ls -la upload/
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cpmsClient-${{ matrix.version }}-linux-${{ matrix.arch }}
-          path: |
-            ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*
+          path: upload/*
           if-no-files-found: error
 
   build-linux-appimage:
@@ -240,12 +245,17 @@ jobs:
           fi
           du -h "$bundle_root"/appimage/*
 
+      - name: Prepare AppImage artifacts
+        run: |
+          mkdir -p upload
+          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/* upload/
+          ls -la upload/
+
       - name: Upload AppImage artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cpmsClient-${{ matrix.version }}-linux-${{ matrix.arch }}-appimage
-          path: |
-            ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*
+          path: upload/*
           if-no-files-found: error
 
   release:
