@@ -17,14 +17,14 @@ const platform = process.platform;
 // 当前宿主平台支持的 bundle 格式（与 Tauri bundler 保持一致）
 const platformBundles = {
   win32: ["msi", "nsis"],
-  linux: ["deb", "rpm", "appimage"],
+  linux: ["deb", "rpm"],
   darwin: ["app", "dmg"],
 };
 
 // 命令类型到 bundle 格式的映射
 const commandMap = {
   win: ["msi", "nsis"],
-  linux: ["deb", "rpm", "appimage"],
+  linux: ["deb", "rpm"],
   all: platformBundles[platform] || [],
   msi: ["msi"],
   nsis: ["nsis"],

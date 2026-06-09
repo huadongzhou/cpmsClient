@@ -75,18 +75,19 @@ jobs:
         run: pnpm install
 
       - name: Build Linux packages
-        run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb rpm appimage
+        run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb rpm
 
       - name: Verify generated Linux bundles
         run: |
           bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
           find "$bundle_root" -maxdepth 3 -type f -print
-          for dir in deb rpm appimage; do
+          for dir in deb rpm; do
             if ! find "$bundle_root/$dir" -maxdepth 1 -type f | grep -q .; then
               echo "Missing Linux ${{ matrix.version }} bundle output: $dir"
               exit 1
             fi
           done
+          du -h "$bundle_root"/deb/* "$bundle_root"/rpm/*
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -95,7 +96,6 @@ jobs:
           path: |
             ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*
             ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*
-            ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*
           if-no-files-found: error
 
   release:

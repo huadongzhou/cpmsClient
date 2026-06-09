@@ -12,8 +12,8 @@ client-tauri1/   Tauri 1 legacy 桌面壳，用于 libwebkit2gtk-4.0 国产 Linu
 pnpm build                 # 仅构建共用前端
 pnpm build:win             # Tauri 2 Windows: msi, nsis
 pnpm build:mac             # Tauri 2 macOS: app, dmg
-pnpm build:linux           # Tauri 2 Linux: deb, rpm, appimage
-pnpm build:linux:legacy    # Tauri 1 Linux: deb, rpm, appimage
+pnpm build:linux           # Tauri 2 Linux: deb, rpm
+pnpm build:linux:legacy    # Tauri 1 Linux: deb, rpm
 ```
 
 ## 发布矩阵
@@ -22,8 +22,8 @@ pnpm build:linux:legacy    # Tauri 1 Linux: deb, rpm, appimage
 | --- | --- | --- | --- | --- |
 | Windows | v2 | cpmsClient | x86_64, arm64 | msi, nsis |
 | macOS | v2 | cpmsClient | x86_64, arm64 | app, dmg |
-| Linux | v1 | cpmsClient-v1 | x86_64, arm64 | deb, rpm, appimage |
-| Linux | v2 | cpmsClient-v2 | x86_64, arm64 | deb, rpm, appimage |
+| Linux | v1 | cpmsClient-v1 | x86_64, arm64 | deb, rpm |
+| Linux | v2 | cpmsClient-v2 | x86_64, arm64 | deb, rpm |
 
 GitHub Actions 发布配置位于 `.github/workflows/build-release.yml`。打 tag `v*` 时会构建全部矩阵并上传 Release 附件；普通 push 和 pull request 只执行构建校验。
 

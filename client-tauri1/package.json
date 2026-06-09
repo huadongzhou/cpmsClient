@@ -1,6 +1,6 @@
 {
   "name": "cpms-client-tauri1",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,10 +8,10 @@
     "build:ui": "vp build --config vite.config.ts",
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "tauri build --config src-tauri/tauri.linux.conf.json --bundles deb rpm appimage",
-    "build:linux": "tauri build --config src-tauri/tauri.linux.conf.json --bundles deb rpm appimage",
-    "build:linux:x64": "tauri build --config src-tauri/tauri.linux.conf.json --target x86_64-unknown-linux-gnu --bundles deb rpm appimage",
-    "build:linux:arm64": "tauri build --config src-tauri/tauri.linux.conf.json --target aarch64-unknown-linux-gnu --bundles deb rpm appimage",
+    "build": "tauri build --config src-tauri/tauri.linux.conf.json --bundles deb rpm",
+    "build:linux": "tauri build --config src-tauri/tauri.linux.conf.json --bundles deb rpm",
+    "build:linux:x64": "tauri build --config src-tauri/tauri.linux.conf.json --target x86_64-unknown-linux-gnu --bundles deb rpm",
+    "build:linux:arm64": "tauri build --config src-tauri/tauri.linux.conf.json --target aarch64-unknown-linux-gnu --bundles deb rpm",
     "build:linux:deb": "tauri build --config src-tauri/tauri.linux.conf.json --bundles deb",
     "build:linux:rpm": "tauri build --config src-tauri/tauri.linux.conf.json --bundles rpm",
     "build:linux:appimage": "tauri build --config src-tauri/tauri.linux.conf.json --bundles appimage"
