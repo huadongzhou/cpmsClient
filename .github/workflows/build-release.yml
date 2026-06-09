@@ -84,6 +84,7 @@ jobs:
           bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
           for deb in "$bundle_root"/deb/*.deb; do
             [ -e "$deb" ] || continue
+            deb=$(realpath "$deb")
             tempdir=$(mktemp -d)
             dpkg-deb -x "$deb" "$tempdir"
             mkdir -p "$tempdir/DEBIAN"
