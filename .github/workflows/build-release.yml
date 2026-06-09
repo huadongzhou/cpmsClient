@@ -84,7 +84,8 @@ jobs:
             [ -e "$deb" ] || continue
             tempdir=$(mktemp -d)
             dpkg-deb -x "$deb" "$tempdir"
-            dpkg-deb -e "$deb" "$tempdir"
+            mkdir -p "$tempdir/DEBIAN"
+            dpkg-deb -e "$deb" "$tempdir/DEBIAN"
 
             desktop_file=$(find "$tempdir/usr/share/applications" -name "*.desktop" | head -n1)
             if [ -f "$desktop_file" ]; then
