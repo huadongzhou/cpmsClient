@@ -8,17 +8,35 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux-v2:
+  build-linux:
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
+          - version: v2
+            tauri_dir: client-tauri2
+            webkit_dev: libwebkit2gtk-4.1-dev
+            platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             arch: x86_64
-          - platform: ubuntu-22.04-arm
+          - version: v2
+            tauri_dir: client-tauri2
+            webkit_dev: libwebkit2gtk-4.1-dev
+            platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+          - version: v1
+            tauri_dir: client-tauri1
+            webkit_dev: libwebkit2gtk-4.0-dev
+            platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            arch: x86_64
+          - version: v1
+            tauri_dir: client-tauri1
+            webkit_dev: libwebkit2gtk-4.0-dev
+            platform: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             arch: arm64
 
@@ -46,114 +64,42 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: client-tauri2/src-tauri
+          workspaces: ${{ matrix.tauri_dir }}/src-tauri
 
-      - name: Install Linux V2 dependencies
+      - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2
+          sudo apt-get install -y ${{ matrix.webkit_dev }} libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils
 
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build Linux V2 packages
-        run: pnpm --dir client-tauri2 tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb rpm appimage
+      - name: Build Linux packages
+        run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb rpm appimage
 
-      - name: Verify generated Linux V2 bundles
+      - name: Verify generated Linux bundles
         run: |
-          bundle_root="client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle"
+          bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
           find "$bundle_root" -maxdepth 3 -type f -print
           for dir in deb rpm appimage; do
             if ! find "$bundle_root/$dir" -maxdepth 1 -type f | grep -q .; then
-              echo "Missing Linux V2 bundle output: $dir"
+              echo "Missing Linux ${{ matrix.version }} bundle output: $dir"
               exit 1
             fi
           done
 
-      - name: Upload Linux V2 artifacts
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cpmsClient-v2-linux-${{ matrix.arch }}
+          name: cpmsClient-${{ matrix.version }}-linux-${{ matrix.arch }}
           path: |
-            client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*
-            client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*
-            client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*
-          if-no-files-found: error
-
-  build-linux-v1:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            arch: x86_64
-          - platform: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            arch: arm64
-
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 11.5.0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: client-tauri1/src-tauri
-
-      - name: Install Linux V1 dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build Linux V1 packages
-        run: pnpm --dir client-tauri1 tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb rpm appimage
-
-      - name: Verify generated Linux V1 bundles
-        run: |
-          bundle_root="client-tauri1/src-tauri/target/${{ matrix.target }}/release/bundle"
-          find "$bundle_root" -maxdepth 3 -type f -print
-          for dir in deb rpm appimage; do
-            if ! find "$bundle_root/$dir" -maxdepth 1 -type f | grep -q .; then
-              echo "Missing Linux V1 bundle output: $dir"
-              exit 1
-            fi
-          done
-
-      - name: Upload Linux V1 artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cpmsClient-v1-linux-${{ matrix.arch }}
-          path: |
-            client-tauri1/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*
-            client-tauri1/src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*
-            client-tauri1/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*
+            ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*
+            ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*
+            ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*
           if-no-files-found: error
 
   release:
-    needs: [build-linux-v2, build-linux-v1]
+    needs: [build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
