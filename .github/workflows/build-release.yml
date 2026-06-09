@@ -83,10 +83,10 @@ jobs:
           for deb in "$bundle_root"/deb/*.deb; do
             [ -e "$deb" ] || continue
             tempdir=$(mktemp -d)
-            dpkg-deb -x "$deb" "$tempdir/data"
-            dpkg-deb -e "$deb" "$tempdir/control"
+            dpkg-deb -x "$deb" "$tempdir"
+            dpkg-deb -e "$deb" "$tempdir"
 
-            desktop_file=$(find "$tempdir/data/usr/share/applications" -name "*.desktop" | head -n1)
+            desktop_file=$(find "$tempdir/usr/share/applications" -name "*.desktop" | head -n1)
             if [ -f "$desktop_file" ]; then
               echo "Patching $desktop_file"
               grep -q "^StartupNotify=" "$desktop_file" && \
