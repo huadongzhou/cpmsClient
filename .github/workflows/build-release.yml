@@ -77,6 +77,41 @@ jobs:
       - name: Build Linux packages
         run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb rpm
 
+      - name: Fix deb desktop entries
+        run: |
+          bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
+          for deb in "$bundle_root"/deb/*.deb; do
+            [ -e "$deb" ] || continue
+            tempdir=$(mktemp -d)
+            dpkg-deb -x "$deb" "$tempdir/data"
+            dpkg-deb -e "$deb" "$tempdir/control"
+
+            desktop_file=$(find "$tempdir/data/usr/share/applications" -name "*.desktop" | head -n1)
+            if [ -f "$desktop_file" ]; then
+              echo "Patching $desktop_file"
+              grep -q "^StartupNotify=" "$desktop_file" && \
+                sed -i 's/^StartupNotify=.*/StartupNotify=true/' "$desktop_file" || \
+                echo "StartupNotify=true" >> "$desktop_file"
+
+              grep -q "^Terminal=" "$desktop_file" && \
+                sed -i 's/^Terminal=.*/Terminal=false/' "$desktop_file" || \
+                echo "Terminal=false" >> "$desktop_file"
+
+              wmclass="cpmsClient"
+              if [ "${{ matrix.version }}" = "v1" ]; then
+                wmclass="cpmsClient-v1"
+              else
+                wmclass="cpmsClient-v2"
+              fi
+              grep -q "^StartupWMClass=" "$desktop_file" && \
+                sed -i "s/^StartupWMClass=.*/StartupWMClass=$wmclass/" "$desktop_file" || \
+                echo "StartupWMClass=$wmclass" >> "$desktop_file"
+            fi
+
+            dpkg-deb -b "$tempdir" "$deb"
+            rm -rf "$tempdir"
+          done
+
       - name: Verify generated Linux bundles
         run: |
           bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
@@ -98,8 +133,83 @@ jobs:
             ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*
           if-no-files-found: error
 
+  build-linux-appimage:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: v2
+            tauri_dir: client-tauri2
+            webkit_dev: libwebkit2gtk-4.1-dev
+            platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            arch: x86_64
+          - version: v1
+            tauri_dir: client-tauri1
+            webkit_dev: libwebkit2gtk-4.0-dev
+            platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            arch: x86_64
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 11.5.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.tauri_dir }}/src-tauri
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.webkit_dev }} libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build AppImage
+        run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles appimage
+
+      - name: Verify AppImage bundle
+        run: |
+          bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
+          find "$bundle_root" -maxdepth 3 -type f -print
+          if ! find "$bundle_root/appimage" -maxdepth 1 -type f | grep -q .; then
+            echo "Missing Linux ${{ matrix.version }} AppImage bundle output"
+            exit 1
+          fi
+          du -h "$bundle_root"/appimage/*
+
+      - name: Upload AppImage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpmsClient-${{ matrix.version }}-linux-${{ matrix.arch }}-appimage
+          path: |
+            ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*
+          if-no-files-found: error
+
   release:
-    needs: [build-linux]
+    needs: [build-linux, build-linux-appimage]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
