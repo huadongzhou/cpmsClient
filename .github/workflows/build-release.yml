@@ -69,7 +69,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ${{ matrix.webkit_dev }} libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils
+          sudo apt-get install -y ${{ matrix.webkit_dev }} libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils zstd
 
       - name: Install dependencies
         run: pnpm install
@@ -113,6 +113,29 @@ jobs:
 
             dpkg-deb -b "$tempdir" "$deb"
             rm -rf "$tempdir"
+
+            # Convert zstd/xz compression back to gzip for compatibility with older dpkg
+            ar_tmp=$(mktemp -d)
+            pushd "$ar_tmp" >/dev/null
+            ar x "$deb"
+            for f in control.tar.* data.tar.*; do
+              case "$f" in
+                *.zst)
+                  zstd -d "$f" -o "${f%.zst}"
+                  gzip -n "${f%.zst}"
+                  rm -f "$f"
+                  ;;
+                *.xz)
+                  xz -d "$f"
+                  gzip -n "${f%.xz}"
+                  rm -f "$f"
+                  ;;
+              esac
+            done
+            rm -f "$deb"
+            ar rcs "$deb" debian-binary control.tar.gz data.tar.gz
+            popd >/dev/null
+            rm -rf "$ar_tmp"
           done
 
       - name: Verify generated Linux bundles
