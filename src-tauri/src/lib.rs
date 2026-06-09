@@ -2,7 +2,9 @@ mod hub;
 mod models;
 
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::thread;
 use std::time::Duration;
 
 use futures_util::StreamExt;
@@ -33,6 +35,7 @@ const DEFAULT_CPMS_BASE_URL: &str = "http://localhost:8080";
 const DEFAULT_IFRAME_CONFIG_PATH: &str = "/api/client/iframe-config";
 const DEFAULT_LOCAL_SOCKET_URL: &str = "ws://127.0.0.1:18080/ws/task";
 const DEFAULT_IFRAME_FALLBACK_URL: &str = "http://localhost:9528/#/";
+const DEFAULT_LOCAL_SOCKET_PATH: &str = "/ws/task";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -227,6 +230,11 @@ fn window_unmaximize(app: AppHandle) -> CommandResult<bool> {
 }
 
 #[tauri::command]
+fn window_set_fullscreen(app: AppHandle, fullscreen: bool) -> CommandResult<bool> {
+    control_main_window(&app, |window| window.set_fullscreen(fullscreen))
+}
+
+#[tauri::command]
 fn window_set_always_on_top(app: AppHandle, always_on_top: bool) -> CommandResult<bool> {
     control_main_window(&app, |window| window.set_always_on_top(always_on_top))
 }
@@ -297,6 +305,10 @@ fn setup_client_event_bridge(app: &AppHandle) {
             at: None,
         });
 
+        if handle_view_event(&app_handle, &payload.name, payload.payload.clone()) {
+            return;
+        }
+
         let event_payload = ClientEventPayload {
             name: payload.name,
             payload: payload.payload,
@@ -305,6 +317,161 @@ fn setup_client_event_bridge(app: &AppHandle) {
 
         let _ = app_handle.emit_to(MAIN_WINDOW_LABEL, CLIENT_TO_VIEW_EVENT, event_payload);
     });
+}
+
+fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> bool {
+    match name {
+        "client.window.pin" | "window.pin" => {
+            emit_view_command_result(
+                app,
+                "client.window.pin.result",
+                window_set_always_on_top(app.clone(), true),
+            );
+            true
+        }
+        "client.window.unpin" | "window.unpin" => {
+            emit_view_command_result(
+                app,
+                "client.window.unpin.result",
+                window_set_always_on_top(app.clone(), false),
+            );
+            true
+        }
+        "client.window.minimize" | "window.minimize" | "client.window.collapse" => {
+            emit_view_command_result(
+                app,
+                "client.window.minimize.result",
+                window_minimize(app.clone()),
+            );
+            true
+        }
+        "client.window.hide" | "window.hide" => {
+            emit_view_command_result(app, "client.window.hide.result", window_hide(app.clone()));
+            true
+        }
+        "client.window.close" | "window.close" => {
+            emit_view_command_result(app, "client.window.close.result", window_close(app.clone()));
+            true
+        }
+        "client.window.fullscreen" | "window.fullscreen" => {
+            let fullscreen = payload_bool(payload.as_ref(), "fullscreen").unwrap_or(true);
+            emit_view_command_result(
+                app,
+                "client.window.fullscreen.result",
+                window_set_fullscreen(app.clone(), fullscreen),
+            );
+            true
+        }
+        "client.window.exit-fullscreen" | "window.exit-fullscreen" => {
+            emit_view_command_result(
+                app,
+                "client.window.exit-fullscreen.result",
+                window_set_fullscreen(app.clone(), false),
+            );
+            true
+        }
+        "client.jobs.list" | "jobs.list" => {
+            let page_number = payload_i64(payload.as_ref(), "pageNumber").unwrap_or(1);
+            let page_size = payload_i64(payload.as_ref(), "pageSize").unwrap_or(20);
+            let job_type = payload_i64(payload.as_ref(), "type").unwrap_or(1);
+            let title = payload_string(payload.as_ref(), "title");
+            let search_time = payload_string(payload.as_ref(), "searchTime");
+            let app_handle = app.clone();
+            thread::spawn(move || {
+                let result = hub::get_job_list(
+                    app_handle.clone(),
+                    page_number,
+                    page_size,
+                    job_type,
+                    title,
+                    search_time,
+                );
+                emit_view_command_result(&app_handle, "client.jobs.list.result", result);
+            });
+            true
+        }
+        "client.devices.list" | "devices.list" | "client.printers.list" | "printers.list" => {
+            let app_handle = app.clone();
+            thread::spawn(move || {
+                let result = hub::get_available_devices(app_handle.clone());
+                emit_view_command_result(&app_handle, "client.devices.list.result", result);
+            });
+            true
+        }
+        "client.device.select" | "device.select" | "client.printer.select" | "printer.select" => {
+            let device = payload.map(|value| value.get("device").cloned().unwrap_or(value));
+            let Some(device) = device else {
+                emit_view_command_result::<Value>(
+                    app,
+                    "client.device.select.result",
+                    CommandResult::fail("DEVICE_PAYLOAD_EMPTY", "device 不能为空"),
+                );
+                return true;
+            };
+            let app_handle = app.clone();
+            thread::spawn(move || {
+                let result = hub::select_direct_device(app_handle.clone(), device);
+                emit_view_command_result(&app_handle, "client.device.select.result", result);
+            });
+            true
+        }
+        "client.auth.update-token" | "auth.update-token" | "client.token.update" => {
+            let token = payload_string(payload.as_ref(), "token")
+                .or_else(|| payload_string(payload.as_ref(), "accessToken"))
+                .or_else(|| payload.and_then(|value| value.as_str().map(str::to_string)))
+                .unwrap_or_default();
+            emit_view_command_result(
+                app,
+                "client.auth.update-token.result",
+                hub::save_auth_token(app.clone(), token),
+            );
+            true
+        }
+        _ => false,
+    }
+}
+
+fn emit_view_command_result<T: Serialize>(app: &AppHandle, name: &str, result: CommandResult<T>) {
+    let payload = serde_json::to_value(result).unwrap_or_else(|error| {
+        json!({
+            "success": false,
+            "code": "SERIALIZE_RESULT_ERROR",
+            "message": error.to_string(),
+            "data": null,
+            "logs": [],
+        })
+    });
+
+    let _ = app.emit_to(
+        MAIN_WINDOW_LABEL,
+        CLIENT_TO_VIEW_EVENT,
+        ClientEventPayload {
+            name: name.into(),
+            payload: Some(payload),
+            at: now_iso_string(),
+        },
+    );
+}
+
+fn payload_i64(payload: Option<&Value>, key: &str) -> Option<i64> {
+    payload.and_then(|value| value.get(key)).and_then(|value| {
+        value
+            .as_i64()
+            .or_else(|| value.as_str()?.parse::<i64>().ok())
+    })
+}
+
+fn payload_string(payload: Option<&Value>, key: &str) -> Option<String> {
+    payload
+        .and_then(|value| value.get(key))
+        .and_then(|value| value.as_str())
+        .map(str::to_string)
+}
+
+fn payload_bool(payload: Option<&Value>, key: &str) -> Option<bool> {
+    payload
+        .and_then(|value| value.get(key))
+        .and_then(Value::as_bool)
 }
 
 fn emit_iframe_payload_request(app: &AppHandle, reason: &str) -> String {
@@ -439,7 +606,130 @@ fn iframe_allowed_hosts() -> Vec<String> {
 }
 
 fn local_socket_url() -> String {
-    std::env::var("CPMS_LOCAL_SOCKET_URL").unwrap_or_else(|_| DEFAULT_LOCAL_SOCKET_URL.into())
+    std::env::var("CPMS_PRINTCLIENT_SOCKET_URL")
+        .or_else(|_| std::env::var("CPMS_LOCAL_SOCKET_URL"))
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(discover_print_client_socket_url)
+        .unwrap_or_else(|| DEFAULT_LOCAL_SOCKET_URL.into())
+}
+
+fn discover_print_client_socket_url() -> Option<String> {
+    if let Ok(config_path) = std::env::var("CPMS_PRINTCLIENT_CONFIG_PATH") {
+        let path = PathBuf::from(config_path);
+        if let Some(url) = socket_url_from_config_file(&path) {
+            return Some(url);
+        }
+    }
+
+    for dir in print_client_candidate_dirs() {
+        for file_name in ["DriverClient.ini", "config.conf", "config.ini"] {
+            let config_path = dir.join(file_name);
+            if let Some(url) = socket_url_from_config_file(&config_path) {
+                return Some(url);
+            }
+        }
+    }
+
+    None
+}
+
+fn print_client_candidate_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Ok(dir) = std::env::var("CPMS_PRINTCLIENT_DIR") {
+        dirs.push(PathBuf::from(dir));
+    }
+
+    for env_key in [
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "ProgramData",
+        "LOCALAPPDATA",
+        "APPDATA",
+    ] {
+        if let Ok(base) = std::env::var(env_key) {
+            let base_path = PathBuf::from(base);
+            dirs.push(base_path.join("PrintClient"));
+            dirs.push(base_path.join("CPMS").join("PrintClient"));
+            dirs.push(base_path.join("Insolu").join("PrintClient"));
+        }
+    }
+
+    dirs
+}
+
+fn socket_url_from_config_file(path: &Path) -> Option<String> {
+    let raw = fs::read_to_string(path).ok()?;
+    let socket_path = std::env::var("CPMS_PRINTCLIENT_SOCKET_PATH")
+        .ok()
+        .filter(|value| value.starts_with('/'))
+        .unwrap_or_else(|| DEFAULT_LOCAL_SOCKET_PATH.into());
+
+    for line in raw.lines() {
+        if let Some(url) = extract_websocket_url(line) {
+            return Some(url);
+        }
+    }
+
+    for line in raw.lines() {
+        let lower = line.to_lowercase();
+        if !(lower.contains("websocket") || lower.contains("socket") || lower.contains("port")) {
+            continue;
+        }
+
+        if let Some(port) = extract_port(line) {
+            return Some(format!("ws://127.0.0.1:{port}{socket_path}"));
+        }
+    }
+
+    None
+}
+
+fn extract_websocket_url(line: &str) -> Option<String> {
+    let start = line.find("ws://").or_else(|| line.find("wss://"))?;
+    let candidate = line[start..]
+        .trim()
+        .trim_matches(|character: char| {
+            character.is_whitespace() || matches!(character, '"' | '\'' | ';' | ',')
+        })
+        .split(|character: char| {
+            character.is_whitespace() || matches!(character, '"' | '\'' | ';' | ',')
+        })
+        .next()?;
+
+    if candidate.starts_with("ws://") || candidate.starts_with("wss://") {
+        Some(candidate.to_string())
+    } else {
+        None
+    }
+}
+
+fn extract_port(line: &str) -> Option<u16> {
+    let value_part = line
+        .split_once('=')
+        .map(|(_, value)| value)
+        .or_else(|| line.split_once(':').map(|(_, value)| value))
+        .unwrap_or(line);
+    let mut digits = String::new();
+
+    for character in value_part.chars() {
+        if character.is_ascii_digit() {
+            digits.push(character);
+            continue;
+        }
+
+        if !digits.is_empty() {
+            if let Ok(port) = digits.parse::<u16>() {
+                if port > 0 {
+                    return Some(port);
+                }
+            }
+            digits.clear();
+        }
+    }
+
+    digits.parse::<u16>().ok().filter(|port| *port > 0)
 }
 
 fn initial_iframe_state() -> ClientIframeEventPayload {
@@ -640,7 +930,17 @@ async fn start_local_socket_worker(app: AppHandle) {
                     match next_message {
                         Ok(raw_message) if raw_message.is_text() => {
                             if let Ok(text) = raw_message.to_text() {
-                                if let Some(task_payload) = parse_todo_payload(text) {
+                                if is_print_task_message(text) {
+                                    let app_handle = app.clone();
+                                    let message = text.to_string();
+                                    thread::spawn(move || {
+                                        let result = hub::forward_socket_task_message(
+                                            app_handle.clone(),
+                                            &message,
+                                        );
+                                        emit_socket_forward_result(&app_handle, result);
+                                    });
+                                } else if let Some(task_payload) = parse_todo_payload(text) {
                                     let _ = app.emit_to(
                                         MAIN_WINDOW_LABEL,
                                         CLIENT_TODO_TASK_EVENT,
@@ -661,6 +961,49 @@ async fn start_local_socket_worker(app: AppHandle) {
 
         tokio::time::sleep(Duration::from_secs(3)).await;
     }
+}
+
+fn is_print_task_message(message: &str) -> bool {
+    normalize_socket_message_value(message)
+        .and_then(|value| {
+            value
+                .get("filePath")
+                .and_then(Value::as_str)
+                .map(|file_path| !file_path.trim().is_empty())
+        })
+        .unwrap_or(false)
+}
+
+fn normalize_socket_message_value(message: &str) -> Option<Value> {
+    let parsed = serde_json::from_str::<Value>(message).ok()?;
+    match parsed {
+        Value::String(raw) => serde_json::from_str::<Value>(&raw).ok(),
+        Value::Object(_) => Some(parsed),
+        _ => None,
+    }
+}
+
+fn emit_socket_forward_result(app: &AppHandle, result: Result<Value, String>) {
+    let (name, payload) = match result {
+        Ok(value) => (
+            "client.socket_task.forwarded",
+            json!({ "ok": true, "task": value }),
+        ),
+        Err(error) => (
+            "client.socket_task.forward_failed",
+            json!({ "ok": false, "message": error }),
+        ),
+    };
+
+    let _ = app.emit_to(
+        MAIN_WINDOW_LABEL,
+        CLIENT_TO_VIEW_EVENT,
+        ClientEventPayload {
+            name: name.into(),
+            payload: Some(payload),
+            at: now_iso_string(),
+        },
+    );
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -722,6 +1065,7 @@ pub fn run() {
             window_minimize,
             window_maximize,
             window_unmaximize,
+            window_set_fullscreen,
             window_set_always_on_top,
             window_hide,
             window_show,
@@ -730,8 +1074,12 @@ pub fn run() {
             hub::save_policy_agreed,
             hub::save_auth_state,
             hub::clear_auth_state,
+            hub::save_auth_token,
             hub::save_server_info,
             hub::save_direct_device,
+            hub::get_job_list,
+            hub::get_available_devices,
+            hub::select_direct_device,
             hub::system_init,
             hub::system_destroy,
             hub::start_background_tasks,

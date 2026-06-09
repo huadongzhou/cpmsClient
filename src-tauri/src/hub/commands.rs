@@ -1,5 +1,6 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use reqwest::blocking::Client;
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
@@ -9,14 +10,19 @@ use super::crypto_service;
 use super::events::{
     emit_background_state, emit_hub_state, emit_print_state, emit_socket_state, emit_usb_state,
 };
+use super::http_service;
 use super::models::{
     startup_state_from_preferences, AppVersion, AuthPersistState, PrintState, ServerData,
-    SocketState, StartupState, UsbState,
+    SocketState, StartupState, UsbState, UserData,
 };
 use super::preferences::{load_preferences, update_preferences};
 use super::print_service;
 use super::socket_server;
 use super::usb_service;
+
+const JOB_LIST_PATH: &str = "/cpms/api/jobs/list";
+const DEVICE_LIST_PATH: &str = "/cpms/api/userManager/listAvailDevices";
+const UPDATE_DIRECT_DEVICE_PATH: &str = "/cpms/api/userManager/updateDirectDeviceId";
 
 #[tauri::command]
 /// Reads the persisted Hub startup state used by the Web app during route hydration.
@@ -100,6 +106,99 @@ pub fn save_direct_device(app: AppHandle, device: Value) -> CommandResult<Value>
 }
 
 #[tauri::command]
+/// Updates only the cached auth token pushed by the iframe/Web side after login.
+pub fn save_auth_token(app: AppHandle, token: String) -> CommandResult<StartupState> {
+    let token = token.trim().to_string();
+    if token.is_empty() {
+        return CommandResult::fail("HUB_AUTH_TOKEN_EMPTY", "token 不能为空");
+    }
+
+    let result = update_preferences(&app, |preferences| {
+        if let Some(user) = preferences.user.as_mut() {
+            user.token = Some(token.clone());
+        } else {
+            preferences.user = Some(UserData {
+                token: Some(token.clone()),
+                ..UserData::default()
+            });
+        }
+    });
+
+    if let Err(error) = result {
+        return CommandResult::fail("HUB_AUTH_TOKEN_SAVE_ERROR", &error);
+    }
+
+    load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
+}
+
+#[tauri::command]
+/// Fetches the current user's CPMS job list.
+pub fn get_job_list(
+    app: AppHandle,
+    page_number: i64,
+    page_size: i64,
+    job_type: i64,
+    title: Option<String>,
+    search_time: Option<String>,
+) -> CommandResult<Value> {
+    let params = vec![
+        ("pageNumber".into(), page_number.max(1).to_string()),
+        ("pageSize".into(), page_size.max(1).to_string()),
+        ("type".into(), job_type.to_string()),
+        ("title".into(), title.unwrap_or_default()),
+        ("searchTime".into(), search_time.unwrap_or_default()),
+    ];
+
+    match cpms_form_post(&app, JOB_LIST_PATH, &params) {
+        Ok(value) => CommandResult::ok(value),
+        Err(error) => CommandResult::fail("HUB_JOB_LIST_ERROR", &error),
+    }
+}
+
+#[tauri::command]
+/// Fetches CPMS direct-output printer devices available to the current user.
+pub fn get_available_devices(app: AppHandle) -> CommandResult<Value> {
+    match cpms_get(&app, DEVICE_LIST_PATH) {
+        Ok(value) => CommandResult::ok(value),
+        Err(error) => CommandResult::fail("HUB_DEVICE_LIST_ERROR", &error),
+    }
+}
+
+#[tauri::command]
+/// Updates the selected direct-output device on CPMS and persists it locally.
+pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Value> {
+    let Some(device_id) = device
+        .get("deviceId")
+        .or_else(|| device.get("id"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+    else {
+        return CommandResult::fail("HUB_DIRECT_DEVICE_ID_EMPTY", "deviceId 不能为空");
+    };
+
+    let params = vec![("deviceId".into(), device_id)];
+    if let Err(error) = cpms_form_post(&app, UPDATE_DIRECT_DEVICE_PATH, &params) {
+        return CommandResult::fail("HUB_DIRECT_DEVICE_UPDATE_ERROR", &error);
+    }
+
+    if let Err(error) = update_preferences(&app, |preferences| {
+        preferences.auth_direct_device = Some(device.clone());
+    }) {
+        return CommandResult::fail("HUB_DIRECT_DEVICE_SAVE_ERROR", &error);
+    }
+
+    CommandResult::ok(json!({
+        "success": true,
+        "code": "OK",
+        "message": "success",
+        "data": device,
+        "logs": [],
+    }))
+}
+
+#[tauri::command]
 /// Initializes Hub system capabilities and emits their current runtime state.
 pub fn system_init(app: AppHandle) -> CommandResult<StartupState> {
     let preferences = match load_preferences(&app) {
@@ -140,7 +239,8 @@ pub fn system_init(app: AppHandle) -> CommandResult<StartupState> {
             Err(error) => return CommandResult::fail("HUB_USB_START_ERROR", &error),
         }
 
-        if let Err(error) = super::network_service::start_network_monitor(app.clone(), product_type) {
+        if let Err(error) = super::network_service::start_network_monitor(app.clone(), product_type)
+        {
             return CommandResult::fail("HUB_NETWORK_MONITOR_START_ERROR", &error);
         }
     }
@@ -185,7 +285,9 @@ pub fn start_background_tasks(app: AppHandle) -> CommandResult<bool> {
         Ok(value) => value,
         Err(error) => return CommandResult::fail("HUB_PREFERENCES_READ_ERROR", &error),
     };
-    if let Err(error) = super::network_service::start_network_monitor(app.clone(), preferences.product_type) {
+    if let Err(error) =
+        super::network_service::start_network_monitor(app.clone(), preferences.product_type)
+    {
         return CommandResult::fail("HUB_NETWORK_MONITOR_START_ERROR", &error);
     }
 
@@ -480,6 +582,79 @@ fn has_auth_token(user: &Option<super::models::UserData>) -> bool {
         .and_then(|user| user.token.as_deref())
         .map(|token| !token.trim().is_empty())
         .unwrap_or(false)
+}
+
+fn cpms_get(app: &AppHandle, path: &str) -> Result<Value, String> {
+    let (server, user) = load_server_user(app)?;
+    let url = http_service::build_cpms_url(&server, path)?;
+    let token = user.token.as_deref().unwrap_or_default();
+    let headers = http_service::build_signed_headers(Some(token), path, "")?;
+    let client = cpms_client()?;
+    let mut request = client.get(url);
+
+    for (key, value) in headers {
+        request = request.header(key, value);
+    }
+
+    read_cpms_response(request.send().map_err(|error| error.to_string())?)
+}
+
+fn cpms_form_post(
+    app: &AppHandle,
+    path: &str,
+    params: &[(String, String)],
+) -> Result<Value, String> {
+    let (server, user) = load_server_user(app)?;
+    let url = http_service::build_cpms_url(&server, path)?;
+    let sign_params = http_service::query_string(params, false);
+    let token = user.token.as_deref().unwrap_or_default();
+    let headers = http_service::build_signed_headers(Some(token), path, &sign_params)?;
+    let body = http_service::query_string(params, true);
+    let client = cpms_client()?;
+    let mut request = client
+        .post(url)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body);
+
+    for (key, value) in headers {
+        request = request.header(key, value);
+    }
+
+    read_cpms_response(request.send().map_err(|error| error.to_string())?)
+}
+
+fn load_server_user(app: &AppHandle) -> Result<(ServerData, UserData), String> {
+    let preferences = load_preferences(app)?;
+    let server = preferences
+        .server
+        .ok_or_else(|| "服务器未配置".to_string())?;
+    let user = preferences.user.ok_or_else(|| "用户未登录".to_string())?;
+    let token = user.token.as_deref().unwrap_or_default().trim();
+
+    if token.is_empty() {
+        return Err("用户 token 为空".into());
+    }
+
+    Ok((server, user))
+}
+
+fn cpms_client() -> Result<Client, String> {
+    Client::builder()
+        .timeout(Duration::from_secs(15))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+fn read_cpms_response(response: reqwest::blocking::Response) -> Result<Value, String> {
+    let status = response.status();
+    let body = response.text().unwrap_or_default();
+
+    if !status.is_success() {
+        return Err(format!("CPMS 请求失败，HTTP status={status}，body={body}"));
+    }
+
+    serde_json::from_str::<Value>(&body).map_err(|error| error.to_string())
 }
 
 fn now_millis() -> u128 {

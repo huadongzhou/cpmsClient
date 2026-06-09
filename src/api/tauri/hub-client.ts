@@ -1,5 +1,6 @@
 import { unwrapCommand } from "./client";
 import type { AuthPersistState } from "@/types/hub/auth";
+import type { JobListParams } from "@/types/hub/job";
 import type { AuthDirectDeviceData } from "@/types/hub/printer";
 import type { ServerData } from "@/types/hub/server";
 import type { StartupState } from "@/types/hub/startup";
@@ -24,6 +25,11 @@ export function clearAuthState() {
   return unwrapCommand<StartupState>("clear_auth_state");
 }
 
+/** 保存 iframe / Web 登录后推送的 token。 */
+export function saveAuthToken(token: string) {
+  return unwrapCommand<StartupState>("save_auth_token", { token });
+}
+
 /** 保存最近一次使用的 CPMS 服务器信息。 */
 export function saveServerInfo(server: ServerData) {
   return unwrapCommand<ServerData>("save_server_info", { server });
@@ -32,6 +38,27 @@ export function saveServerInfo(server: ServerData) {
 /** 保存用户选择的直连打印机。 */
 export function saveDirectDevice(device: AuthDirectDeviceData) {
   return unwrapCommand<AuthDirectDeviceData>("save_direct_device", { device });
+}
+
+/** 获取 CPMS 作业列表。 */
+export function getJobList(params: JobListParams) {
+  return unwrapCommand<unknown>("get_job_list", {
+    pageNumber: params.pageNumber,
+    pageSize: params.pageSize,
+    jobType: params.type,
+    title: params.title ?? "",
+    searchTime: params.searchTime ?? "",
+  });
+}
+
+/** 获取当前用户可用直连打印设备列表。 */
+export function getAvailableDevices() {
+  return unwrapCommand<unknown>("get_available_devices");
+}
+
+/** 更新服务端选择机器，并在客户端本地持久化。 */
+export function selectDirectDevice(device: AuthDirectDeviceData) {
+  return unwrapCommand<unknown>("select_direct_device", { device });
 }
 
 /** 初始化客户端系统能力，包括打印、USB、Socket 和后台任务。 */

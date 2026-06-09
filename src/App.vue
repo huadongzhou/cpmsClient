@@ -9,11 +9,14 @@ import { useDesktopNotificationBridge } from "@/composables/useDesktopNotificati
 import HomeView from "@/views/home/index.vue";
 
 const isNotificationWindow = ref(isTauri() && getCurrentWindow().label === "notification");
+const isMainWindow = computed(() => !isNotificationWindow.value);
 
-useDesktopNotificationBridge();
-useClientNotificationBridge();
-useClientEventBridge();
-useClientRuntimeBridge();
+if (isMainWindow.value) {
+  useDesktopNotificationBridge();
+  useClientNotificationBridge();
+  useClientEventBridge();
+  useClientRuntimeBridge();
+}
 </script>
 
 <template>

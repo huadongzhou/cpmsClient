@@ -74,8 +74,9 @@ pub fn start_print_worker(app: AppHandle) -> Result<PrintState, String> {
     let worker_stop = Arc::clone(&stop);
     let worker_app = app.clone();
     let scan_cache_dir = cache_dir.clone();
-    let scan_join =
-        Some(thread::spawn(move || worker_loop(worker_app, scan_cache_dir, worker_stop)));
+    let scan_join = Some(thread::spawn(move || {
+        worker_loop(worker_app, scan_cache_dir, worker_stop)
+    }));
 
     let state = PrintState {
         print_server_ready: true,
@@ -90,6 +91,37 @@ pub fn start_print_worker(app: AppHandle) -> Result<PrintState, String> {
     });
 
     Ok(state)
+}
+
+/// Uploads a print task pushed by the external PrintClient websocket.
+pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Value, String> {
+    let preferences = load_preferences(&app)?;
+    let Some(context) = build_upload_context(preferences) else {
+        return Err("用户未登录或服务器未配置，无法转发打印任务".into());
+    };
+    let task_payload = parse_socket_task_payload(message)?;
+    let file_path = task_payload
+        .get("filePath")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .ok_or_else(|| "socket 任务缺少 filePath".to_string())?;
+
+    if !file_path.exists() {
+        return Err(format!(
+            "socket 任务文件不存在: {}",
+            file_path.to_string_lossy()
+        ));
+    }
+
+    upload_print_payload(&file_path, &task_payload, &context)?;
+
+    Ok(json!({
+        "filePath": file_path,
+        "documentName": task_payload
+            .get("printProperties")
+            .and_then(|value| value.get("documentName"))
+            .and_then(Value::as_str),
+    }))
 }
 
 /// Stops the print worker and returns the unavailable print state.
@@ -455,7 +487,15 @@ fn acquire_lock(path: &Path) -> Result<File, String> {
 }
 
 fn upload_print_file(candidate: &PrintJobCandidate, context: &UploadContext) -> Result<(), String> {
-    let params = build_print_query_params(&candidate.param, context);
+    upload_print_payload(&candidate.file_path, &candidate.param, context)
+}
+
+fn upload_print_payload(
+    file_path: &Path,
+    param: &Value,
+    context: &UploadContext,
+) -> Result<(), String> {
+    let params = build_print_query_params(param, context);
     let sign_query = http_service::query_string(&params, false);
     let url = format!(
         "{}?{}",
@@ -466,7 +506,7 @@ fn upload_print_file(candidate: &PrintJobCandidate, context: &UploadContext) -> 
     let headers = http_service::build_signed_headers(Some(token), UPLOAD_EXEC_PATH, &sign_query)?;
 
     let form = multipart::Form::new()
-        .file("file", &candidate.file_path)
+        .file("file", file_path)
         .map_err(|error| error.to_string())?;
     let client = Client::builder()
         .timeout(Duration::from_secs(30 * 60))
@@ -496,6 +536,17 @@ fn upload_print_file(candidate: &PrintJobCandidate, context: &UploadContext) -> 
     }
 
     Ok(())
+}
+
+fn parse_socket_task_payload(message: &str) -> Result<Value, String> {
+    let parsed = serde_json::from_str::<Value>(message).map_err(|error| error.to_string())?;
+    match parsed {
+        Value::String(raw) => {
+            serde_json::from_str::<Value>(&raw).map_err(|error| error.to_string())
+        }
+        Value::Object(_) => Ok(parsed),
+        _ => Err("socket 任务消息不是 JSON 对象".into()),
+    }
 }
 
 fn build_print_query_params(param: &Value, context: &UploadContext) -> Vec<(String, String)> {
