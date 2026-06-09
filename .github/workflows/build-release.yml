@@ -75,6 +75,8 @@ jobs:
         run: pnpm install
 
       - name: Build Linux packages
+        env:
+          TAURI_LINUX_AYATANA_APPINDICATOR: true
         run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb rpm
 
       - name: Fix deb desktop entries
@@ -189,6 +191,8 @@ jobs:
         run: pnpm install
 
       - name: Build AppImage
+        env:
+          TAURI_LINUX_AYATANA_APPINDICATOR: true
         run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles appimage
 
       - name: Verify AppImage bundle
