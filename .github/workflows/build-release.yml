@@ -154,7 +154,7 @@ jobs:
       - name: Prepare Linux artifacts
         run: |
           mkdir -p upload
-          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/* upload/
+          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb upload/
           ls -la upload/
 
       - name: Upload Linux artifacts
@@ -248,7 +248,7 @@ jobs:
       - name: Prepare AppImage artifacts
         run: |
           mkdir -p upload
-          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/* upload/
+          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage upload/
           ls -la upload/
 
       - name: Upload AppImage artifacts
