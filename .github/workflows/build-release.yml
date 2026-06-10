@@ -76,6 +76,8 @@ jobs:
         run: pnpm install
 
       - name: Build Linux packages
+        env:
+          TAURI_TRAY: libappindicator3
         run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
 
       - name: Fix deb desktop entries
@@ -111,7 +113,7 @@ jobs:
                 echo "StartupWMClass=$wmclass" >> "$desktop_file"
             fi
 
-            # Inject postinst to refresh icon cache and provide Kylin appindicator compatibility
+            # Inject postinst to refresh icon cache
             postinst="$tempdir/DEBIAN/postinst"
             if [ -f "$postinst" ]; then
               echo "" >> "$postinst"
@@ -123,15 +125,6 @@ jobs:
               echo "if command -v gtk-update-icon-cache >/dev/null 2>&1; then" >> "$postinst"
               echo "  gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true" >> "$postinst"
               echo "fi" >> "$postinst"
-              echo "# Kylin/UOS compatibility: symlink ayatana -> legacy appindicator if only ayatana is present" >> "$postinst"
-              echo "for libdir in /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu /usr/lib; do" >> "$postinst"
-              echo '  if [ -f "$libdir/libayatana-appindicator3.so.1" ] && [ ! -f "$libdir/libappindicator3.so.1" ]; then' >> "$postinst"
-              echo '    ln -sf "$libdir/libayatana-appindicator3.so.1" "$libdir/libappindicator3.so.1"' >> "$postinst"
-              echo "  fi" >> "$postinst"
-              echo "done" >> "$postinst"
-              echo "if command -v ldconfig >/dev/null 2>&1; then" >> "$postinst"
-              echo "  ldconfig || true" >> "$postinst"
-              echo "fi" >> "$postinst"
             else
               echo '#!/bin/sh' > "$postinst"
               echo 'set -e' >> "$postinst"
@@ -142,15 +135,6 @@ jobs:
               echo "fi" >> "$postinst"
               echo "if command -v gtk-update-icon-cache >/dev/null 2>&1; then" >> "$postinst"
               echo "  gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true" >> "$postinst"
-              echo "fi" >> "$postinst"
-              echo "# Kylin/UOS compatibility: symlink ayatana -> legacy appindicator if only ayatana is present" >> "$postinst"
-              echo "for libdir in /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu /usr/lib; do" >> "$postinst"
-              echo '  if [ -f "$libdir/libayatana-appindicator3.so.1" ] && [ ! -f "$libdir/libappindicator3.so.1" ]; then' >> "$postinst"
-              echo '    ln -sf "$libdir/libayatana-appindicator3.so.1" "$libdir/libappindicator3.so.1"' >> "$postinst"
-              echo "  fi" >> "$postinst"
-              echo "done" >> "$postinst"
-              echo "if command -v ldconfig >/dev/null 2>&1; then" >> "$postinst"
-              echo "  ldconfig || true" >> "$postinst"
               echo "fi" >> "$postinst"
               chmod 755 "$postinst"
             fi
