@@ -112,6 +112,35 @@ jobs:
                 echo "StartupWMClass=$wmclass" >> "$desktop_file"
             fi
 
+            # Inject postinst to refresh icon cache and provide Kylin appindicator compatibility
+            postinst="$tempdir/DEBIAN/postinst"
+            compat_script='
+# --- CPMS Client postinst extensions ---
+# Refresh desktop database and icon cache for Start Menu / taskbar icon visibility
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+# Kylin/UOS compatibility: symlink ayatana -> legacy appindicator if only ayatana is present
+for libdir in /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu /usr/lib; do
+  if [ -f "$libdir/libayatana-appindicator3.so.1" ] && [ ! -f "$libdir/libappindicator3.so.1" ]; then
+    ln -sf "$libdir/libayatana-appindicator3.so.1" "$libdir/libappindicator3.so.1"
+  fi
+done
+if command -v ldconfig >/dev/null 2>&1; then
+  ldconfig || true
+fi
+'
+            if [ -f "$postinst" ]; then
+              # Append after the last line, preserving original script
+              echo "$compat_script" >> "$postinst"
+            else
+              printf '#!/bin/sh\nset -e\n%s\n' "$compat_script" > "$postinst"
+              chmod 755 "$postinst"
+            fi
+
             dpkg-deb -b "$tempdir" "$deb"
             rm -rf "$tempdir"
 
@@ -164,102 +193,8 @@ jobs:
           path: upload/*
           if-no-files-found: error
 
-  build-linux-appimage:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - version: v2
-            tauri_dir: client-tauri2
-            webkit_dev: libwebkit2gtk-4.1-dev
-            platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            arch: x86_64
-          - version: v2
-            tauri_dir: client-tauri2
-            webkit_dev: libwebkit2gtk-4.1-dev
-            platform: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            arch: arm64
-          - version: v1
-            tauri_dir: client-tauri1
-            webkit_dev: libwebkit2gtk-4.0-dev
-            platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            arch: x86_64
-          - version: v1
-            tauri_dir: client-tauri1
-            webkit_dev: libwebkit2gtk-4.0-dev
-            platform: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            arch: arm64
-
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 11.5.0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ${{ matrix.tauri_dir }}/src-tauri
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ${{ matrix.webkit_dev }} libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build AppImage
-        env:
-          TAURI_LINUX_AYATANA_APPINDICATOR: true
-        run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles appimage
-
-      - name: Verify AppImage bundle
-        run: |
-          bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
-          find "$bundle_root" -maxdepth 3 -type f -print
-          if ! find "$bundle_root/appimage" -maxdepth 1 -type f | grep -q .; then
-            echo "Missing Linux ${{ matrix.version }} AppImage bundle output"
-            exit 1
-          fi
-          du -h "$bundle_root"/appimage/*
-
-      - name: Prepare AppImage artifacts
-        run: |
-          mkdir -p upload
-          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage upload/
-          ls -la upload/
-
-      - name: Upload AppImage artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cpmsClient-${{ matrix.version }}-linux-${{ matrix.arch }}-appimage
-          path: upload/*
-          if-no-files-found: error
-
   release:
-    needs: [build-linux, build-linux-appimage]
+    needs: [build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
