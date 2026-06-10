@@ -94,6 +94,21 @@ jobs:
             desktop_file=$(find "$tempdir/usr/share/applications" -name "*.desktop" | head -n1)
             if [ -f "$desktop_file" ]; then
               echo "Patching $desktop_file"
+
+              # Ensure Type=Application (required by freedesktop spec)
+              grep -q "^Type=" "$desktop_file" || echo "Type=Application" >> "$desktop_file"
+
+              # Ensure Categories has a valid main category (Business alone is not a main category)
+              if grep -q "^Categories=" "$desktop_file"; then
+                current_cat=$(grep "^Categories=" "$desktop_file" | sed 's/Categories=//')
+                # If Categories only contains Business (no main category), prepend Office
+                if echo "$current_cat" | grep -qE '^Business;?$'; then
+                  sed -i 's/^Categories=.*/Categories=Office;Business;/' "$desktop_file"
+                fi
+              else
+                echo "Categories=Office;Business;" >> "$desktop_file"
+              fi
+
               grep -q "^StartupNotify=" "$desktop_file" && \
                 sed -i 's/^StartupNotify=.*/StartupNotify=true/' "$desktop_file" || \
                 echo "StartupNotify=true" >> "$desktop_file"
@@ -111,6 +126,11 @@ jobs:
               grep -q "^StartupWMClass=" "$desktop_file" && \
                 sed -i "s/^StartupWMClass=.*/StartupWMClass=$wmclass/" "$desktop_file" || \
                 echo "StartupWMClass=$wmclass" >> "$desktop_file"
+
+              echo "--- Final .desktop content ---"
+              cat "$desktop_file"
+            else
+              echo "WARNING: No .desktop file found in extracted deb!"
             fi
 
             # Inject postinst to refresh icon cache
@@ -177,6 +197,36 @@ jobs:
             fi
           done
           du -h "$bundle_root"/deb/*
+
+      - name: Debug deb package contents
+        run: |
+          bundle_root="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle"
+          for deb in "$bundle_root"/deb/*.deb; do
+            [ -e "$deb" ] || continue
+            echo "========== Package: $deb =========="
+            echo "--- Control info ---"
+            dpkg-deb -I "$deb"
+            echo ""
+            echo "--- File list ---"
+            dpkg-deb -c "$deb"
+            echo ""
+            echo "--- .desktop file ---"
+            tempdir=$(mktemp -d)
+            dpkg-deb -x "$deb" "$tempdir"
+            desktop_file=$(find "$tempdir/usr/share/applications" -name "*.desktop" 2>/dev/null | head -n1)
+            if [ -f "$desktop_file" ]; then
+              cat "$desktop_file"
+            else
+              echo "ERROR: No .desktop file found in package!"
+            fi
+            echo ""
+            echo "--- Binary check ---"
+            find "$tempdir/usr/bin" -type f 2>/dev/null | head -5
+            echo ""
+            echo "--- Icon check ---"
+            find "$tempdir/usr/share/icons" -type f 2>/dev/null | head -10
+            rm -rf "$tempdir"
+          done
 
       - name: Prepare Linux artifacts
         run: |
