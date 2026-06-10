@@ -97,7 +97,7 @@ jobs:
               export CARGO_HOME=/root/.cargo
               export PATH=\"/root/.cargo/bin:\$PATH\"
               apt-get update
-              apt-get install -y curl build-essential libwebkit2gtk-4.0-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils zstd pkg-config git ca-certificates
+              apt-get install -y curl build-essential libwebkit2gtk-4.0-dev libgtk-3-dev libappindicator3-dev librsvg2-dev libssl-dev patchelf libfuse2 xdg-utils zstd pkg-config git ca-certificates
 
               # Node.js 22
               curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
