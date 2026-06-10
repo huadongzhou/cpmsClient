@@ -115,6 +115,8 @@ jobs:
 
               # Build
               cd /workspace
+              # Purge stale cargo target cache built on runner (Ubuntu 22.04 / OpenSSL 3.0)
+              rm -rf /workspace/${{ matrix.tauri_dir }}/src-tauri/target
               pnpm install
               pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
 
