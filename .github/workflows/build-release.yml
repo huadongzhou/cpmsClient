@@ -15,18 +15,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - version: v2
-            tauri_dir: client-tauri2
-            webkit_dev: libwebkit2gtk-4.1-dev
-            platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            arch: x86_64
-          - version: v2
-            tauri_dir: client-tauri2
-            webkit_dev: libwebkit2gtk-4.1-dev
-            platform: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            arch: arm64
+          # v2 temporarily disabled - building v1 only for Kylin/UOS compatibility
+          # - version: v2
+          #   tauri_dir: client-tauri2
+          #   webkit_dev: libwebkit2gtk-4.1-dev
+          #   platform: ubuntu-22.04
+          #   target: x86_64-unknown-linux-gnu
+          #   arch: x86_64
+          # - version: v2
+          #   tauri_dir: client-tauri2
+          #   webkit_dev: libwebkit2gtk-4.1-dev
+          #   platform: ubuntu-22.04-arm
+          #   target: aarch64-unknown-linux-gnu
+          #   arch: arm64
           - version: v1
             tauri_dir: client-tauri1
             webkit_dev: libwebkit2gtk-4.0-dev
