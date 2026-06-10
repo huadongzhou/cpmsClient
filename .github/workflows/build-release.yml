@@ -117,6 +117,9 @@ jobs:
               cd /workspace
               pnpm install
               pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
+
+              # Fix permissions: Docker runs as root, but runner user needs access
+              chmod -R a+w /workspace/${{ matrix.tauri_dir }}/src-tauri/target
             "
 
       - name: Fix deb desktop entries
