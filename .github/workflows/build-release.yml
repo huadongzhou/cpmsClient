@@ -75,10 +75,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build Linux packages
+      - name: Build Linux packages in Ubuntu 20.04 container
         env:
           TAURI_TRAY: libappindicator3
-        run: pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
+        run: |
+          mkdir -p .cache/docker/cargo .cache/docker/pnpm
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/.cache/docker/cargo:/root/.cargo/registry \
+            -v ${{ github.workspace }}/.cache/docker/pnpm:/root/.local/share/pnpm \
+            -e TAURI_TRAY=libappindicator3 \
+            -e CARGO_HOME=/root/.cargo \
+            ${{ matrix.arch == 'arm64' && 'arm64v8/ubuntu:20.04' || 'ubuntu:20.04' }} \
+            bash -c "
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y curl build-essential libwebkit2gtk-4.0-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 xdg-utils zstd pkg-config git ca-certificates
+
+              # Node.js 22
+              curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+              apt-get install -y nodejs
+
+              # pnpm
+              npm install -g pnpm@11.5.0
+              pnpm config set store-dir /root/.local/share/pnpm
+
+              # Rust
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+              . \\\$HOME/.cargo/env
+              rustup target add ${{ matrix.target }}
+
+              # Build
+              cd /workspace
+              pnpm install
+              pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
+            "
 
       - name: Fix deb desktop entries
         run: |
