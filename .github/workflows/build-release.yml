@@ -62,11 +62,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ${{ matrix.tauri_dir }}/src-tauri
-
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -113,14 +108,17 @@ jobs:
               curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
               rustup target add ${{ matrix.target }}
 
-              # Build
-              cd /workspace
-              # Purge stale cargo target cache built on runner (Ubuntu 22.04 / OpenSSL 3.0)
-              rm -rf /workspace/${{ matrix.tauri_dir }}/src-tauri/target
+              # Build in isolated /build directory to avoid workspace cache pollution
+              cp -r /workspace /build
+              rm -rf /build/client-tauri1/src-tauri/target
+              rm -rf /build/client-tauri2/src-tauri/target
+              cd /build
               pnpm install
               pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
 
-              # Fix permissions: Docker runs as root, but runner user needs access
+              # Copy artifacts back to workspace
+              mkdir -p /workspace/${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle
+              cp -r /build/${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/* /workspace/${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/
               chmod -R a+w /workspace/${{ matrix.tauri_dir }}/src-tauri/target
             "
 
