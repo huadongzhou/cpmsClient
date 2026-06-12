@@ -196,7 +196,18 @@ jobs:
       - name: Check symbols against Kylin-era libraries
         run: |
           set -euo pipefail
-          bin="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/cpms-client"
+          rel_dir="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release"
+          bin=""
+          # tauri v1 renames the cargo binary to the product name before bundling
+          for cand in cpms-client-v1 cpmsClient-v1 cpms-client; do
+            if [ -f "$rel_dir/$cand" ]; then bin="$rel_dir/$cand"; break; fi
+          done
+          if [ -z "$bin" ]; then
+            echo "ERROR: app binary not found in $rel_dir"
+            ls -la "$rel_dir" || true
+            exit 1
+          fi
+          echo "Checking binary: $bin"
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             image="arm64v8/ubuntu:16.04"
             mirror="http://ports.ubuntu.com/ubuntu-ports"
