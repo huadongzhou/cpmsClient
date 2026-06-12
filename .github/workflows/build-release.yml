@@ -1,3 +1,7 @@
+# Legacy Linux (Kylin/UOS) build pitfalls, root causes and fixes are
+# documented in .github/CI-TROUBLESHOOTING.md — read it before changing
+# the v1 build chain (Zig linker, static OpenSSL, vendored tao/wry,
+# Kylin-era symbol gate).
 name: Build and Release
 
 on:
