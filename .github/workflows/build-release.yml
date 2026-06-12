@@ -1,7 +1,22 @@
-# Legacy Linux (Kylin/UOS) build pitfalls, root causes and fixes are
-# documented in .github/CI-TROUBLESHOOTING.md — read it before changing
-# the v1 build chain (Zig linker, static OpenSSL, vendored tao/wry,
-# Kylin-era symbol gate).
+# ==========================================================================
+# 构建任务配置总览（按目标环境划分）
+#
+# | 任务                  | 目标环境               | 壳     | 产物        | 架构            | 状态 |
+# | build-windows         | Windows 10/11          | Tauri2 | msi + nsis  | x86_64 + arm64  | 跳过 |
+# | build-macos           | macOS                  | Tauri2 | app + dmg   | x86_64 + arm64  | 跳过 |
+# | build-linux-v2        | 通用新版 Linux (wk4.1) | Tauri2 | deb         | x86_64 + arm64  | 跳过 |
+# | build-linux-domestic  | 麒麟旧 kylin-legacy    | Tauri1 | deb         | x86_64 + arm64  | 构建 |
+# |                       | 统信旧 uos-legacy      | Tauri1 | deb         | x86_64 + arm64  | 构建 |
+# |                       | 麒麟新 kylin-modern    | Tauri1 | deb         | x86_64 + arm64  | 占位 |
+# |                       | 统信新 uos-modern      | Tauri? | deb         | x86_64 + arm64  | 占位 |
+#
+# 当前策略：只构建国产 deb（Linux 系列一律只出 deb，不出 rpm/appimage）。
+# 跳过的任务保留完整配置（if: false），需要时改为 true 激活，激活后需自行
+# 走一轮"推送-看日志-修复"验证（这些步骤未经实跑）。
+#
+# legacy 链路的坑、根因与修复全记录在 .github/CI-TROUBLESHOOTING.md，
+# 改动 Zig 链接器 / 静态 OpenSSL / vendored tao+wry / 符号门禁前先读它。
+# ==========================================================================
 name: Build and Release
 
 on:
@@ -12,38 +27,198 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux:
+  # ========================================================================
+  # Windows（Tauri 2 壳，msi + nsis）—— 暂跳过
+  # ========================================================================
+  build-windows:
+    if: false # 当前只构建国产 deb
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 11.5.0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build Windows packages
+        run: pnpm --dir client-tauri2 tauri build --target ${{ matrix.target }} --bundles msi nsis
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpmsClient-win-${{ matrix.arch }}
+          path: |
+            client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*
+            client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*
+          if-no-files-found: error
+
+  # ========================================================================
+  # macOS（Tauri 2 壳，app + dmg）—— 暂跳过
+  # ========================================================================
+  build-macos:
+    if: false # 当前只构建国产 deb
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-apple-darwin
+          - arch: arm64
+            target: aarch64-apple-darwin
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 11.5.0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build macOS packages
+        run: pnpm --dir client-tauri2 tauri build --target ${{ matrix.target }} --bundles app dmg
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpmsClient-mac-${{ matrix.arch }}
+          path: |
+            client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*
+          if-no-files-found: error
+
+  # ========================================================================
+  # 通用新版 Linux（Tauri 2 壳，libwebkit2gtk-4.1 发行版，只出 deb）—— 暂跳过
+  # ========================================================================
+  build-linux-v2:
+    if: false # 当前只构建国产 deb
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - arch: arm64
+            platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 11.5.0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build Linux v2 packages
+        run: pnpm --dir client-tauri2 tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
+      - name: Upload Linux v2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpmsClient-v2-linux-${{ matrix.arch }}
+          path: client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+          if-no-files-found: error
+
+  # ========================================================================
+  # 国产 Linux（Tauri 1 legacy 壳，只出 deb）—— 当前唯一激活的构建
+  #
+  # 链路：Zig 链接器锁 glibc 2.23 + 静态 OpenSSL 1.1.1w + vendored tao/wry
+  #       补丁（GTK 3.18 / webkit 2.20 老 API）+ 前端 ES2015 + 符号硬门禁。
+  # 同一条链产出的包向上兼容：库栈不老于 Ubuntu 16.04 的发行版都能跑。
+  # kylin-legacy 与 uos-legacy 目前共用同一构建参数，分开出包便于按系统
+  # 分发管理；如想节省 CI 时长可只保留 kylin-legacy（实机已验证统信可用）。
+  # ========================================================================
+  build-linux-domestic:
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          # v2 temporarily disabled - building v1 only for Kylin/UOS compatibility
-          # - version: v2
-          #   tauri_dir: client-tauri2
-          #   webkit_dev: libwebkit2gtk-4.1-dev
-          #   platform: ubuntu-22.04
-          #   target: x86_64-unknown-linux-gnu
-          #   arch: x86_64
-          # - version: v2
-          #   tauri_dir: client-tauri2
-          #   webkit_dev: libwebkit2gtk-4.1-dev
-          #   platform: ubuntu-22.04-arm
-          #   target: aarch64-unknown-linux-gnu
-          #   arch: arm64
-          - version: v1
+          # ---- 麒麟旧 kylin-legacy：Kylin V10 (juniper) 及更老 ----
+          # 实机画像：glibc 2.23 / GTK 3.18.9 / webkit2gtk 2.20.5 / gdk-pixbuf 2.32
+          # 门禁容器 ubuntu:16.04 与其完全同代（已验证 ldd -r 清单逐项吻合）
+          - env_name: kylin-legacy
             tauri_dir: client-tauri1
-            webkit_dev: libwebkit2gtk-4.0-dev
+            arch: x86_64
             platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            arch: x86_64
-          - version: v1
+            gate_image: ubuntu:16.04
+            gate_mirror: http://archive.ubuntu.com/ubuntu
+          - env_name: kylin-legacy
             tauri_dir: client-tauri1
-            webkit_dev: libwebkit2gtk-4.0-dev
+            arch: arm64
             platform: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
+            gate_image: arm64v8/ubuntu:16.04
+            gate_mirror: http://ports.ubuntu.com/ubuntu-ports
+          # ---- 统信旧 uos-legacy：UOS V20 ----
+          # 实机已验证 16.04 底线的包可正常运行；库栈比麒麟旧新（glibc≈2.28、
+          # GTK≥3.22、webkit≥2.22），暂与 kylin-legacy 共用构建参数和门禁
+          - env_name: uos-legacy
+            tauri_dir: client-tauri1
+            arch: x86_64
+            platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            gate_image: ubuntu:16.04
+            gate_mirror: http://archive.ubuntu.com/ubuntu
+          - env_name: uos-legacy
+            tauri_dir: client-tauri1
             arch: arm64
+            platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            gate_image: arm64v8/ubuntu:16.04
+            gate_mirror: http://ports.ubuntu.com/ubuntu-ports
+          # ---- 麒麟新 kylin-modern：V10 SP1+ ----（占位，待真机库版本数据）
+          # 拿到 dpkg -l / ldd --version 输出后再定：若 webkit 仍为 4.0 系，
+          # 复制 kylin-legacy 条目并把 gate_image 换成对应年代的容器即可；
+          # 在此之前 kylin-legacy 的包可直接在新麒麟上使用（向上兼容）。
+          # - env_name: kylin-modern
+          #   ...
+          # ---- 统信新 uos-modern：V23/V25 ----（占位，待真机库版本数据）
+          # 若新统信带 libwebkit2gtk-4.1，应改走 build-linux-v2 (Tauri 2) 链路。
+          # - env_name: uos-modern
+          #   ...
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -82,7 +257,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ${{ matrix.webkit_dev }} libgtk-3-dev libappindicator3-dev librsvg2-dev binutils dpkg-dev patchelf libfuse2 xdg-utils zstd pkg-config build-essential perl curl ca-certificates
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev libappindicator3-dev librsvg2-dev binutils dpkg-dev patchelf libfuse2 xdg-utils zstd pkg-config build-essential perl curl ca-certificates
 
       # Static OpenSSL 1.1.1w: embedded into the binary so the deb works on both
       # Kylin (system openssl 1.0.2g) and UOS (no openssl 1.0.x at all) without
@@ -212,13 +387,8 @@ jobs:
             exit 1
           fi
           echo "Checking binary: $bin"
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            image="arm64v8/ubuntu:16.04"
-            mirror="http://ports.ubuntu.com/ubuntu-ports"
-          else
-            image="ubuntu:16.04"
-            mirror="http://archive.ubuntu.com/ubuntu"
-          fi
+          image="${{ matrix.gate_image }}"
+          mirror="${{ matrix.gate_mirror }}"
           docker run --rm -v "$PWD:/w" -e MIRROR="$mirror" -e BIN="/w/$bin" "$image" bash -c '
             set -e
             printf "%s\n" \
@@ -280,12 +450,7 @@ jobs:
                 sed -i 's/^Terminal=.*/Terminal=false/' "$desktop_file" || \
                 echo "Terminal=false" >> "$desktop_file"
 
-              wmclass="cpmsClient"
-              if [ "${{ matrix.version }}" = "v1" ]; then
-                wmclass="cpmsClient-v1"
-              else
-                wmclass="cpmsClient-v2"
-              fi
+              wmclass="cpmsClient-v1"
               grep -q "^StartupWMClass=" "$desktop_file" && \
                 sed -i "s/^StartupWMClass=.*/StartupWMClass=$wmclass/" "$desktop_file" || \
                 echo "StartupWMClass=$wmclass" >> "$desktop_file"
@@ -355,7 +520,7 @@ jobs:
           find "$bundle_root" -maxdepth 3 -type f -print
           for dir in deb; do
             if ! find "$bundle_root/$dir" -maxdepth 1 -type f | grep -q .; then
-              echo "Missing Linux ${{ matrix.version }} bundle output: $dir"
+              echo "Missing Linux ${{ matrix.env_name }} bundle output: $dir"
               exit 1
             fi
           done
@@ -418,18 +583,22 @@ jobs:
       - name: Prepare Linux artifacts
         run: |
           mkdir -p upload
-          cp ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb upload/
+          for deb in ${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb; do
+            base=$(basename "$deb" .deb)
+            cp "$deb" "upload/${base}_${{ matrix.env_name }}.deb"
+          done
           ls -la upload/
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cpmsClient-${{ matrix.version }}-linux-${{ matrix.arch }}
+          name: cpmsClient-v1-${{ matrix.env_name }}-${{ matrix.arch }}
           path: upload/*
           if-no-files-found: error
 
   release:
-    needs: [build-linux]
+    # 激活 win/mac/linux-v2 后记得把对应 job 加进 needs
+    needs: [build-linux-domestic]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -449,7 +618,6 @@ jobs:
           done
           echo "========== Release files =========="
           ls -la release/
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
