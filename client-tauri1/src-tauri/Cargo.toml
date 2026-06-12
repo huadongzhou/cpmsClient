@@ -21,7 +21,7 @@ tauri-build = { version = "1", features = [] }
 custom-protocol = ["tauri/custom-protocol"]
 
 [dependencies]
-tauri = { version = "1", features = ["api-all", "system-tray", "icon-png"] }
+tauri = { version = "1", default-features = false, features = ["wry", "window-all", "system-tray", "icon-png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 auto-launch = "0.5"
@@ -35,15 +35,21 @@ reqwest = { version = "0.12", default-features = false, features = [
   "blocking",
   "json",
   "multipart",
-  "rustls-tls",
+  "native-tls",
 ] }
 sm4 = "0.5"
 futures-util = "0.3"
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = [
+  "connect",
+  "native-tls",
+] }
 tokio = { version = "1", features = ["time"] }
 urlencoding = "2"
 uuid = { version = "1", features = ["v4"] }
 nusb = "0.1"
+
+[patch.crates-io]
+tao = { path = "vendor/tao-0.16.11" }
 
 [profile.release]
 strip = true

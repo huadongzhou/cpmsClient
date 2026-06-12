@@ -22,7 +22,10 @@
       "csp": null
     },
     "allowlist": {
-      "all": true
+      "all": false,
+      "window": {
+        "all": true
+      }
     },
     "systemTray": {
       "iconPath": "icons/icon.png",

@@ -1,0 +1,8 @@
+{
+  "package": {
+    "productName": "cpmsClient-v1"
+  },
+  "build": {
+    "beforeBuildCommand": ""
+  }
+}
