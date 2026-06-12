@@ -4,7 +4,7 @@
 
 use std::{fs::File, io::BufWriter, path::Path};
 
-use gdk_pixbuf::{Colorspace, Pixbuf};
+use gdk_pixbuf::Pixbuf;
 
 use crate::window::BadIcon;
 
@@ -37,8 +37,10 @@ impl PlatformIcon {
   /// The length of `rgba` must be divisible by 4, and `width * height` must equal
   /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
   pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-    let row_stride =
-      Pixbuf::calculate_rowstride(Colorspace::Rgb, true, 8, width as i32, height as i32);
+    // gdk_pixbuf_calculate_rowstride needs gdk-pixbuf >= 2.36.8, which is
+    // newer than Kylin-era distros ship; RGBA8 rowstride is 4 bytes per
+    // pixel rounded up to 4-byte alignment, computed inline instead.
+    let row_stride = ((width as i32 * 4) + 3) & !3;
     Ok(Self {
       raw: rgba,
       width: width as i32,

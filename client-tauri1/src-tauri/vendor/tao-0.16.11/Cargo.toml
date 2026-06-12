@@ -242,7 +242,6 @@ features = ["v3_22"]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies.gdk-pixbuf]
 version = "0.15"
-features = ["v2_36_8"]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies.gdk-sys]
 version = "0.15"
