@@ -16,9 +16,9 @@ pub struct MonitorHandle {
 }
 
 impl MonitorHandle {
+  #[allow(deprecated)]
   pub fn new(display: &gdk::Display, number: i32) -> Option<Self> {
     let screen = display.default_screen();
-    #[allow(deprecated)]
     if number >= 0 && number < screen.n_monitors() {
       Some(Self { screen, number })
     } else {
@@ -27,8 +27,8 @@ impl MonitorHandle {
   }
 
   #[inline]
+  #[allow(deprecated)]
   pub fn name(&self) -> Option<String> {
-    #[allow(deprecated)]
     self
       .screen
       .monitor_plug_name(self.number)
@@ -56,8 +56,8 @@ impl MonitorHandle {
   }
 
   #[inline]
+  #[allow(deprecated)]
   pub fn scale_factor(&self) -> f64 {
-    #[allow(deprecated)]
     self.screen.monitor_scale_factor(self.number) as f64
   }
 
@@ -67,8 +67,8 @@ impl MonitorHandle {
   }
 
   #[inline]
+  #[allow(deprecated)]
   fn geometry(&self) -> Rectangle {
-    #[allow(deprecated)]
     self.screen.monitor_geometry(self.number)
   }
 }
