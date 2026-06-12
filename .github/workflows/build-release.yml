@@ -189,10 +189,11 @@ jobs:
           pnpm --dir ${{ matrix.tauri_dir }} tauri build --config src-tauri/tauri.linux.legacy.conf.json --target ${{ matrix.target }} --bundles deb
 
       # Resolve every dynamic symbol against a Kylin-era (Ubuntu 16.04) library
-      # stack. ldd -r lists ALL unresolved symbols at once, unlike the target
-      # device which only reports the first one per launch. Report-only until
-      # calibrated against the real Kylin library versions.
-      - name: Check symbols against Kylin-era libraries (report)
+      # stack (GTK 3.18 / webkit2gtk 2.20 / gdk-pixbuf 2.32 / glibc 2.23).
+      # ldd -r lists ALL unresolved symbols at once, unlike the target device
+      # which only reports the first one per launch. Hard gate: any symbol
+      # newer than this stack fails the build.
+      - name: Check symbols against Kylin-era libraries
         run: |
           set -euo pipefail
           bin="${{ matrix.tauri_dir }}/src-tauri/target/${{ matrix.target }}/release/cpms-client"
@@ -214,8 +215,17 @@ jobs:
             apt-get install -y --no-install-recommends libwebkit2gtk-4.0-37 libgtk-3-0 libappindicator3-1 >/dev/null 2>&1
             echo "=== Kylin-era (xenial) library versions ==="
             dpkg-query -W libwebkit2gtk-4.0-37 libgtk-3-0 libgdk-pixbuf2.0-0 libglib2.0-0 libsoup2.4-1 libappindicator3-1 2>/dev/null || true
-            echo "=== unresolved symbols on this stack (ldd -r) ==="
-            ldd -r "$BIN" 2>&1 | grep -E "undefined symbol|not found" | sort -u || echo "(none - all symbols resolve)"
+            test -f "$BIN" || { echo "ERROR: binary not found at $BIN"; exit 1; }
+            echo "=== ldd -r full output ==="
+            ldd -r "$BIN" 2>&1 || true
+            echo "=== unresolved symbols on this stack ==="
+            unresolved=$(ldd -r "$BIN" 2>&1 | grep -E "undefined symbol|not found" | sort -u || true)
+            if [ -n "$unresolved" ]; then
+              echo "$unresolved"
+              echo "ERROR: binary references symbols newer than the Kylin-era stack"
+              exit 1
+            fi
+            echo "(none - all symbols resolve)"
           '
 
       - name: Fix deb desktop entries
