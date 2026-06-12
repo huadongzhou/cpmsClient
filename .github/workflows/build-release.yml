@@ -4,11 +4,11 @@
 # | 任务                  | 目标环境               | 壳     | 产物        | 架构            | 状态 |
 # | build-windows         | Windows 10/11          | Tauri2 | msi + nsis  | x86_64 + arm64  | 跳过 |
 # | build-macos           | macOS                  | Tauri2 | app + dmg   | x86_64 + arm64  | 跳过 |
-# | build-linux-v2        | 通用新版 Linux (wk4.1) | Tauri2 | deb         | x86_64 + arm64  | 跳过 |
+# | build-linux-v2        | 麒麟新 kylin-modern    | Tauri2 | deb         | x86_64 + arm64  | 构建 |
+# |                       | 统信新 uos-modern      | Tauri2 | deb         | x86_64 + arm64  | 构建 |
+# |                       | 通用新版 Linux (wk4.1) | Tauri2 | deb         | x86_64 + arm64  | 占位 |
 # | build-linux-domestic  | 麒麟旧 kylin-legacy    | Tauri1 | deb         | x86_64 + arm64  | 构建 |
 # |                       | 统信旧 uos-legacy      | Tauri1 | deb         | x86_64 + arm64  | 构建 |
-# |                       | 麒麟新 kylin-modern    | Tauri1 | deb         | x86_64 + arm64  | 占位 |
-# |                       | 统信新 uos-modern      | Tauri? | deb         | x86_64 + arm64  | 占位 |
 #
 # 当前策略：只构建国产 deb（Linux 系列一律只出 deb，不出 rpm/appimage）。
 # 跳过的任务保留完整配置（if: false），需要时改为 true 激活，激活后需自行
@@ -113,20 +113,45 @@ jobs:
           if-no-files-found: error
 
   # ========================================================================
-  # 通用新版 Linux（Tauri 2 壳，libwebkit2gtk-4.1 发行版，只出 deb）—— 暂跳过
+  # 新版 Linux（Tauri 2 壳，libwebkit2gtk-4.1 发行版，只出 deb）
+  #
+  # 麒麟新 kylin-modern / 统信新 uos-modern 走此链路（系统需提供
+  # libwebkit2gtk-4.1）。两者目前共用构建参数，分开出包便于分发管理。
+  # 产物 glibc 底线 = ubuntu-22.04 (2.35)：若真机 glibc 更老（启动报
+  # GLIBC_2.xx not found），按 CI-TROUBLESHOOTING.md 的 Zig 方案降底线。
   # ========================================================================
   build-linux-v2:
-    if: false # 当前只构建国产 deb
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
+          # ---- 麒麟新 kylin-modern ----
+          - env_name: kylin-modern
+            arch: x86_64
             platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-          - arch: arm64
+          - env_name: kylin-modern
+            arch: arm64
             platform: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
+          # ---- 统信新 uos-modern ----
+          - env_name: uos-modern
+            arch: x86_64
+            platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - env_name: uos-modern
+            arch: arm64
+            platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          # ---- 通用新版 Linux ----（占位，需要时取消注释）
+          # - env_name: linux
+          #   arch: x86_64
+          #   platform: ubuntu-22.04
+          #   target: x86_64-unknown-linux-gnu
+          # - env_name: linux
+          #   arch: arm64
+          #   platform: ubuntu-22.04-arm
+          #   target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout
@@ -147,16 +172,64 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils zstd
       - name: Install dependencies
         run: pnpm install
       - name: Build Linux v2 packages
         run: pnpm --dir client-tauri2 tauri build --config src-tauri/tauri.linux.conf.json --target ${{ matrix.target }} --bundles deb
+
+      # 国产系统的 dpkg 不一定支持 zstd 压缩（ubuntu-22.04 默认），统一转 gzip
+      - name: Repack deb with gzip compression
+        run: |
+          set -euo pipefail
+          for deb in client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb; do
+            [ -e "$deb" ] || continue
+            deb=$(realpath "$deb")
+            ar_tmp=$(mktemp -d)
+            pushd "$ar_tmp" >/dev/null
+            ar x "$deb"
+            for f in control.tar.* data.tar.*; do
+              case "$f" in
+                *.zst)
+                  zstd -d "$f" -o "${f%.zst}"
+                  gzip -n "${f%.zst}"
+                  rm -f "$f"
+                  ;;
+                *.xz)
+                  xz -d "$f"
+                  gzip -n "${f%.xz}"
+                  rm -f "$f"
+                  ;;
+              esac
+            done
+            rm -f "$deb"
+            ar rcs "$deb" debian-binary control.tar.gz data.tar.gz
+            popd >/dev/null
+            rm -rf "$ar_tmp"
+          done
+
+      - name: Debug deb package contents
+        run: |
+          for deb in client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb; do
+            [ -e "$deb" ] || continue
+            echo "========== Package: $deb =========="
+            dpkg-deb -I "$deb"
+          done
+
+      - name: Prepare Linux v2 artifacts
+        run: |
+          mkdir -p upload
+          for deb in client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb; do
+            base=$(basename "$deb" .deb)
+            cp "$deb" "upload/${base}_${{ matrix.env_name }}.deb"
+          done
+          ls -la upload/
+
       - name: Upload Linux v2 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cpmsClient-v2-linux-${{ matrix.arch }}
-          path: client-tauri2/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+          name: cpmsClient-v2-${{ matrix.env_name }}-${{ matrix.arch }}
+          path: upload/*
           if-no-files-found: error
 
   # ========================================================================
@@ -209,16 +282,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
             gate_image: arm64v8/ubuntu:16.04
             gate_mirror: http://ports.ubuntu.com/ubuntu-ports
-          # ---- 麒麟新 kylin-modern：V10 SP1+ ----（占位，待真机库版本数据）
-          # 拿到 dpkg -l / ldd --version 输出后再定：若 webkit 仍为 4.0 系，
-          # 复制 kylin-legacy 条目并把 gate_image 换成对应年代的容器即可；
-          # 在此之前 kylin-legacy 的包可直接在新麒麟上使用（向上兼容）。
-          # - env_name: kylin-modern
-          #   ...
-          # ---- 统信新 uos-modern：V23/V25 ----（占位，待真机库版本数据）
-          # 若新统信带 libwebkit2gtk-4.1，应改走 build-linux-v2 (Tauri 2) 链路。
-          # - env_name: uos-modern
-          #   ...
+          # 麒麟新 kylin-modern / 统信新 uos-modern 走 Tauri 2，见 build-linux-v2。
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -597,8 +661,8 @@ jobs:
           if-no-files-found: error
 
   release:
-    # 激活 win/mac/linux-v2 后记得把对应 job 加进 needs
-    needs: [build-linux-domestic]
+    # 激活 win/mac 后记得把对应 job 加进 needs
+    needs: [build-linux-domestic, build-linux-v2]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
