@@ -50,6 +50,7 @@ nusb = "0.1"
 
 [patch.crates-io]
 tao = { path = "vendor/tao-0.16.11" }
+wry = { path = "vendor/wry-0.24.12" }
 
 [profile.release]
 strip = true

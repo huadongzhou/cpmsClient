@@ -251,11 +251,13 @@ impl<T: 'static> EventLoop<T> {
             }
           }
           WindowRequest::DragWindow => {
-            if let Some(cursor) = window
+            // GdkSeat needs GTK 3.20; Kylin ships GTK 3.18, use DeviceManager
+            #[allow(deprecated)]
+            let pointer = window
               .display()
-              .default_seat()
-              .and_then(|seat| seat.pointer())
-            {
+              .device_manager()
+              .and_then(|manager| manager.client_pointer());
+            if let Some(cursor) = pointer {
               let (_, x, y) = cursor.position();
               window.begin_move_drag(1, x, y, 0);
             }
@@ -351,11 +353,13 @@ impl<T: 'static> EventLoop<T> {
             };
           }
           WindowRequest::CursorPosition((x, y)) => {
-            if let Some(cursor) = window
+            // GdkSeat needs GTK 3.20; Kylin ships GTK 3.18, use DeviceManager
+            #[allow(deprecated)]
+            let pointer = window
               .display()
-              .default_seat()
-              .and_then(|seat| seat.pointer())
-            {
+              .device_manager()
+              .and_then(|manager| manager.client_pointer());
+            if let Some(cursor) = pointer {
               if let Some(screen) = window.screen() {
                 cursor.warp(&screen, x, y);
               }
