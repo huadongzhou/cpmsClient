@@ -87,10 +87,13 @@ jobs:
         run: |
           set -euo pipefail
           openssl_version="1.0.2u"
+          openssl_sha256="ecd0c6ffb493dd06707d38b14bb4d8c2288bb7033735606569d8f90f89669d16"
           workdir="$(mktemp -d)"
+          # openssl.org removed old-release tarballs (404); use the official GitHub release asset
           curl -fsSL --retry 5 --retry-delay 5 \
-            "https://www.openssl.org/source/old/1.0.2/openssl-${openssl_version}.tar.gz" \
+            "https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2u/openssl-${openssl_version}.tar.gz" \
             -o "$workdir/openssl-${openssl_version}.tar.gz"
+          echo "$openssl_sha256  $workdir/openssl-${openssl_version}.tar.gz" | sha256sum -c -
           tar -xzf "$workdir/openssl-${openssl_version}.tar.gz" -C "$workdir"
           cd "$workdir/openssl-${openssl_version}"
           if [ "${{ matrix.arch }}" = "arm64" ]; then
