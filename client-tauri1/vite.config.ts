@@ -39,6 +39,10 @@ export default defineConfig({
     },
   },
   build: {
+    // Kylin V10 ships webkit2gtk 2.20 (Safari 11-era JS engine): ES2020
+    // syntax like optional chaining is a hard SyntaxError there, so emit
+    // ES2015 for the legacy shell.
+    target: "es2015",
     outDir: fileURLToPath(new URL("./dist", import.meta.url)),
     emptyOutDir: true,
   },

@@ -992,6 +992,14 @@ fn emit_socket_forward_result(app: &AppHandle, result: Result<Value, String>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Legacy distros (Kylin V10, webkit2gtk 2.20) often render a blank
+    // webview with accelerated compositing enabled; default it off unless
+    // the user overrides the variable themselves.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    }
+
     tauri::Builder::default()
         .system_tray(build_tray())
         .on_system_tray_event(|app, event| handle_tray_event(app, event))
