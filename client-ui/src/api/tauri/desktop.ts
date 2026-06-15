@@ -1,6 +1,10 @@
 import { unwrapCommand } from "@/api/tauri/client";
 import type { ClientHttpRequest, DesktopNotificationEventPayload } from "@/types/app/ipc";
-import type { ClientIframeStatePayload, ClientSocketStatePayload } from "@/types/app/runtime";
+import type {
+  ClientIframeStatePayload,
+  ClientSocketStatePayload,
+  PrintClientInfo,
+} from "@/types/app/runtime";
 
 /** 让客户端主动向视图端派发事件。 */
 export function emitClientEvent(name: string, payload?: unknown) {
@@ -55,4 +59,9 @@ export function reconnectSocket() {
 /** 读取本地 socket 连接状态（完整地址/端口/连接状态）。 */
 export function getSocketState() {
   return unwrapCommand<ClientSocketStatePayload>("get_socket_state");
+}
+
+/** 读取本地 PrintClient 安装路径、DriverClient.ini 内容与 WebsocketPort。 */
+export function getPrintClientInfo() {
+  return unwrapCommand<PrintClientInfo>("get_print_client_info");
 }

@@ -315,6 +315,7 @@ pub fn run() {
             window::window_close,
             socket::reconnect_socket,
             socket::get_socket_state,
+            printclient::get_print_client_info,
             services::get_startup_state,
             services::save_policy_agreed,
             services::save_auth_state,

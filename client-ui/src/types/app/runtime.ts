@@ -25,3 +25,12 @@ export interface ClientSocketStatePayload {
   message?: string | null;
   updatedAt: string;
 }
+
+export interface PrintClientInfo {
+  installed: boolean;
+  dir?: string | null;
+  configPath?: string | null;
+  websocketPort?: number | null;
+  socketUrl: string;
+  iniContent?: string | null;
+}

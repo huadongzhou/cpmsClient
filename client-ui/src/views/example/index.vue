@@ -4,12 +4,13 @@ import { emitViewEvent, listenClientEvent, listenClientSocketEvent } from "@/api
 import {
   clientHttpRequest,
   getAutostartEnabled,
+  getPrintClientInfo,
   getSocketState,
   pushClientNotificationEvent,
   reconnectSocket,
   setAutostartEnabled,
 } from "@/api/tauri/desktop";
-import type { ClientSocketStatePayload } from "@/types/app/runtime";
+import type { ClientSocketStatePayload, PrintClientInfo } from "@/types/app/runtime";
 import ErrorNotice from "@/components/common/ErrorNotice.vue";
 import { useIframeContainer } from "@/composables/useIframeContainer";
 import { useAppNotification } from "@/composables/useAppNotification";
@@ -47,6 +48,8 @@ const httpLoading = ref(false);
 const socketResult = ref("");
 const socketReconnectLoading = ref(false);
 const socketLink = ref<ClientSocketStatePayload>({ url: "", port: null, status: "", updatedAt: "" });
+const printClient = ref<PrintClientInfo>();
+const printClientLoading = ref(false);
 let unlistenClientEvent: UnlistenFn | undefined;
 let unlistenClientSocket: UnlistenFn | undefined;
 
@@ -89,7 +92,20 @@ onMounted(async () => {
   unlistenClientSocket = await listenClientSocketEvent((payload) => {
     socketLink.value = payload;
   });
+
+  await refreshPrintClientInfo();
 });
+
+async function refreshPrintClientInfo() {
+  printClientLoading.value = true;
+  try {
+    printClient.value = await getPrintClientInfo();
+  } catch {
+    printClient.value = undefined;
+  } finally {
+    printClientLoading.value = false;
+  }
+}
 
 onBeforeUnmount(() => {
   unlistenClientEvent?.();
@@ -374,6 +390,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         >
       </div>
       <pre v-if="tokenResult" class="result">{{ tokenResult }}</pre>
+    </section>
+
+    <section class="card">
+      <h2>本地 CPMS 客户端（PrintClient）</h2>
+      <p>安装路径：{{ printClient?.dir || "未检测到" }}</p>
+      <p>配置文件：{{ printClient?.configPath || "未检测到" }}</p>
+      <p>WebsocketPort：{{ printClient?.websocketPort ?? "未知" }}</p>
+      <p>解析地址：{{ printClient?.socketUrl || "未知" }}</p>
+      <div class="actions">
+        <el-button :loading="printClientLoading" @click="refreshPrintClientInfo"
+          >刷新客户端信息</el-button
+        >
+      </div>
+      <pre v-if="printClient?.iniContent" class="result">{{ printClient.iniContent }}</pre>
+      <p v-else-if="printClient && !printClient.installed">未读取到 DriverClient.ini 内容。</p>
     </section>
 
     <section class="card">
