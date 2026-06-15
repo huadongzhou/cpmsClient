@@ -180,32 +180,10 @@ cpms客户端名称：PrintClient
 }
 ```
 
-USB 作业列表：
-
-- 请求方式：GET
-- 请求路径：`/cpms/api/jobs/getUsbJobList/{uuid}`
-- 说明：`uuid` 为本地识别到的 USB 打印机唯一标识。
-
-```json
-{
-  "code": 200,
-  "msg": "操作成功",
-  "data": [
-    {
-      "id": "job-001"
-    },
-    {
-      "jobId": "job-002"
-    }
-  ]
-}
-```
-
 字段说明：
 - `data.records`：普通作业分页数组。
-- `data`：USB 作业数组。
-- `data[].id` / `data[].jobId`：作业 ID，客户端兼容字符串与数字类型。
-- `jobStatus == 2`：待打印状态，Product C 批量取消只允许选择该状态。
+- `data.records[].id`：作业 ID，客户端兼容字符串与数字类型。
+- `jobStatus == 2`：待打印状态。
 
 ### 设备列表接口
 

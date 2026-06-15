@@ -605,7 +605,6 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "sm4",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
@@ -3562,15 +3561,6 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
-
-[[package]]
-name = "sm4"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d7abf5135ffd68fb4b438e1fb246923b80d25eda386d8b798bb4ad3ed00f75f"
-dependencies = [
- "cipher",
-]
 
 [[package]]
 name = "smallvec"

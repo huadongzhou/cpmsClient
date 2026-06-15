@@ -15,10 +15,6 @@ export default defineConfig({
       exclude: ["node_modules", ".git", "dist", "src/libs/**", "**/*.bundle.js", "**/*.umd.js"],
     },
   },
-  shortcuts: {
-    "panel-title":
-      "pb-[5px] font-sans leading-[1.1] font-medium text-base text-[#6379bb] border-b border-b-solid border-[var(--el-border-color-light)] mb-5 mt-0",
-  },
   theme: {
     colors: {
       primary: "var(--el-color-primary)",

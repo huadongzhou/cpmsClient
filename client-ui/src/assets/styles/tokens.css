@@ -1,0 +1,56 @@
+/**
+ * CPMS 客户端设计令牌。
+ * 主窗口、桌面通知子窗口、调试抽屉等所有窗口内容共用同一套视觉变量，
+ * 颜色、字号、圆角、间距一律从这里取值，禁止在组件里写裸色值。
+ */
+:root {
+  --cpms-font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  --cpms-font-size-base: 14px;
+  --cpms-font-size-small: 13px;
+  --cpms-font-size-title: 14px;
+  --cpms-line-height-base: 22px;
+
+  --cpms-color-text-primary: #1f2937;
+  --cpms-color-text-secondary: #4b5563;
+  --cpms-color-text-muted: #687385;
+
+  --cpms-color-bg-app: #f4f6f8;
+  --cpms-color-bg-panel: #ffffff;
+  --cpms-color-bg-hover: #f1f4f8;
+  --cpms-color-bg-code: #f4f6f8;
+
+  --cpms-color-border: #e4e9f0;
+
+  --cpms-color-danger: #b91c1c;
+  --cpms-color-danger-bg: #fde8e8;
+
+  --cpms-radius-small: 6px;
+  --cpms-radius-panel: 8px;
+
+  --cpms-headerbar-height: 44px;
+
+  --cpms-space-xs: 4px;
+  --cpms-space-small: 8px;
+  --cpms-space-base: 12px;
+}
+
+/**
+ * 把 Element Plus 的关键变量对齐到 CPMS 令牌，让 el-button/el-input/el-tag/
+ * el-drawer/el-tabs/el-alert 等组件与自绘窗口外壳使用同一套色/圆角/字号。
+ * 用 :root:root 提升特异性，确保覆盖 Element Plus 自身注入的 :root 变量。
+ */
+:root:root {
+  --el-text-color-primary: var(--cpms-color-text-primary);
+  --el-text-color-regular: var(--cpms-color-text-secondary);
+  --el-text-color-secondary: var(--cpms-color-text-muted);
+
+  --el-border-color: var(--cpms-color-border);
+  --el-border-color-light: var(--cpms-color-border);
+  --el-border-color-lighter: var(--cpms-color-border);
+
+  --el-fill-color-light: var(--cpms-color-bg-hover);
+  --el-fill-color-blank: var(--cpms-color-bg-panel);
+
+  --el-border-radius-base: var(--cpms-radius-small);
+  --el-font-size-base: var(--cpms-font-size-base);
+}

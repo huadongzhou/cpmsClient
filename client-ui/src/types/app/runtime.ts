@@ -1,4 +1,4 @@
-import type { TodoTask } from "@/types/task/todoTask";
+import type { TodoTask } from "@/types/task/todo-task";
 
 export type ClientIframeState = "idle" | "loading" | "loaded" | "invalid-url" | "error";
 

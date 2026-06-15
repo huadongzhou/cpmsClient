@@ -10,7 +10,7 @@ import {
 import ErrorNotice from "@/components/common/ErrorNotice.vue";
 import { useIframeContainer } from "@/composables/useIframeContainer";
 import { useAppNotification } from "@/composables/useAppNotification";
-import { getAccessToken } from "@/api/request/config";
+import { getAccessToken } from "@/api/config";
 import { useAppStore } from "@/stores/app";
 import { useNetworkStore } from "@/stores/network";
 import { useRuntimeStore } from "@/stores/runtime";
@@ -356,32 +356,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 <style scoped>
 .example {
   display: grid;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--cpms-space-base);
+  padding: var(--cpms-space-base);
 }
 
 h2 {
   margin: 0;
+  font-size: var(--cpms-font-size-base);
+  color: var(--cpms-color-text-primary);
 }
 
 h3 {
   margin: 0;
-  font-size: 14px;
-  color: #4b5563;
+  font-size: var(--cpms-font-size-base);
+  color: var(--cpms-color-text-secondary);
 }
 
 .card {
   display: grid;
-  gap: 8px;
-  background: #ffffff;
-  border: 1px solid #dfe4ea;
-  border-radius: 8px;
-  padding: 12px;
+  gap: var(--cpms-space-small);
+  background: var(--cpms-color-bg-panel);
+  border: 1px solid var(--cpms-color-border);
+  border-radius: var(--cpms-radius-panel);
+  padding: var(--cpms-space-base);
 }
 
 .actions {
   display: flex;
-  gap: 8px;
+  gap: var(--cpms-space-small);
   flex-wrap: wrap;
 }
 
@@ -389,8 +391,9 @@ h3 {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  background: #f4f6f8;
-  border-radius: 6px;
-  padding: 8px;
+  background: var(--cpms-color-bg-code);
+  border-radius: var(--cpms-radius-small);
+  padding: var(--cpms-space-small);
+  font-size: var(--cpms-font-size-small);
 }
 </style>

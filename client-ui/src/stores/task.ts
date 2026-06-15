@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { TodoTask, TodoTaskState } from "@/types/task/todoTask";
+import type { TodoTask, TodoTaskState } from "@/types/task/todo-task";
 
 export const useTaskStore = defineStore("task", () => {
   const todoTasks = ref<TodoTask[]>([]);

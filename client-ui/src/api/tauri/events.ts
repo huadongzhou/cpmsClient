@@ -1,6 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ClientEventPayload, DesktopNotificationEventPayload } from "@/types/app/ipc";
+import type { ClientLogEventPayload } from "@/types/app/log";
 import type { ClientIframeStatePayload, ClientTodoTaskPayload } from "@/types/app/runtime";
 
 export const VIEW_TO_CLIENT_EVENT = "cpms:view-to-client";
@@ -8,13 +9,9 @@ export const CLIENT_TO_VIEW_EVENT = "cpms:client-to-view";
 export const CLIENT_NOTIFICATION_EVENT = "cpms:desktop-notification";
 export const CLIENT_IFRAME_EVENT = "cpms:client-iframe";
 export const CLIENT_TODO_TASK_EVENT = "cpms:client-todo-task";
+export const CLIENT_LOG_EVENT = "cpms:client-log";
 export const HUB_SYSTEM_STATE_EVENT = "cpms:hub-system-state";
-export const HUB_PRINT_STATE_EVENT = "cpms:hub-print-state";
-export const HUB_USB_CHANGED_EVENT = "cpms:hub-usb-changed";
-export const HUB_SOCKET_STATE_EVENT = "cpms:hub-socket-state";
 export const HUB_NETWORK_CHANGED_EVENT = "cpms:hub-network-changed";
-export const HUB_JOB_PROGRESS_EVENT = "cpms:hub-job-progress";
-export const HUB_JOB_ERROR_EVENT = "cpms:hub-job-error";
 
 /** 视图端向客户端发送事件。 */
 export async function emitViewEvent(name: string, payload?: unknown) {
@@ -77,6 +74,19 @@ export async function listenClientTodoTaskEvent(
   }
 
   return listen<ClientTodoTaskPayload>(CLIENT_TODO_TASK_EVENT, (event) => {
+    handler(event.payload);
+  });
+}
+
+/** 监听客户端（Rust 侧）日志事件，供调试抽屉日志面板展示。 */
+export async function listenClientLogEvent(
+  handler: (payload: ClientLogEventPayload) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    return () => undefined;
+  }
+
+  return listen<ClientLogEventPayload>(CLIENT_LOG_EVENT, (event) => {
     handler(event.payload);
   });
 }

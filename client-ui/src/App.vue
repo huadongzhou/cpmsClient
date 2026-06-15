@@ -1,12 +1,13 @@
 <script setup lang="ts" name="App">
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import DesktopNotificationHost from "@/components/common/DesktopNotificationHost.vue";
 import { useClientEventBridge } from "@/composables/useClientEventBridge";
+import { useClientLogBridge } from "@/composables/useClientLogBridge";
 import { useClientNotificationBridge } from "@/composables/useClientNotificationBridge";
 import { useClientRuntimeBridge } from "@/composables/useClientRuntimeBridge";
 import { useDesktopNotificationBridge } from "@/composables/useDesktopNotificationBridge";
 import HomeView from "@/views/home/index.vue";
+import NotificationView from "@/views/notification/index.vue";
 
 const isNotificationWindow = ref(isTauri() && getCurrentWindow().label === "notification");
 const isMainWindow = computed(() => !isNotificationWindow.value);
@@ -16,23 +17,24 @@ if (isMainWindow.value) {
   useClientNotificationBridge();
   useClientEventBridge();
   useClientRuntimeBridge();
+  useClientLogBridge();
 }
 </script>
 
 <template>
-  <DesktopNotificationHost v-if="isNotificationWindow" />
+  <NotificationView v-if="isNotificationWindow" />
   <HomeView v-else />
 </template>
 
 <style>
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
+  font-family: var(--cpms-font-family);
+  font-size: var(--cpms-font-size-base);
+  line-height: var(--cpms-line-height-base);
   font-weight: 400;
 
-  color: #0f0f0f;
-  background-color: #f4f6f8;
+  color: var(--cpms-color-text-primary);
+  background-color: var(--cpms-color-bg-app);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

@@ -19,6 +19,7 @@ const { latestError, clearError } = useAppError();
 
 <style scoped>
 .error-notice {
-  margin-bottom: 16px;
+  margin-bottom: var(--cpms-space-base);
+  border-radius: var(--cpms-radius-small);
 }
 </style>
