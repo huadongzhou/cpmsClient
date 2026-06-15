@@ -313,6 +313,7 @@ pub fn run() {
             window::window_hide,
             window::window_show,
             window::window_close,
+            socket::reconnect_socket,
             services::get_startup_state,
             services::save_policy_agreed,
             services::save_auth_state,

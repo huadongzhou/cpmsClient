@@ -5,6 +5,7 @@ import {
   clientHttpRequest,
   getAutostartEnabled,
   pushClientNotificationEvent,
+  reconnectSocket,
   setAutostartEnabled,
 } from "@/api/tauri/desktop";
 import ErrorNotice from "@/components/common/ErrorNotice.vue";
@@ -42,6 +43,7 @@ const tokenLoading = ref(false);
 const httpResult = ref("");
 const httpLoading = ref(false);
 const socketResult = ref("");
+const socketReconnectLoading = ref(false);
 let unlistenClientEvent: UnlistenFn | undefined;
 
 const pageAddress = computed(() => window.location.href);
@@ -204,6 +206,24 @@ function runSocketDetect() {
   ].join("\n");
 }
 
+async function runSocketReconnect() {
+  socketReconnectLoading.value = true;
+  try {
+    await reconnectSocket();
+    socketResult.value = [
+      `[Socket Reconnect] ${socketEndpoint.value}`,
+      "已请求客户端立即重连本地 socket 服务，可在「客户端日志」的「任务 / Socket」类别查看重连结果。",
+    ].join("\n");
+  } catch (error) {
+    socketResult.value = [
+      "[Socket Reconnect Error]",
+      error instanceof Error ? error.message : "重连请求失败",
+    ].join("\n");
+  } finally {
+    socketReconnectLoading.value = false;
+  }
+}
+
 function toSocketEndpoint(baseUrl: string) {
   const normalized = baseUrl.replace(/\/$/, "");
 
@@ -339,7 +359,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
       >
       <pre v-if="httpResult" class="result">{{ httpResult }}</pre>
       <h3>Socket</h3>
-      <el-button type="success" plain @click="runSocketDetect">执行 Socket 请求检测</el-button>
+      <div class="actions">
+        <el-button type="success" plain @click="runSocketDetect">执行 Socket 请求检测</el-button>
+        <el-button
+          type="warning"
+          plain
+          :loading="socketReconnectLoading"
+          @click="runSocketReconnect"
+          >重连 socket 服务</el-button
+        >
+      </div>
       <pre v-if="socketResult" class="result">{{ socketResult }}</pre>
     </section>
 

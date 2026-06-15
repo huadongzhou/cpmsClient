@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -11,6 +12,7 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 use crate::printclient::local_socket_url;
+use crate::result::CommandResult;
 use crate::services;
 use crate::{
     now_iso_string, ClientEventPayload, ClientTodoTaskPayload, CLIENT_TODO_TASK_EVENT,
@@ -20,6 +22,24 @@ use crate::{
 const FORWARD_RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const PENDING_FORWARD_DIR: &str = "pending-forwards";
 const MAX_FORWARD_ATTEMPTS: u64 = 10;
+const SOCKET_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+const SOCKET_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+/// 手动重连标志：调试页按钮置位，worker 检测到后立即断开并重连。
+static RECONNECT_FLAG: AtomicBool = AtomicBool::new(false);
+
+/// 请求 worker 立即重连本地 socket 服务。
+pub(crate) fn request_reconnect() {
+    RECONNECT_FLAG.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+/// 手动重连本地 PrintClient socket 服务（调试页按钮触发）。
+pub fn reconnect_socket(app: AppHandle) -> CommandResult<bool> {
+    request_reconnect();
+    services::log_service::info(&app, "socket", "收到手动重连本地 socket 服务请求");
+    CommandResult::ok(true)
+}
 
 pub(crate) async fn start_local_socket_worker(app: AppHandle) {
     let mut last_url: Option<String> = None;
@@ -46,9 +66,21 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                 );
                 announced_failure = false;
 
-                while let Some(next_message) = stream.next().await {
-                    match next_message {
-                        Ok(raw_message) if raw_message.is_text() => {
+                let mut immediate_reconnect = false;
+                loop {
+                    if RECONNECT_FLAG.swap(false, Ordering::SeqCst) {
+                        services::log_service::info(
+                            &app,
+                            "socket",
+                            "收到重连请求，断开当前连接",
+                        );
+                        immediate_reconnect = true;
+                        break;
+                    }
+
+                    // 轮询读取，超时即回到循环顶部检查重连标志（不引入 tokio sync 特性）。
+                    match tokio::time::timeout(SOCKET_POLL_INTERVAL, stream.next()).await {
+                        Ok(Some(Ok(raw_message))) if raw_message.is_text() => {
                             if let Ok(text) = raw_message.to_text() {
                                 if is_print_task_message(text) {
                                     services::log_service::info(
@@ -77,12 +109,18 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                                 }
                             }
                         }
-                        Ok(_) => {}
-                        Err(_) => break,
+                        Ok(Some(Ok(_))) => {}
+                        Ok(Some(Err(_))) | Ok(None) => break,
+                        Err(_) => {}
                     }
                 }
 
-                services::log_service::warn(&app, "socket", "本地 socket 连接断开，3 秒后重连");
+                if immediate_reconnect {
+                    services::log_service::info(&app, "socket", "立即重连本地 socket 服务");
+                    continue;
+                }
+
+                services::log_service::warn(&app, "socket", "本地 socket 连接断开，准备重连");
             }
             Err(error) => {
                 if !announced_failure {
@@ -93,11 +131,23 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                     );
                     announced_failure = true;
                 }
-                tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }
 
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        sleep_or_reconnect(SOCKET_RETRY_INTERVAL).await;
+    }
+}
+
+/// 等待重连间隔，期间收到重连请求则立即返回（并消费标志）。
+async fn sleep_or_reconnect(total: Duration) {
+    let mut elapsed = Duration::ZERO;
+    let step = Duration::from_millis(250);
+    while elapsed < total {
+        if RECONNECT_FLAG.swap(false, Ordering::SeqCst) {
+            return;
+        }
+        tokio::time::sleep(step).await;
+        elapsed += step;
     }
 }
 

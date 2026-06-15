@@ -46,3 +46,8 @@ export function getAutostartEnabled() {
 export function setAutostartEnabled(enabled: boolean) {
   return unwrapCommand<boolean>("autostart_set_enabled", { enabled });
 }
+
+/** 触发客户端立即重连本地 PrintClient socket 服务。 */
+export function reconnectSocket() {
+  return unwrapCommand<boolean>("reconnect_socket");
+}
