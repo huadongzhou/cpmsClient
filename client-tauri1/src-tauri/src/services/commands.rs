@@ -56,7 +56,7 @@ pub fn save_auth_state(app: AppHandle, state: AuthPersistState) -> CommandResult
         return CommandResult::fail("HUB_AUTH_SAVE_ERROR", &error);
     }
 
-    super::log_service::info(&app, "lifecycle", "登录态已保存");
+    super::log_service::info(&app, "business", "用户登录态已保存");
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
@@ -74,7 +74,7 @@ pub fn clear_auth_state(app: AppHandle) -> CommandResult<StartupState> {
         return CommandResult::fail("HUB_AUTH_CLEAR_ERROR", &error);
     }
 
-    super::log_service::info(&app, "lifecycle", "登录态已清理");
+    super::log_service::info(&app, "business", "用户已登出，登录态已清理");
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
@@ -125,7 +125,7 @@ pub fn save_auth_token(app: AppHandle, token: String) -> CommandResult<StartupSt
         return CommandResult::fail("HUB_AUTH_TOKEN_SAVE_ERROR", &error);
     }
 
-    super::log_service::info(&app, "lifecycle", "缓存 token 已更新");
+    super::log_service::info(&app, "business", "登录 token 已更新");
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
@@ -147,18 +147,36 @@ pub fn get_job_list(
         ("searchTime".into(), search_time.unwrap_or_default()),
     ];
 
+    super::log_service::info(
+        &app,
+        "business",
+        &format!("查询作业列表（页码 {page_number}，每页 {page_size}，类型 {job_type}）"),
+    );
     match cpms_form_post(&app, JOB_LIST_PATH, &params) {
-        Ok(value) => CommandResult::ok(value),
-        Err(error) => CommandResult::fail("HUB_JOB_LIST_ERROR", &error),
+        Ok(value) => {
+            super::log_service::info(&app, "business", "作业列表查询成功");
+            CommandResult::ok(value)
+        }
+        Err(error) => {
+            super::log_service::error(&app, "business", &format!("作业列表查询失败：{error}"));
+            CommandResult::fail("HUB_JOB_LIST_ERROR", &error)
+        }
     }
 }
 
 #[tauri::command]
 /// Fetches CPMS direct-output printer devices available to the current user.
 pub fn get_available_devices(app: AppHandle) -> CommandResult<Value> {
+    super::log_service::info(&app, "business", "查询可用直连设备列表");
     match cpms_get(&app, DEVICE_LIST_PATH) {
-        Ok(value) => CommandResult::ok(value),
-        Err(error) => CommandResult::fail("HUB_DEVICE_LIST_ERROR", &error),
+        Ok(value) => {
+            super::log_service::info(&app, "business", "设备列表查询成功");
+            CommandResult::ok(value)
+        }
+        Err(error) => {
+            super::log_service::error(&app, "business", &format!("设备列表查询失败：{error}"));
+            CommandResult::fail("HUB_DEVICE_LIST_ERROR", &error)
+        }
     }
 }
 
@@ -176,8 +194,10 @@ pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Valu
         return CommandResult::fail("HUB_DIRECT_DEVICE_ID_EMPTY", "deviceId 不能为空");
     };
 
+    super::log_service::info(&app, "business", &format!("选择直连设备 deviceId={device_id}"));
     let params = vec![("deviceId".into(), device_id)];
     if let Err(error) = cpms_form_post(&app, UPDATE_DIRECT_DEVICE_PATH, &params) {
+        super::log_service::error(&app, "business", &format!("设备选择失败：{error}"));
         return CommandResult::fail("HUB_DIRECT_DEVICE_UPDATE_ERROR", &error);
     }
 
@@ -187,6 +207,7 @@ pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Valu
         return CommandResult::fail("HUB_DIRECT_DEVICE_SAVE_ERROR", &error);
     }
 
+    super::log_service::info(&app, "business", "设备选择成功并已本地持久化");
     CommandResult::ok(json!({
         "success": true,
         "code": "OK",
