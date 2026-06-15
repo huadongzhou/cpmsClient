@@ -127,7 +127,9 @@ impl InnerWebView {
           encode_wide(pl_attrs.additional_browser_args.unwrap_or_else(|| {
             // remove "mini menu" - See https://github.com/tauri-apps/wry/issues/535
             // and "smart screen" - See https://github.com/tauri-apps/tauri/issues/1345
-            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection".to_string()
+            // 关闭 SameSite 强制：允许跨站（iframe 第三方上下文）在 http 下设置/携带 Cookie，
+            // 否则 SameSite=None 需 Secure（仅 https）、无 SameSite 默认 Lax → 跨站 Cookie 被拦。
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure".to_string()
           }))
           .as_ptr(),
         ));
