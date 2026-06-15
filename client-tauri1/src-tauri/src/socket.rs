@@ -7,13 +7,14 @@ use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use reqwest::Url;
 use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
 const DEFAULT_LISTEN_PORT: u16 = 18101;
@@ -191,6 +192,11 @@ async fn handle_push_connection(app: AppHandle, stream: TcpStream) {
                             process_push_message(&app, text);
                         }
                     }
+                    Ok(Message::Ping(payload)) => {
+                        // 回 Pong 维持心跳，避免对端按超时主动断开。
+                        let _ = websocket.send(Message::Pong(payload)).await;
+                    }
+                    Ok(raw_message) if raw_message.is_close() => break,
                     Ok(_) => {}
                     Err(_) => break,
                 }
@@ -210,13 +216,15 @@ async fn handle_push_connection(app: AppHandle, stream: TcpStream) {
 
 /// 处理一条推送消息：记录日志，打印任务转发、待办任务推送视图端。
 fn process_push_message(app: &AppHandle, text: &str) {
-    let preview: String = text.chars().take(500).collect();
+    // 兼容带 "data:" 前缀（SSE 风格）的推送，取 JSON 主体。
+    let payload = strip_push_envelope(text);
+    let preview: String = payload.chars().take(4000).collect();
     services::log_service::log(app, "INFO", "socket", "socket 收到推送", Some(&preview));
 
-    if is_print_task_message(text) {
-        services::log_service::info(app, "socket", "收到打印任务推送，开始转发");
+    if is_print_task_message(payload) {
+        services::log_service::info(app, "socket", "识别为打印任务推送，开始转发");
         let app_handle = app.clone();
-        let message = text.to_string();
+        let message = payload.to_string();
         thread::spawn(move || {
             let result = forward_socket_task_with_token_retry(&app_handle, &message);
             if result.is_err() {
@@ -224,9 +232,22 @@ fn process_push_message(app: &AppHandle, text: &str) {
             }
             emit_socket_forward_result(&app_handle, result);
         });
-    } else if let Some(task_payload) = parse_todo_payload(text) {
+    } else if let Some(task_payload) = parse_todo_payload(payload) {
         let _ = app.emit_to(MAIN_WINDOW_LABEL, CLIENT_TODO_TASK_EVENT, task_payload);
+    } else {
+        services::log_service::warn(app, "socket", "推送消息未识别为打印/待办任务，已忽略");
     }
+}
+
+/// 兼容带 "data:" 前缀（SSE 风格）的推送：剥离前缀，取 JSON 主体。
+fn strip_push_envelope(text: &str) -> &str {
+    let trimmed = text.trim();
+    for prefix in ["data:", "DATA:", "data："] {
+        if let Some(rest) = trimmed.strip_prefix(prefix) {
+            return rest.trim();
+        }
+    }
+    trimmed
 }
 
 /// 等待重连间隔，期间收到重连请求则立即返回（并消费标志）。
