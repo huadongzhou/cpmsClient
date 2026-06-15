@@ -394,6 +394,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
     <section class="card">
       <h2>本地 CPMS 客户端（PrintClient）</h2>
+      <p>运行目录（按进程名）：{{ printClient?.processDir || "未检测到运行中的 PrintClient" }}</p>
       <p>安装路径：{{ printClient?.dir || "未检测到" }}</p>
       <p>配置文件：{{ printClient?.configPath || "未检测到" }}</p>
       <p>WebsocketPort：{{ printClient?.websocketPort ?? "未知" }}</p>

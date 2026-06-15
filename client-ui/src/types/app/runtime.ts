@@ -28,6 +28,7 @@ export interface ClientSocketStatePayload {
 
 export interface PrintClientInfo {
   installed: boolean;
+  processDir?: string | null;
   dir?: string | null;
   configPath?: string | null;
   websocketPort?: number | null;

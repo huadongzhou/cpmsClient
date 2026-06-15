@@ -1,8 +1,13 @@
-//! 本地 PrintClient（cpms 客户端）发现：解析其配置文件得到 websocket 端口/地址，
-//! 并向调试页暴露安装路径与 DriverClient.ini 内容。
+//! 本地 PrintClient（cpms 客户端）发现：
+//! 1) 优先按进程名找到运行中的 PrintClient，取其 exe 目录（最可靠，不依赖安装路径）；
+//! 2) 退回 env 指定 / 常见安装目录猜测；
+//! 在定位到的目录里解析 DriverClient.ini，取 WebsocketPort 得到本地 socket 地址。
+//! 同时向调试页暴露安装路径与 DriverClient.ini 内容。
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
@@ -11,6 +16,7 @@ use crate::{DEFAULT_LOCAL_SOCKET_PATH, DEFAULT_LOCAL_SOCKET_URL};
 
 const DRIVER_CLIENT_INI: &str = "DriverClient.ini";
 const CONFIG_FILE_NAMES: [&str; 3] = [DRIVER_CLIENT_INI, "config.conf", "config.ini"];
+const PROCESS_RESCAN_INTERVAL: Duration = Duration::from_secs(10);
 
 /// 本地 PrintClient 信息，供调试页展示。
 #[derive(Debug, Clone, Default, Serialize)]
@@ -18,7 +24,9 @@ const CONFIG_FILE_NAMES: [&str; 3] = [DRIVER_CLIENT_INI, "config.conf", "config.
 pub(crate) struct PrintClientInfo {
     /// 是否检测到 PrintClient 配置文件。
     pub(crate) installed: bool,
-    /// 安装目录（配置文件所在目录）。
+    /// 运行中的 PrintClient 进程所在目录（按进程名匹配）。
+    pub(crate) process_dir: Option<String>,
+    /// 配置文件所在目录。
     pub(crate) dir: Option<String>,
     /// 配置文件完整路径（优先 DriverClient.ini）。
     pub(crate) config_path: Option<String>,
@@ -31,13 +39,14 @@ pub(crate) struct PrintClientInfo {
 }
 
 #[tauri::command]
-/// 读取本地 PrintClient 安装路径、DriverClient.ini 内容与 WebsocketPort，供调试页展示。
+/// 读取本地 PrintClient 进程/安装路径、DriverClient.ini 内容与 WebsocketPort，供调试页展示。
 pub(crate) fn get_print_client_info() -> CommandResult<PrintClientInfo> {
     CommandResult::ok(discover_print_client_info())
 }
 
 pub(crate) fn discover_print_client_info() -> PrintClientInfo {
     let socket_url = local_socket_url();
+    let process_dir = process_print_client_dir().map(|dir| dir.to_string_lossy().to_string());
 
     match locate_print_client_config() {
         Some(path) => {
@@ -45,6 +54,7 @@ pub(crate) fn discover_print_client_info() -> PrintClientInfo {
             let websocket_port = content.as_deref().and_then(parse_websocket_port);
             PrintClientInfo {
                 installed: true,
+                process_dir,
                 dir: path.parent().map(|dir| dir.to_string_lossy().to_string()),
                 config_path: Some(path.to_string_lossy().to_string()),
                 websocket_port,
@@ -54,6 +64,7 @@ pub(crate) fn discover_print_client_info() -> PrintClientInfo {
         }
         None => PrintClientInfo {
             installed: false,
+            process_dir,
             socket_url,
             ..PrintClientInfo::default()
         },
@@ -74,7 +85,8 @@ fn discover_print_client_socket_url() -> Option<String> {
     locate_print_client_config().and_then(|path| socket_url_from_config_file(&path))
 }
 
-/// 定位 PrintClient 配置文件：优先 env 指定，其次候选目录下的 DriverClient.ini / config.*。
+/// 定位 PrintClient 配置文件：优先 env 指定，其次候选目录（含运行进程目录）下的
+/// DriverClient.ini / config.*。
 fn locate_print_client_config() -> Option<PathBuf> {
     if let Ok(config_path) = std::env::var("CPMS_PRINTCLIENT_CONFIG_PATH") {
         let path = PathBuf::from(config_path);
@@ -98,10 +110,21 @@ fn locate_print_client_config() -> Option<PathBuf> {
 fn print_client_candidate_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
+    // 1. 运行中的 PrintClient 进程所在目录及其常见相对位置（最可靠）。
+    if let Some(exe_dir) = process_print_client_dir() {
+        dirs.push(exe_dir.clone());
+        dirs.push(exe_dir.join("config"));
+        if let Some(parent) = exe_dir.parent() {
+            dirs.push(parent.to_path_buf());
+        }
+    }
+
+    // 2. env 指定的安装目录。
     if let Ok(dir) = std::env::var("CPMS_PRINTCLIENT_DIR") {
         dirs.push(PathBuf::from(dir));
     }
 
+    // 3. 常见安装目录猜测。
     for env_key in [
         "ProgramFiles",
         "ProgramFiles(x86)",
@@ -118,6 +141,61 @@ fn print_client_candidate_dirs() -> Vec<PathBuf> {
     }
 
     dirs
+}
+
+/// 按进程名定位运行中的 PrintClient 的 exe 目录（带 10s 节流缓存，避免反复扫描）。
+fn process_print_client_dir() -> Option<PathBuf> {
+    static CACHE: OnceLock<Mutex<Option<(Instant, Option<PathBuf>)>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+
+    let Ok(mut guard) = cache.lock() else {
+        return scan_process_exe_dir();
+    };
+
+    let need_scan = match guard.as_ref() {
+        // 已找到的结果稳定复用；未找到的每 10s 重扫一次（PrintClient 可能后启动）。
+        Some((scanned_at, result)) => result.is_none() && scanned_at.elapsed() >= PROCESS_RESCAN_INTERVAL,
+        None => true,
+    };
+
+    if need_scan {
+        let dir = scan_process_exe_dir();
+        *guard = Some((Instant::now(), dir.clone()));
+        return dir;
+    }
+
+    guard.as_ref().and_then(|(_, result)| result.clone())
+}
+
+#[cfg(target_os = "windows")]
+fn scan_process_exe_dir() -> Option<PathBuf> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let output = std::process::Command::new("powershell")
+        .creation_flags(CREATE_NO_WINDOW)
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-Process -Name PrintClient -ErrorAction SilentlyContinue | \
+             Select-Object -First 1 -ExpandProperty Path",
+        ])
+        .output()
+        .ok()?;
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() {
+        return None;
+    }
+
+    PathBuf::from(path).parent().map(|dir| dir.to_path_buf())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn scan_process_exe_dir() -> Option<PathBuf> {
+    // 非 Windows 平台没有 PrintClient.exe 进程，按进程名发现不适用。
+    None
 }
 
 fn socket_url_from_config_file(path: &Path) -> Option<String> {
