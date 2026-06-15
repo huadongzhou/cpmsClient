@@ -21,8 +21,8 @@ use std::{
 };
 use url::Url;
 use webkit2gtk::{
-  ApplicationInfo, CookiePersistentStorage, LoadEvent, URIRequest, URIRequestExt, WebContext,
-  WebContextBuilder, WebView, WebViewExt, WebsiteDataManagerBuilder,
+  ApplicationInfo, CookieAcceptPolicy, CookiePersistentStorage, LoadEvent, URIRequest,
+  URIRequestExt, WebContext, WebContextBuilder, WebView, WebViewExt, WebsiteDataManagerBuilder,
 };
 
 #[derive(Debug)]
@@ -59,6 +59,12 @@ impl WebContextImpl {
     }
 
     let context = context_builder.build();
+
+    // 允许第三方（iframe）Cookie：WebKitGTK 默认 NO_THIRD_PARTY，会拦掉 iframe 内站点设置的
+    // Cookie，导致 v1（旧 webkit2gtk）下 iframe 无法维持登录态/会话；显式设为 Always，与 v2 一致。
+    if let Some(cookie_manager) = context.cookie_manager() {
+      cookie_manager.set_accept_policy(CookieAcceptPolicy::Always);
+    }
 
     let automation = false;
     context.set_automation_allowed(automation);
