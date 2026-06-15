@@ -404,8 +404,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
           >刷新客户端信息</el-button
         >
       </div>
-      <pre v-if="printClient?.iniContent" class="result">{{ printClient.iniContent }}</pre>
-      <p v-else-if="printClient && !printClient.installed">未读取到 DriverClient.ini 内容。</p>
     </section>
 
     <section class="card">

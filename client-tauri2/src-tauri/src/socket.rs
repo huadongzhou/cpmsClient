@@ -132,6 +132,14 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                     match tokio::time::timeout(SOCKET_POLL_INTERVAL, stream.next()).await {
                         Ok(Some(Ok(raw_message))) if raw_message.is_text() => {
                             if let Ok(text) = raw_message.to_text() {
+                                let preview: String = text.chars().take(500).collect();
+                                services::log_service::log(
+                                    &app,
+                                    "INFO",
+                                    "socket",
+                                    "socket 收到推送",
+                                    Some(&preview),
+                                );
                                 if is_print_task_message(text) {
                                     services::log_service::info(
                                         &app,

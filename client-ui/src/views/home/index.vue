@@ -85,7 +85,7 @@ async function closeWindow() {
       >
       <el-drawer
         v-model="exampleDrawerVisible"
-        size="520px"
+        size="80%"
         :show-close="false"
         destroy-on-close
         class="debug-drawer"
@@ -154,5 +154,13 @@ async function closeWindow() {
   margin: 0;
   padding: 0 var(--cpms-space-base);
   border-bottom: 1px solid var(--cpms-color-border);
+}
+
+/* 抽屉内部组件统一占满宽度（100%）。 */
+.drawer-tabs,
+.drawer-tabs :deep(.el-tabs__content),
+.drawer-tabs :deep(.el-tab-pane) {
+  width: 100%;
+  box-sizing: border-box;
 }
 </style>
