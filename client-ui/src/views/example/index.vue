@@ -295,10 +295,16 @@ function maskToken(token?: string) {
 }
 
 function extractTokenFromIframePayload(payload: unknown): string | undefined {
+  // 形态1：iframe 直接回传字符串 token（iframe 端 `payload: getToken()`）
+  if (typeof payload === "string") {
+    return payload.trim() || undefined;
+  }
+
   if (!isRecord(payload)) {
     return undefined;
   }
 
+  // 形态2：对象内含 token/accessToken/access_token 字段
   const directToken =
     readString(payload, "token") ||
     readString(payload, "accessToken") ||
@@ -308,7 +314,12 @@ function extractTokenFromIframePayload(payload: unknown): string | undefined {
     return directToken;
   }
 
+  // 形态3：再嵌一层 payload（字符串或对象）
   const nestedPayload = payload.payload;
+
+  if (typeof nestedPayload === "string") {
+    return nestedPayload.trim() || undefined;
+  }
 
   if (isRecord(nestedPayload)) {
     return (
