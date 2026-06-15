@@ -51,6 +51,23 @@ pub fn client_submit_iframe_payload(
     request_id: String,
     payload: Option<Value>,
 ) -> CommandResult<bool> {
+    // iframe 上报即落库：从 payload 中提取 token，提取到就写入缓存（供 socket 转发/CPMS 请求直接使用，
+    // 无需等到首次请求 401 才重取）。
+    if let Some(value) = payload.as_ref() {
+        if let Some(token) = crate::token_refresh::extract_token_from_iframe_payload(value) {
+            match services::save_cached_auth_token(&app, &token) {
+                Ok(_) => {
+                    services::log_service::info(&app, "token", "已从 iframe 上报读取并缓存 token")
+                }
+                Err(error) => services::log_service::warn(
+                    &app,
+                    "token",
+                    &format!("缓存 iframe 上报的 token 失败：{error}"),
+                ),
+            }
+        }
+    }
+
     let report_payload = json!({
         "requestId": request_id,
         "payload": payload,
