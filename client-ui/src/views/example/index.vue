@@ -1,13 +1,15 @@
 <script setup lang="ts" name="ExampleView">
 import { storeToRefs } from "pinia";
-import { emitViewEvent, listenClientEvent } from "@/api/tauri/events";
+import { emitViewEvent, listenClientEvent, listenClientSocketEvent } from "@/api/tauri/events";
 import {
   clientHttpRequest,
   getAutostartEnabled,
+  getSocketState,
   pushClientNotificationEvent,
   reconnectSocket,
   setAutostartEnabled,
 } from "@/api/tauri/desktop";
+import type { ClientSocketStatePayload } from "@/types/app/runtime";
 import ErrorNotice from "@/components/common/ErrorNotice.vue";
 import { useIframeContainer } from "@/composables/useIframeContainer";
 import { useAppNotification } from "@/composables/useAppNotification";
@@ -44,7 +46,20 @@ const httpResult = ref("");
 const httpLoading = ref(false);
 const socketResult = ref("");
 const socketReconnectLoading = ref(false);
+const socketLink = ref<ClientSocketStatePayload>({ url: "", port: null, status: "", updatedAt: "" });
 let unlistenClientEvent: UnlistenFn | undefined;
+let unlistenClientSocket: UnlistenFn | undefined;
+
+const SOCKET_STATUS_TEXT: Record<string, string> = {
+  "": "未初始化",
+  connecting: "连接中",
+  connected: "已连接",
+  disconnected: "已断开",
+  failed: "连接失败",
+};
+const socketStatusText = computed(() => SOCKET_STATUS_TEXT[socketLink.value.status] ?? socketLink.value.status);
+const socketLinkUrl = computed(() => socketLink.value.url || socketEndpoint.value);
+const socketLinkPort = computed(() => socketLink.value.port ?? "未知");
 
 const pageAddress = computed(() => window.location.href);
 const iframeAddress = computed(() => iframe.value.url || "about:blank");
@@ -65,10 +80,20 @@ onMounted(async () => {
       "\n",
     );
   });
+
+  try {
+    socketLink.value = await getSocketState();
+  } catch {
+    // 非 Tauri 环境或尚未初始化时忽略。
+  }
+  unlistenClientSocket = await listenClientSocketEvent((payload) => {
+    socketLink.value = payload;
+  });
 });
 
 onBeforeUnmount(() => {
   unlistenClientEvent?.();
+  unlistenClientSocket?.();
 });
 
 async function runNotificationDetect() {
@@ -359,6 +384,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
       >
       <pre v-if="httpResult" class="result">{{ httpResult }}</pre>
       <h3>Socket</h3>
+      <p>完整链接地址：{{ socketLinkUrl }}</p>
+      <p>socket 端口：{{ socketLinkPort }}</p>
+      <p>连接状态：{{ socketStatusText }}</p>
+      <p v-if="socketLink.message">最近说明：{{ socketLink.message }}</p>
       <div class="actions">
         <el-button type="success" plain @click="runSocketDetect">执行 Socket 请求检测</el-button>
         <el-button

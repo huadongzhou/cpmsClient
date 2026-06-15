@@ -1,6 +1,6 @@
 import { unwrapCommand } from "@/api/tauri/client";
 import type { ClientHttpRequest, DesktopNotificationEventPayload } from "@/types/app/ipc";
-import type { ClientIframeStatePayload } from "@/types/app/runtime";
+import type { ClientIframeStatePayload, ClientSocketStatePayload } from "@/types/app/runtime";
 
 /** 让客户端主动向视图端派发事件。 */
 export function emitClientEvent(name: string, payload?: unknown) {
@@ -50,4 +50,9 @@ export function setAutostartEnabled(enabled: boolean) {
 /** 触发客户端立即重连本地 PrintClient socket 服务。 */
 export function reconnectSocket() {
   return unwrapCommand<boolean>("reconnect_socket");
+}
+
+/** 读取本地 socket 连接状态（完整地址/端口/连接状态）。 */
+export function getSocketState() {
+  return unwrapCommand<ClientSocketStatePayload>("get_socket_state");
 }

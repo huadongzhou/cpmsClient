@@ -305,6 +305,7 @@ pub fn run() {
             window::window_show,
             window::window_close,
             socket::reconnect_socket,
+            socket::get_socket_state,
             services::get_startup_state,
             services::save_policy_agreed,
             services::save_auth_state,

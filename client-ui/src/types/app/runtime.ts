@@ -10,3 +10,18 @@ export interface ClientIframeStatePayload {
 }
 
 export type ClientTodoTaskPayload = TodoTask;
+
+export type ClientSocketStatus =
+  | ""
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "failed";
+
+export interface ClientSocketStatePayload {
+  url: string;
+  port?: number | null;
+  status: ClientSocketStatus;
+  message?: string | null;
+  updatedAt: string;
+}

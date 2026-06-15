@@ -3,10 +3,13 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
 use futures_util::StreamExt;
+use reqwest::Url;
+use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
@@ -41,6 +44,51 @@ pub fn reconnect_socket(app: AppHandle) -> CommandResult<bool> {
     CommandResult::ok(true)
 }
 
+const SOCKET_STATE_EVENT: &str = "cpms:client-socket";
+
+/// 本地 socket 连接状态：解析出的完整地址、端口、连接状态与最近一次说明。
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SocketLinkState {
+    pub(crate) url: String,
+    pub(crate) port: Option<u16>,
+    pub(crate) status: String,
+    pub(crate) message: Option<String>,
+    pub(crate) updated_at: String,
+}
+
+fn socket_state() -> &'static Mutex<SocketLinkState> {
+    static STATE: OnceLock<Mutex<SocketLinkState>> = OnceLock::new();
+    STATE.get_or_init(|| Mutex::new(SocketLinkState::default()))
+}
+
+/// 更新并广播 socket 连接状态（同时落入可查询的全局状态）。
+fn update_socket_state(app: &AppHandle, url: &str, status: &str, message: Option<String>) {
+    let port = Url::parse(url).ok().and_then(|parsed| parsed.port());
+    let state = SocketLinkState {
+        url: url.to_string(),
+        port,
+        status: status.to_string(),
+        message,
+        updated_at: now_iso_string(),
+    };
+
+    if let Ok(mut locked) = socket_state().lock() {
+        *locked = state.clone();
+    }
+    let _ = app.emit_to(MAIN_WINDOW_LABEL, SOCKET_STATE_EVENT, state);
+}
+
+#[tauri::command]
+/// 读取本地 socket 连接状态（完整地址/端口/连接状态），供调试页展示。
+pub(crate) fn get_socket_state() -> CommandResult<SocketLinkState> {
+    let state = socket_state()
+        .lock()
+        .map(|locked| locked.clone())
+        .unwrap_or_default();
+    CommandResult::ok(state)
+}
+
 pub(crate) async fn start_local_socket_worker(app: AppHandle) {
     let mut last_url: Option<String> = None;
     let mut announced_failure = false;
@@ -57,6 +105,7 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
             last_url = Some(socket_url.clone());
         }
 
+        update_socket_state(&app, &socket_url, "connecting", None);
         match tokio_tungstenite::connect_async(&socket_url).await {
             Ok((mut stream, _)) => {
                 services::log_service::info(
@@ -64,6 +113,7 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                     "socket",
                     &format!("本地 socket 已连接：{socket_url}"),
                 );
+                update_socket_state(&app, &socket_url, "connected", None);
                 announced_failure = false;
 
                 let mut immediate_reconnect = false;
@@ -121,6 +171,7 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                 }
 
                 services::log_service::warn(&app, "socket", "本地 socket 连接断开，准备重连");
+                update_socket_state(&app, &socket_url, "disconnected", Some("连接断开".into()));
             }
             Err(error) => {
                 if !announced_failure {
@@ -131,6 +182,7 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                     );
                     announced_failure = true;
                 }
+                update_socket_state(&app, &socket_url, "failed", Some(error.to_string()));
             }
         }
 

@@ -2,7 +2,11 @@ import { isTauri } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ClientEventPayload, DesktopNotificationEventPayload } from "@/types/app/ipc";
 import type { ClientLogEventPayload } from "@/types/app/log";
-import type { ClientIframeStatePayload, ClientTodoTaskPayload } from "@/types/app/runtime";
+import type {
+  ClientIframeStatePayload,
+  ClientSocketStatePayload,
+  ClientTodoTaskPayload,
+} from "@/types/app/runtime";
 
 export const VIEW_TO_CLIENT_EVENT = "cpms:view-to-client";
 export const CLIENT_TO_VIEW_EVENT = "cpms:client-to-view";
@@ -10,6 +14,7 @@ export const CLIENT_NOTIFICATION_EVENT = "cpms:desktop-notification";
 export const CLIENT_IFRAME_EVENT = "cpms:client-iframe";
 export const CLIENT_TODO_TASK_EVENT = "cpms:client-todo-task";
 export const CLIENT_LOG_EVENT = "cpms:client-log";
+export const CLIENT_SOCKET_EVENT = "cpms:client-socket";
 export const HUB_SYSTEM_STATE_EVENT = "cpms:hub-system-state";
 export const HUB_NETWORK_CHANGED_EVENT = "cpms:hub-network-changed";
 
@@ -74,6 +79,19 @@ export async function listenClientTodoTaskEvent(
   }
 
   return listen<ClientTodoTaskPayload>(CLIENT_TODO_TASK_EVENT, (event) => {
+    handler(event.payload);
+  });
+}
+
+/** 监听客户端本地 socket 连接状态事件（地址/端口/连接状态）。 */
+export async function listenClientSocketEvent(
+  handler: (payload: ClientSocketStatePayload) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    return () => undefined;
+  }
+
+  return listen<ClientSocketStatePayload>(CLIENT_SOCKET_EVENT, (event) => {
     handler(event.payload);
   });
 }
