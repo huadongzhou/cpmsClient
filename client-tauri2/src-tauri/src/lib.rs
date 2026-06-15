@@ -31,7 +31,7 @@ pub(crate) const CLIENT_IFRAME_PAYLOAD_REPORT_EVENT: &str = "client.iframe_paylo
 pub(crate) const DEFAULT_CPMS_BASE_URL: &str = "http://localhost:8080";
 pub(crate) const DEFAULT_IFRAME_CONFIG_PATH: &str = "/api/client/iframe-config";
 pub(crate) const DEFAULT_LOCAL_SOCKET_URL: &str = "ws://127.0.0.1:18080/ws/task";
-pub(crate) const DEFAULT_IFRAME_FALLBACK_URL: &str = "http://localhost:9528/#/";
+pub(crate) const DEFAULT_IFRAME_FALLBACK_URL: &str = "http://192.168.98.158:8086/cpms/#/";
 pub(crate) const DEFAULT_LOCAL_SOCKET_PATH: &str = "/ws/task";
 
 const TRAY_SHOW: &str = "tray.show";
