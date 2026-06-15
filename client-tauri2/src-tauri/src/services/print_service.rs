@@ -39,6 +39,16 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
         ));
     }
 
+    super::log_service::info(
+        &app,
+        "socket",
+        &format!(
+            "转发打印任务 → 使用 token {}，文件 {}",
+            mask_token(context.user.token.as_deref().unwrap_or_default()),
+            file_path.to_string_lossy()
+        ),
+    );
+
     upload_print_payload(&file_path, &task_payload, &context)?;
 
     Ok(json!({
@@ -63,6 +73,19 @@ fn build_upload_context(preferences: HubPreferences) -> Option<UploadContext> {
         product_type: preferences.product_type,
         auth_direct_device: preferences.auth_direct_device,
     })
+}
+
+/// 将 token 掩码后用于日志，避免明文落盘（头尾各保留若干位，并附长度）。
+fn mask_token(token: &str) -> String {
+    let token = token.trim();
+    let len = token.chars().count();
+    if len == 0 {
+        return "<空>".into();
+    }
+    let keep = if len <= 12 { 2 } else { 6 };
+    let head: String = token.chars().take(keep).collect();
+    let tail: String = token.chars().skip(len - keep).collect();
+    format!("{head}****{tail}(len={len})")
 }
 
 fn parse_socket_task_payload(message: &str) -> Result<Value, String> {

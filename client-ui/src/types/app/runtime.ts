@@ -27,6 +27,8 @@ export interface PrintClientInfo {
   dir?: string | null;
   configPath?: string | null;
   websocketPort?: number | null;
+  serverAddr?: string | null;
+  centerServerAddr?: string | null;
   socketUrl: string;
   iniContent?: string | null;
 }

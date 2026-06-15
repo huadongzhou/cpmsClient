@@ -10,14 +10,14 @@ interface ClientIframePayloadRequest {
 interface IframePayloadResponse {
   type: "cpms:payload-response";
   requestId?: string;
-  payload?: unknown;
+  token?: string;
 }
 
 export interface IframePayloadBridgeResult {
   requestId: string;
   ok: boolean;
   reason: string;
-  payload?: unknown;
+  token?: string;
   error?: string;
 }
 
@@ -67,49 +67,39 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
     const iframeWindow = iframeRef.value?.contentWindow;
 
     if (!iframeWindow) {
-      const result = {
+      const result: IframePayloadBridgeResult = {
+        requestId,
         ok: false,
         reason,
         error: "iframe window unavailable",
       };
 
-      await submitClientIframePayload(requestId, result);
-      return {
-        requestId,
-        ...result,
-      };
+      await submitClientIframePayload(result);
+      return result;
     }
 
     try {
-      const responsePayload = await queryPayloadFromIframe(iframeWindow, requestId, reason);
-      const result = {
-        ok: true,
-        reason,
-        payload: responsePayload,
-      };
+      const token = await queryTokenFromIframe(iframeWindow, requestId, reason);
+      const result: IframePayloadBridgeResult = { requestId, ok: true, reason, token };
 
-      await submitClientIframePayload(requestId, result);
-      return {
-        requestId,
-        ...result,
-      };
+      await submitClientIframePayload(result);
+      return result;
     } catch (error) {
-      const result = {
+      const result: IframePayloadBridgeResult = {
+        requestId,
         ok: false,
         reason,
-        error: error instanceof Error ? error.message : "query payload timeout",
+        error: error instanceof Error ? error.message : "query token timeout",
       };
 
-      await submitClientIframePayload(requestId, result);
-      return {
-        requestId,
-        ...result,
-      };
+      await submitClientIframePayload(result);
+      return result;
     }
   }
 
-  function queryPayloadFromIframe(iframeWindow: Window, requestId: string, reason: string) {
-    return new Promise<unknown>((resolve, reject) => {
+  /** 向 iframe 发送一层结构的查询 `{ type, requestId, reason }`，等待一层结构的回包 `{ type, requestId, token }`。 */
+  function queryTokenFromIframe(iframeWindow: Window, requestId: string, reason: string) {
+    return new Promise<string | undefined>((resolve, reject) => {
       let done = false;
       const timeout = window.setTimeout(() => finish("timeout"), 8_000);
 
@@ -120,10 +110,10 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
 
         if (data.requestId && data.requestId !== requestId) return;
 
-        finish(undefined, data.payload);
+        finish(undefined, data.token);
       };
 
-      function finish(error?: string, payload?: unknown) {
+      function finish(error?: string, token?: string) {
         if (done) {
           return;
         }
@@ -137,19 +127,11 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
           return;
         }
 
-        resolve(payload);
+        resolve(token);
       }
 
       window.addEventListener("message", listener);
-      iframeWindow.postMessage(
-        {
-          type: IFRAME_QUERY_EVENT,
-          requestId,
-          reason,
-          at: new Date().toISOString(),
-        },
-        "*",
-      );
+      iframeWindow.postMessage({ type: IFRAME_QUERY_EVENT, requestId, reason }, "*");
     });
   }
 

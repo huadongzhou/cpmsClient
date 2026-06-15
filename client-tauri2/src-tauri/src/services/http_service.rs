@@ -80,6 +80,12 @@ pub async fn execute_client_http_request(request: ClientHttpRequest) -> Result<V
 
 /// Builds a CPMS absolute URL from persisted server data and an API path.
 pub fn build_cpms_url(server: &ServerData, path: &str) -> Result<String, String> {
+    // 优先使用 PrintClient 安装目录 configure.ini 的 ServerAddr 作为服务端域名；
+    // 未发现时回退到 preferences 里登录配置的 ServerData。
+    if let Some(base) = crate::printclient::cpms_server_base() {
+        return Ok(format!("{base}{path}"));
+    }
+
     let scheme = if server.https { "https" } else { "http" };
     let server = server
         .server

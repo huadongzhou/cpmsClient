@@ -84,37 +84,14 @@ fn refresh_token_via_iframe(app: &AppHandle, timeout: Duration) -> Option<String
             continue;
         }
 
+        // 扁平结构：token 直接在顶层 token 字段。
         return report
-            .get("payload")
-            .and_then(|result| result.get("payload"))
-            .and_then(extract_token_from_iframe_payload);
+            .get("token")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+            .map(str::to_string);
     }
 
     None
-}
-
-/// 从 iframe 回传的 payload 中提取 token，兼容三种形态：
-/// 1) 直接是字符串 token（iframe 端 `payload: getToken()`）；
-/// 2) 对象内含 token/accessToken/access_token 字段；
-/// 3) 再嵌一层 payload（如 `{ payload: "<token>" }` 或 `{ payload: { token } }`）。
-pub(crate) fn extract_token_from_iframe_payload(payload: &Value) -> Option<String> {
-    if let Some(token) = payload
-        .as_str()
-        .map(str::trim)
-        .filter(|token| !token.is_empty())
-    {
-        return Some(token.to_string());
-    }
-
-    extract_token_field(payload)
-        .or_else(|| payload.get("payload").and_then(extract_token_from_iframe_payload))
-}
-
-fn extract_token_field(value: &Value) -> Option<String> {
-    ["token", "accessToken", "access_token"]
-        .iter()
-        .find_map(|key| value.get(*key).and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|token| !token.is_empty())
-        .map(str::to_string)
 }

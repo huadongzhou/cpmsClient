@@ -15,6 +15,7 @@ use crate::result::CommandResult;
 use crate::{DEFAULT_LOCAL_SOCKET_PATH, DEFAULT_LOCAL_SOCKET_URL};
 
 const DRIVER_CLIENT_INI: &str = "DriverClient.ini";
+const CONFIGURE_INI: &str = "configure.ini";
 const CONFIG_FILE_NAMES: [&str; 3] = [DRIVER_CLIENT_INI, "config.conf", "config.ini"];
 const PROCESS_RESCAN_INTERVAL: Duration = Duration::from_secs(10);
 
@@ -32,6 +33,10 @@ pub(crate) struct PrintClientInfo {
     pub(crate) config_path: Option<String>,
     /// DriverClient.ini 字段 WebsocketPort 解析出的端口。
     pub(crate) websocket_port: Option<u16>,
+    /// configure.ini 字段 ServerAddr：所有服务端请求使用的域名。
+    pub(crate) server_addr: Option<String>,
+    /// configure.ini 字段 CenterServerAddr。
+    pub(crate) center_server_addr: Option<String>,
     /// 最终解析到的本地 socket 地址。
     pub(crate) socket_url: String,
     /// 配置文件原始内容。
@@ -47,6 +52,8 @@ pub(crate) fn get_print_client_info() -> CommandResult<PrintClientInfo> {
 pub(crate) fn discover_print_client_info() -> PrintClientInfo {
     let socket_url = local_socket_url();
     let process_dir = process_print_client_dir().map(|dir| dir.to_string_lossy().to_string());
+    // 定位到目录即一起读 configure.ini（ServerAddr / CenterServerAddr）并缓存。
+    let configure = configure_data();
 
     match locate_print_client_config() {
         Some(path) => {
@@ -58,6 +65,8 @@ pub(crate) fn discover_print_client_info() -> PrintClientInfo {
                 dir: path.parent().map(|dir| dir.to_string_lossy().to_string()),
                 config_path: Some(path.to_string_lossy().to_string()),
                 websocket_port,
+                server_addr: configure.server_addr,
+                center_server_addr: configure.center_server_addr,
                 socket_url,
                 ini_content: content,
             }
@@ -65,6 +74,8 @@ pub(crate) fn discover_print_client_info() -> PrintClientInfo {
         None => PrintClientInfo {
             installed: false,
             process_dir,
+            server_addr: configure.server_addr,
+            center_server_addr: configure.center_server_addr,
             socket_url,
             ..PrintClientInfo::default()
         },
@@ -232,22 +243,106 @@ fn socket_url_from_config_file(path: &Path) -> Option<String> {
     None
 }
 
-/// 解析 DriverClient.ini 中的 `WebsocketPort=<port>` 字段（忽略大小写与首尾空白）。
+/// 解析 DriverClient.ini 中的 `WebsocketPort=<port>` 字段。
 fn parse_websocket_port(content: &str) -> Option<u16> {
+    parse_ini_field(content, "WebsocketPort")
+        .and_then(|value| value.parse::<u16>().ok())
+        .filter(|port| *port > 0)
+}
+
+/// 通用 INI 解析：取 `key=value`（忽略大小写键名、注释行、首尾空白与外层引号）。
+fn parse_ini_field(content: &str, key: &str) -> Option<String> {
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with(';') || trimmed.starts_with('#') {
             continue;
         }
 
-        if let Some((key, value)) = trimmed.split_once('=') {
-            if key.trim().eq_ignore_ascii_case("WebsocketPort") {
-                if let Ok(port) = value.trim().parse::<u16>() {
-                    if port > 0 {
-                        return Some(port);
-                    }
+        if let Some((found_key, value)) = trimmed.split_once('=') {
+            if found_key.trim().eq_ignore_ascii_case(key) {
+                let value = value.trim().trim_matches('"').trim();
+                if !value.is_empty() {
+                    return Some(value.to_string());
                 }
             }
+        }
+    }
+
+    None
+}
+
+/// configure.ini 缓存的服务端地址（与 PrintClient 发现共用同一组候选目录）。
+#[derive(Clone, Default)]
+struct ConfigureData {
+    server_addr: Option<String>,
+    center_server_addr: Option<String>,
+}
+
+/// 所有服务端请求使用的域名：env(CPMS_SERVER_ADDR) → configure.ini 的 ServerAddr → None。
+/// 形如 `https://127.0.0.1:8085`（已去尾部 `/`）。
+pub(crate) fn cpms_server_base() -> Option<String> {
+    env_base("CPMS_SERVER_ADDR").or_else(|| configure_data().server_addr)
+}
+
+fn env_base(key: &str) -> Option<String> {
+    std::env::var(key)
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+}
+
+/// 读取并缓存 configure.ini：已解析到 ServerAddr 则稳定复用，否则每 10s 重读
+/// （PrintClient 可能后安装/后写配置）。
+fn configure_data() -> ConfigureData {
+    static CACHE: OnceLock<Mutex<Option<(Instant, ConfigureData)>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+
+    let Ok(mut guard) = cache.lock() else {
+        return read_configure_data();
+    };
+
+    let reuse = matches!(
+        guard.as_ref(),
+        Some((scanned_at, data))
+            if data.server_addr.is_some() || scanned_at.elapsed() < PROCESS_RESCAN_INTERVAL
+    );
+
+    if reuse {
+        return guard
+            .as_ref()
+            .map(|(_, data)| data.clone())
+            .unwrap_or_default();
+    }
+
+    let data = read_configure_data();
+    *guard = Some((Instant::now(), data.clone()));
+    data
+}
+
+fn read_configure_data() -> ConfigureData {
+    let Some(path) = locate_named_config(CONFIGURE_INI) else {
+        return ConfigureData::default();
+    };
+    let Ok(content) = fs::read_to_string(path) else {
+        return ConfigureData::default();
+    };
+
+    ConfigureData {
+        server_addr: parse_ini_field(&content, "ServerAddr").map(normalize_base),
+        center_server_addr: parse_ini_field(&content, "CenterServerAddr").map(normalize_base),
+    }
+}
+
+fn normalize_base(addr: String) -> String {
+    addr.trim().trim_end_matches('/').to_string()
+}
+
+/// 在候选目录（含运行进程目录）里定位指定配置文件。
+fn locate_named_config(file_name: &str) -> Option<PathBuf> {
+    for dir in print_client_candidate_dirs() {
+        let path = dir.join(file_name);
+        if path.is_file() {
+            return Some(path);
         }
     }
 

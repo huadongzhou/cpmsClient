@@ -49,33 +49,40 @@ pub fn client_submit_iframe_payload(
     app: AppHandle,
     state: tauri::State<'_, AppRuntimeState>,
     request_id: String,
-    payload: Option<Value>,
+    token: Option<String>,
+    ok: bool,
+    reason: Option<String>,
+    error: Option<String>,
 ) -> CommandResult<bool> {
-    // iframe 上报即落库：从 payload 中提取 token，提取到就写入缓存（供 socket 转发/CPMS 请求直接使用，
+    // 上报即落库：token 非空就写入加密缓存（供 socket 转发/CPMS 请求直接使用，
     // 无需等到首次请求 401 才重取）。
-    if let Some(value) = payload.as_ref() {
-        if let Some(token) = crate::token_refresh::extract_token_from_iframe_payload(value) {
-            match services::save_cached_auth_token(&app, &token) {
-                Ok(_) => {
-                    services::log_service::info(&app, "token", "已从 iframe 上报读取并缓存 token")
-                }
-                Err(error) => services::log_service::warn(
-                    &app,
-                    "token",
-                    &format!("缓存 iframe 上报的 token 失败：{error}"),
-                ),
-            }
+    if let Some(token) = token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        match services::save_cached_auth_token(&app, token) {
+            Ok(_) => services::log_service::info(&app, "token", "已从 iframe 上报读取并缓存 token"),
+            Err(err) => services::log_service::warn(
+                &app,
+                "token",
+                &format!("缓存 iframe 上报的 token 失败：{err}"),
+            ),
         }
     }
 
-    let report_payload = json!({
+    // 扁平一层结构：{ requestId, token, ok, reason, error, at }。
+    let report = json!({
         "requestId": request_id,
-        "payload": payload,
+        "token": token,
+        "ok": ok,
+        "reason": reason,
+        "error": error,
         "at": now_iso_string(),
     });
 
     if let Ok(mut locked) = state.iframe_payload.lock() {
-        *locked = Some(report_payload.clone());
+        *locked = Some(report.clone());
     }
 
     let _ = app.emit_to(
@@ -83,7 +90,7 @@ pub fn client_submit_iframe_payload(
         CLIENT_TO_VIEW_EVENT,
         ClientEventPayload {
             name: CLIENT_IFRAME_PAYLOAD_REPORT_EVENT.into(),
-            payload: Some(report_payload),
+            payload: Some(report),
             at: now_iso_string(),
         },
     );

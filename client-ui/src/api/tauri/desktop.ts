@@ -31,9 +31,21 @@ export function requestClientIframePayload(reason?: string) {
   return unwrapCommand<string>("client_request_iframe_payload", { reason });
 }
 
-/** 视图端把 iframe payload 查询结果回传给客户端。 */
-export function submitClientIframePayload(requestId: string, payload?: unknown) {
-  return unwrapCommand<boolean>("client_submit_iframe_payload", { requestId, payload });
+/** 视图端把 iframe token 查询结果回传给客户端（一层结构）。 */
+export function submitClientIframePayload(report: {
+  requestId: string;
+  token?: string;
+  ok: boolean;
+  reason?: string;
+  error?: string;
+}) {
+  return unwrapCommand<boolean>("client_submit_iframe_payload", {
+    requestId: report.requestId,
+    token: report.token,
+    ok: report.ok,
+    reason: report.reason,
+    error: report.error,
+  });
 }
 
 /** 由客户端代理请求线上服务端。 */

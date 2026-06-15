@@ -153,7 +153,7 @@ async function runTokenDetect() {
 
   try {
     const bridgeResult = await props.queryIframePayload?.("token-detect");
-    const iframePayloadToken = extractTokenFromIframePayload(bridgeResult?.payload);
+    const iframePayloadToken = bridgeResult?.token;
 
     runtimeStore.setIframeToken(iframePayloadToken || "");
 
@@ -294,44 +294,6 @@ function maskToken(token?: string) {
   return `${token.slice(0, 6)}****${token.slice(-6)}`;
 }
 
-function extractTokenFromIframePayload(payload: unknown): string | undefined {
-  // 形态1：iframe 直接回传字符串 token（iframe 端 `payload: getToken()`）
-  if (typeof payload === "string") {
-    return payload.trim() || undefined;
-  }
-
-  if (!isRecord(payload)) {
-    return undefined;
-  }
-
-  // 形态2：对象内含 token/accessToken/access_token 字段
-  const directToken =
-    readString(payload, "token") ||
-    readString(payload, "accessToken") ||
-    readString(payload, "access_token");
-
-  if (directToken) {
-    return directToken;
-  }
-
-  // 形态3：再嵌一层 payload（字符串或对象）
-  const nestedPayload = payload.payload;
-
-  if (typeof nestedPayload === "string") {
-    return nestedPayload.trim() || undefined;
-  }
-
-  if (isRecord(nestedPayload)) {
-    return (
-      readString(nestedPayload, "token") ||
-      readString(nestedPayload, "accessToken") ||
-      readString(nestedPayload, "access_token")
-    );
-  }
-
-  return undefined;
-}
-
 function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
   if (!result) {
     return {
@@ -345,17 +307,8 @@ function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
     ok: result.ok,
     reason: result.reason,
     error: result.error,
-    payload: result.payload,
+    token: result.token,
   };
-}
-
-function readString(record: Record<string, unknown>, key: string) {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 </script>
 
@@ -408,6 +361,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
       <p>安装路径：{{ printClient?.dir || "未检测到" }}</p>
       <p>配置文件：{{ printClient?.configPath || "未检测到" }}</p>
       <p>WebsocketPort：{{ printClient?.websocketPort ?? "未知" }}</p>
+      <p>ServerAddr（服务端域名）：{{ printClient?.serverAddr || "未检测到" }}</p>
+      <p>CenterServerAddr：{{ printClient?.centerServerAddr || "未检测到" }}</p>
       <p>解析地址：{{ printClient?.socketUrl || "未知" }}</p>
       <div class="actions">
         <el-button :loading="printClientLoading" @click="refreshPrintClientInfo"
