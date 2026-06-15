@@ -11,12 +11,7 @@ export interface ClientIframeStatePayload {
 
 export type ClientTodoTaskPayload = TodoTask;
 
-export type ClientSocketStatus =
-  | ""
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "failed";
+export type ClientSocketStatus = "" | "binding" | "listening" | "failed";
 
 export interface ClientSocketStatePayload {
   url: string;

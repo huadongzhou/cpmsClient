@@ -12,7 +12,11 @@ use reqwest::Url;
 use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
+use tokio::net::{TcpListener, TcpStream};
+use tokio_tungstenite::accept_async;
 use uuid::Uuid;
+
+const DEFAULT_LISTEN_PORT: u16 = 18101;
 
 use crate::printclient::local_socket_url;
 use crate::result::CommandResult;
@@ -89,104 +93,75 @@ pub(crate) fn get_socket_state() -> CommandResult<SocketLinkState> {
     CommandResult::ok(state)
 }
 
+/// 本地 socket worker（监听端）：在本地端口监听，等待 PrintClient 等连接进来推送任务。
 pub(crate) async fn start_local_socket_worker(app: AppHandle) {
-    let mut last_url: Option<String> = None;
+    let mut last_addr: Option<String> = None;
     let mut announced_failure = false;
 
     loop {
         let socket_url = local_socket_url();
+        let listen_port = Url::parse(&socket_url)
+            .ok()
+            .and_then(|parsed| parsed.port())
+            .unwrap_or(DEFAULT_LISTEN_PORT);
+        let listen_addr = format!("127.0.0.1:{listen_port}");
 
-        if last_url.as_deref() != Some(socket_url.as_str()) {
+        if last_addr.as_deref() != Some(listen_addr.as_str()) {
             services::log_service::info(
                 &app,
                 "socket",
-                &format!("本地 socket 地址解析为：{socket_url}"),
+                &format!("本地 socket 监听地址解析为：{listen_addr}（{socket_url}）"),
             );
-            last_url = Some(socket_url.clone());
+            last_addr = Some(listen_addr.clone());
         }
 
-        update_socket_state(&app, &socket_url, "connecting", None);
-        match tokio_tungstenite::connect_async(&socket_url).await {
-            Ok((mut stream, _)) => {
+        update_socket_state(&app, &socket_url, "binding", None);
+        match TcpListener::bind(&listen_addr).await {
+            Ok(listener) => {
                 services::log_service::info(
                     &app,
                     "socket",
-                    &format!("本地 socket 已连接：{socket_url}"),
+                    &format!("本地 socket 已监听 {listen_addr}，等待推送连接"),
                 );
-                update_socket_state(&app, &socket_url, "connected", None);
+                update_socket_state(&app, &socket_url, "listening", None);
                 announced_failure = false;
 
-                let mut immediate_reconnect = false;
                 loop {
                     if RECONNECT_FLAG.swap(false, Ordering::SeqCst) {
-                        services::log_service::info(
-                            &app,
-                            "socket",
-                            "收到重连请求，断开当前连接",
-                        );
-                        immediate_reconnect = true;
+                        services::log_service::info(&app, "socket", "收到重连请求，重启监听");
                         break;
                     }
 
-                    // 轮询读取，超时即回到循环顶部检查重连标志（不引入 tokio sync 特性）。
-                    match tokio::time::timeout(SOCKET_POLL_INTERVAL, stream.next()).await {
-                        Ok(Some(Ok(raw_message))) if raw_message.is_text() => {
-                            if let Ok(text) = raw_message.to_text() {
-                                let preview: String = text.chars().take(500).collect();
-                                services::log_service::log(
-                                    &app,
-                                    "INFO",
-                                    "socket",
-                                    "socket 收到推送",
-                                    Some(&preview),
-                                );
-                                if is_print_task_message(text) {
-                                    services::log_service::info(
-                                        &app,
-                                        "socket",
-                                        "收到打印任务推送，开始转发",
-                                    );
-                                    let app_handle = app.clone();
-                                    let message = text.to_string();
-                                    thread::spawn(move || {
-                                        let result = forward_socket_task_with_token_retry(
-                                            &app_handle,
-                                            &message,
-                                        );
-                                        if result.is_err() {
-                                            enqueue_failed_forward(&app_handle, &message);
-                                        }
-                                        emit_socket_forward_result(&app_handle, result);
-                                    });
-                                } else if let Some(task_payload) = parse_todo_payload(text) {
-                                    let _ = app.emit_to(
-                                        MAIN_WINDOW_LABEL,
-                                        CLIENT_TODO_TASK_EVENT,
-                                        task_payload,
-                                    );
-                                }
-                            }
+                    // 轮询 accept，超时即回到循环顶部检查重启标志（不引入 tokio sync 特性）。
+                    match tokio::time::timeout(SOCKET_POLL_INTERVAL, listener.accept()).await {
+                        Ok(Ok((stream, peer))) => {
+                            services::log_service::info(
+                                &app,
+                                "socket",
+                                &format!("接受推送连接：{peer}"),
+                            );
+                            tauri::async_runtime::spawn(handle_push_connection(app.clone(), stream));
                         }
-                        Ok(Some(Ok(_))) => {}
-                        Ok(Some(Err(_))) | Ok(None) => break,
+                        Ok(Err(error)) => {
+                            services::log_service::warn(
+                                &app,
+                                "socket",
+                                &format!("接受连接失败：{error}"),
+                            );
+                        }
                         Err(_) => {}
                     }
                 }
 
-                if immediate_reconnect {
-                    services::log_service::info(&app, "socket", "立即重连本地 socket 服务");
-                    continue;
-                }
-
-                services::log_service::warn(&app, "socket", "本地 socket 连接断开，准备重连");
-                update_socket_state(&app, &socket_url, "disconnected", Some("连接断开".into()));
+                // 内层仅通过重启标志退出 → 立即重新监听（跳过重试等待）。
+                continue;
             }
             Err(error) => {
                 if !announced_failure {
                     services::log_service::warn(
                         &app,
                         "socket",
-                        &format!("本地 socket 连接失败，将每 3 秒重试：{error}"),
+                        &format!("本地 socket 监听失败，将每 3 秒重试：{error}"),
                     );
                     announced_failure = true;
                 }
@@ -195,6 +170,62 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
         }
 
         sleep_or_reconnect(SOCKET_RETRY_INTERVAL).await;
+    }
+}
+
+/// 处理一条推送连接：完成 websocket 握手后持续接收推送的任务消息。
+async fn handle_push_connection(app: AppHandle, stream: TcpStream) {
+    let peer = stream
+        .peer_addr()
+        .map(|addr| addr.to_string())
+        .unwrap_or_else(|_| "unknown".into());
+
+    match accept_async(stream).await {
+        Ok(mut websocket) => {
+            services::log_service::info(&app, "socket", &format!("推送连接已建立：{peer}"));
+
+            while let Some(next_message) = websocket.next().await {
+                match next_message {
+                    Ok(raw_message) if raw_message.is_text() => {
+                        if let Ok(text) = raw_message.to_text() {
+                            process_push_message(&app, text);
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(_) => break,
+                }
+            }
+
+            services::log_service::info(&app, "socket", &format!("推送连接断开：{peer}"));
+        }
+        Err(error) => {
+            services::log_service::warn(
+                &app,
+                "socket",
+                &format!("websocket 握手失败（{peer}）：{error}"),
+            );
+        }
+    }
+}
+
+/// 处理一条推送消息：记录日志，打印任务转发、待办任务推送视图端。
+fn process_push_message(app: &AppHandle, text: &str) {
+    let preview: String = text.chars().take(500).collect();
+    services::log_service::log(app, "INFO", "socket", "socket 收到推送", Some(&preview));
+
+    if is_print_task_message(text) {
+        services::log_service::info(app, "socket", "收到打印任务推送，开始转发");
+        let app_handle = app.clone();
+        let message = text.to_string();
+        thread::spawn(move || {
+            let result = forward_socket_task_with_token_retry(&app_handle, &message);
+            if result.is_err() {
+                enqueue_failed_forward(&app_handle, &message);
+            }
+            emit_socket_forward_result(&app_handle, result);
+        });
+    } else if let Some(task_payload) = parse_todo_payload(text) {
+        let _ = app.emit_to(MAIN_WINDOW_LABEL, CLIENT_TODO_TASK_EVENT, task_payload);
     }
 }
 

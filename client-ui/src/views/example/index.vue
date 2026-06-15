@@ -55,10 +55,9 @@ let unlistenClientSocket: UnlistenFn | undefined;
 
 const SOCKET_STATUS_TEXT: Record<string, string> = {
   "": "未初始化",
-  connecting: "连接中",
-  connected: "已连接",
-  disconnected: "已断开",
-  failed: "连接失败",
+  binding: "绑定中",
+  listening: "监听中（等待推送连接）",
+  failed: "监听失败",
 };
 const socketStatusText = computed(() => SOCKET_STATUS_TEXT[socketLink.value.status] ?? socketLink.value.status);
 const socketLinkUrl = computed(() => socketLink.value.url || socketEndpoint.value);
@@ -252,8 +251,8 @@ async function runSocketReconnect() {
   try {
     await reconnectSocket();
     socketResult.value = [
-      `[Socket Reconnect] ${socketEndpoint.value}`,
-      "已请求客户端立即重连本地 socket 服务，可在「客户端日志」的「任务 / Socket」类别查看重连结果。",
+      `[Socket Restart] ${socketLinkUrl.value}`,
+      "已请求客户端重启本地 socket 监听服务，可在「客户端日志」的「任务 / Socket」类别查看结果。",
     ].join("\n");
   } catch (error) {
     socketResult.value = [
@@ -413,10 +412,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         >执行 HTTP 请求检测</el-button
       >
       <pre v-if="httpResult" class="result">{{ httpResult }}</pre>
-      <h3>Socket</h3>
-      <p>完整链接地址：{{ socketLinkUrl }}</p>
-      <p>socket 端口：{{ socketLinkPort }}</p>
-      <p>连接状态：{{ socketStatusText }}</p>
+      <h3>Socket（监听端，等待推送连接）</h3>
+      <p>监听地址：{{ socketLinkUrl }}</p>
+      <p>监听端口：{{ socketLinkPort }}</p>
+      <p>监听状态：{{ socketStatusText }}</p>
       <p v-if="socketLink.message">最近说明：{{ socketLink.message }}</p>
       <div class="actions">
         <el-button type="success" plain @click="runSocketDetect">执行 Socket 请求检测</el-button>
@@ -425,7 +424,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
           plain
           :loading="socketReconnectLoading"
           @click="runSocketReconnect"
-          >重连 socket 服务</el-button
+          >重启监听服务</el-button
         >
       </div>
       <pre v-if="socketResult" class="result">{{ socketResult }}</pre>

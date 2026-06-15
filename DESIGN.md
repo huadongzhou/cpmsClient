@@ -13,11 +13,11 @@
 
 常驻事件：
 - 获取本地websocket端口  
-1.检测cpms客户端是否存在  
-2.获取cpms客户端下的config.conf文件 
-3.获取其中的websocket端口信息
-- 连接本地websocket服务
-- 监听本地websocket服务推送的任务
+1.检测cpms客户端是否存在（按进程名定位运行目录，或读 DriverClient.ini）  
+2.获取cpms客户端下的 DriverClient.ini 文件 
+3.获取其中的 WebsocketPort 端口信息
+- 在本地该端口监听 websocket 服务（客户端作为监听端，不主动连接）
+- 等待连接接入并推送任务，监听推送的任务
 1.解析任务消息  拿到任务文件路径
 2.通过客户端的上传接口  携带iframe实例内的token  转发任务
 
@@ -95,18 +95,18 @@ cpms客户端名称：PrintClient
   -> 视图端主动发送事件给客户端获取 iframe URL 并根据 iframe URL 渲染业务页面
 ```
 
-### 需求 2：连接本地 socket 服务
+### 需求 2：本地 socket 监听服务
 
-客户端启动后连接本地 socket 服务，等待任务推送， 
+客户端启动后在本地端口**监听** socket 服务（作为监听端），等待连接接入并推送任务。
 
 流程：
 
 ```text
 启动客户端
-  -> 检测本地cpms客户端 是否存在
-  -> 如果存在  则获取cpms客户端下的DriverClient.ini文件 其中的websocket端口信息 
-  -> 根据websocket端口信息  连接本地 socket 服务
-  -> 等待任务推送
+  -> 检测本地cpms客户端 是否存在（按进程名定位运行目录）
+  -> 获取cpms客户端下的DriverClient.ini文件 其中的 WebsocketPort 端口信息（默认 18101）
+  -> 在本地该端口监听 socket 服务（不主动连接）
+  -> 等待连接接入并推送任务
   -> 解析任务消息
   -> 拿到任务文件路径
   -> 二次转发任务消息  

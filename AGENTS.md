@@ -25,7 +25,7 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 | C5 | 网络检测：在线/离线监听，状态变化推送视图端 | 已实现 | 两壳 `hub/network_service.rs`（探测 8.8.8.8:53，变化 emit `cpms:hub-network-changed`） |
 | C6 | 服务请求：CPMS 签名请求（access_sign + client/platform 公共头 + Authorization） | 已实现 | `hub/http_service.rs`、`hub/crypto_service.rs`（access_sign：AES-128-ECB + MD5） |
 | C7 | 客户端↔视图端事件通信（交互指令/客户端方法/请求代理） | 已实现 | `lib.rs setup_client_event_bridge/handle_view_event`；`client-ui/src/api/tauri/events.ts` |
-| C8 | 本地 socket 接入：PrintClient 检测、端口发现、ws 连接、任务监听与转发 | 已实现 | `lib.rs discover_print_client_socket_url / start_local_socket_worker` |
+| C8 | 本地 socket 监听端：PrintClient 检测（按进程名）、WebsocketPort 端口发现、本地端口监听等待推送连接、任务接收与转发 | 已实现 | `printclient.rs`（进程/配置发现 + WebsocketPort，默认 18101）、`socket.rs start_local_socket_worker`（bind + accept，监听端） |
 | C9 | iframe 桥：`__HUB_CLIENT__` 注入 + payload（token）查询回传 | 已实现 | `client-ui/src/utils/hubBridge.ts`、`composables/useIframePayloadBridge.ts`、`lib.rs client_*_iframe_payload` |
 | C10 | 国产 Linux legacy 适配（glibc 2.23 / GTK 3.18 / webkit 2.20 / 静态 OpenSSL） | 已实现 | `client-tauri1`（vendored tao/wry 补丁 + CI 符号硬门禁，详见 `.github/CI-TROUBLESHOOTING.md`） |
 | C11 | 调试抽屉：客户端能力状态 / 调试客户端能力 / 日志查看 | 已实现 | 抽屉双页签：能力状态与调试在 `client-ui/src/views/example/index.vue`；独立日志面板在 `views/logs/index.vue`（`stores/log.ts` 缓冲 500 条，`useClientLogBridge` 汇集客户端日志事件、客户端事件流与错误队列，支持复制/清空，展示日志文件路径） |
@@ -44,7 +44,7 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 | S1 | 入口：客户端启动后请求服务端获取 iframe 容器地址并缓存 | 已实现 | `lib.rs refresh_iframe_container`（`/api/client/iframe-config`，host 白名单校验，失败回退默认地址，状态缓存于 `AppRuntimeState`） |
 | S2 | 入口：视图端向客户端取 iframe 地址并渲染业务页面 | 已实现 | `client_get_iframe_container_state` / `client_refresh_iframe_container` 命令 + `cpms:client-iframe` 事件；`views/home/index.vue` 渲染 |
 | S3 | 常驻：检测 cpms 客户端（PrintClient）是否存在并读取配置取 websocket 端口 | 已实现 | `lib.rs print_client_candidate_dirs / socket_url_from_config_file`（解析 `DriverClient.ini` / `config.conf` / `config.ini`，支持 env 覆盖） |
-| S4 | 常驻：连接本地 websocket 服务并监听任务推送 | 已实现 | `lib.rs start_local_socket_worker`（断线 3s 重连） |
+| S4 | 常驻：在本地端口监听 websocket 服务（监听端），等待连接接入并推送任务 | 已实现 | `socket.rs start_local_socket_worker`（`TcpListener::bind` + `accept_async`，每连接处理推送；监听失败 3s 重试，可手动重启监听） |
 | S5 | 常驻：解析任务消息拿到文件路径，携带 token 转发任务 | 已实现 | `lib.rs is_print_task_message` → `hub/print_service.rs forward_socket_task_message`（multipart 上传） |
 | S6 | 通信：视图端→客户端 固定/收起/全屏/关闭窗口事件 | 已实现 | `lib.rs handle_view_event`（`client.window.pin/unpin/minimize/fullscreen/exit-fullscreen/close`）；headerbar 按钮触发 |
 | S7 | 通信：视图端→客户端 作业列表/打印机列表/选择打印机/更新 token 事件 | 已实现 | `handle_view_event`（`client.jobs.list`、`client.devices.list`、`client.device.select`、`client.auth.update-token`），结果以 `*.result` 事件回推 |
@@ -58,7 +58,7 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 | # | 需求 | 状态 | 说明 |
 | --- | --- | --- | --- |
 | B1 | 需求 1：渲染线上 iframe 容器地址（启动→请求→缓存→视图端渲染） | 已实现 | 见 S1/S2；加载中有 loading 态，失败回退默认地址并提示原因 |
-| B2 | 需求 2：连接本地 socket 服务，等待任务推送并二次转发 | 已实现 | 见 S3–S5；转发结果以 `client.socket_task.forwarded / forward_failed` 事件回推视图端 |
+| B2 | 需求 2：本地 socket 监听服务，等待连接推送任务并二次转发 | 已实现 | 见 S3–S5；客户端作为监听端 bind 本地端口、accept 推送连接；转发结果以 `client.socket_task.forwarded / forward_failed` 事件回推视图端 |
 | B3 | 需求 3：Token 机制——登录后视图端推送 token | 已实现 | `save_auth_token` 命令 + `client.auth.update-token` 事件，持久化于 `hub-preferences.json` |
 | B4 | 需求 3：Token 机制——客户端主动从 iframe 实例获取 token | 已实现 | C9 的 payload 查询链路（启动 2s 后及按需触发） |
 | B5 | 需求 3：Token 机制——请求失败清理缓存 token，重新获取，不一致则重试 | 已实现 | 两壳 `token_refresh.rs::with_token_retry` 通用包装：鉴权失败（401/403）→ 清缓存 token → 向 iframe 重查（10s 超时）→ token 不一致则重发一次。**覆盖全部「客户端→服务端」通信**：socket 转发、作业列表、设备列表、选择机器 |
@@ -111,8 +111,8 @@ client/
         window.rs               # 主窗口控制命令 + 复用辅助函数 + 几何持久化(tauri2)
         event_bridge.rs         # 视图端↔客户端事件桥（窗口/作业/设备/token 指令分发）
         iframe.rs               # iframe 地址获取/校验/回退、状态缓存、payload(token) 查询
-        printclient.rs          # 本地 PrintClient 发现（解析配置取 websocket 端口）
-        socket.rs               # 本地 socket worker + 任务转发 + 失败重试队列
+        printclient.rs          # 本地 PrintClient 发现（按进程名定位 + DriverClient.ini 的 WebsocketPort）
+        socket.rs               # 本地 socket 监听端（bind+accept 等待推送）+ 任务转发 + 失败重试队列
         token_refresh.rs        # token 失效重取通用包装（转发与 CPMS 请求共用，需求3）
         result.rs               # CommandResult<T> 统一返回结构
         services/               # 业务服务层（见下）
