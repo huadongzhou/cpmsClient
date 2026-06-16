@@ -361,6 +361,7 @@
 | 文件 | 修改内容 |
 |------|---------|
 | `hub-platform/src/stores/auth.ts` | HUB 认证排除二维码归类 |
+| `hub-platform/src/stores/system.ts` | 默认产品类型改为 A 产品 |
 | `hub-platform/src/stores/server.ts` | 版本阈值统一为 20250905 |
 | `hub-platform/src/stores/job.ts` | 增加错误状态 |
 | `hub-platform/src/stores/print.ts` | 选择打印机同步服务端 |
