@@ -14,12 +14,10 @@ import type { ClientSocketStatePayload, PrintClientInfo } from "@/types/app/runt
 import ErrorNotice from "@/components/common/ErrorNotice.vue";
 import { useIframeContainer } from "@/composables/useIframeContainer";
 import { useAppNotification } from "@/composables/useAppNotification";
-import { getAccessToken } from "@/api/config";
 import { useAppStore } from "@/stores/app";
 import { useNetworkStore } from "@/stores/network";
 import { useRuntimeStore } from "@/stores/runtime";
 import { useTaskStore } from "@/stores/task";
-import { useUserStore } from "@/stores/user";
 import type { IframePayloadBridgeResult } from "@/composables/useIframePayloadBridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
@@ -31,7 +29,6 @@ const appStore = useAppStore();
 const networkStore = useNetworkStore();
 const runtimeStore = useRuntimeStore();
 const taskStore = useTaskStore();
-const userStore = useUserStore();
 const { notify } = useAppNotification();
 const { isOnline } = storeToRefs(networkStore);
 const { iframe, loadIframeContainer, loading } = useIframeContainer();
@@ -65,7 +62,7 @@ const socketLinkPort = computed(() => socketLink.value.port ?? "未知");
 
 const pageAddress = computed(() => window.location.href);
 const iframeAddress = computed(() => iframe.value.url || "about:blank");
-const localTokenStatus = computed(() => (getAccessToken() ? "存在" : "不存在"));
+// 客户端只有一个 token：经 iframe 获取后本地缓存，等待拉取/推送更新。
 const iframeTokenStatus = computed(() => (runtimeStore.iframeToken ? "存在" : "不存在"));
 const socketEndpoint = computed(() => toSocketEndpoint(appStore.config.localServiceUrl));
 const latestSocketTask = computed(() => taskStore.todoTasks[0]);
@@ -149,29 +146,21 @@ async function runTokenDetect() {
   tokenLoading.value = true;
   tokenResult.value = "";
 
-  const localToken = getAccessToken();
-
   try {
     const bridgeResult = await props.queryIframePayload?.("token-detect");
     const iframePayloadToken = bridgeResult?.token;
 
     runtimeStore.setIframeToken(iframePayloadToken || "");
 
+    // 客户端只有一个 token：来自 iframe，获取后即本地缓存（不存在 localStorage/store 等多份存储）。
     tokenResult.value = [
       "[Token Detect]",
       JSON.stringify(
         {
-          localStorageToken: {
-            exists: Boolean(localToken),
-            value: maskToken(localToken),
-          },
-          userStoreToken: {
-            exists: Boolean(userStore.token),
-            value: maskToken(userStore.token || undefined),
-          },
-          iframeToken: {
+          token: {
             exists: Boolean(iframePayloadToken),
             value: maskToken(iframePayloadToken),
+            source: "iframe（获取后本地缓存）",
           },
           iframePayloadBridge: normalizeBridgeResult(bridgeResult),
           iframeUrl: iframeAddress.value,
@@ -303,7 +292,7 @@ function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
   }
 
   return {
-    requestId: result.requestId,
+    id: result.id,
     ok: result.ok,
     reason: result.reason,
     error: result.error,
@@ -345,8 +334,7 @@ function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
 
     <section class="card">
       <h2>Token 检测</h2>
-      <p>本地 token：{{ localTokenStatus }}</p>
-      <p>iframe token：{{ iframeTokenStatus }}</p>
+      <p>客户端 token（iframe 获取，本地缓存）：{{ iframeTokenStatus }}</p>
       <div class="actions">
         <el-button type="primary" plain :loading="tokenLoading" @click="runTokenDetect"
           >执行 Token 检测</el-button

@@ -31,17 +31,17 @@ export function requestClientIframePayload(reason?: string) {
   return unwrapCommand<string>("client_request_iframe_payload", { reason });
 }
 
-/** 视图端把 iframe token 查询结果回传给客户端（一层结构）。 */
+/** 视图端把 iframe token 查询结果回传给客户端（标准信封：payload 为 token 字符串）。 */
 export function submitClientIframePayload(report: {
-  requestId: string;
-  token?: string;
+  id: string;
+  payload?: string;
   ok: boolean;
   reason?: string;
   error?: string;
 }) {
   return unwrapCommand<boolean>("client_submit_iframe_payload", {
-    requestId: report.requestId,
-    token: report.token,
+    id: report.id,
+    payload: report.payload,
     ok: report.ok,
     reason: report.reason,
     error: report.error,

@@ -447,10 +447,6 @@ fn emit_socket_forward_result(app: &AppHandle, result: Result<Value, String>) {
     let _ = app.emit_to(
         MAIN_WINDOW_LABEL,
         CLIENT_TO_VIEW_EVENT,
-        ClientEventPayload {
-            name: name.into(),
-            payload: Some(payload),
-            at: now_iso_string(),
-        },
+        ClientEventPayload::new(name, Some(payload)),
     );
 }

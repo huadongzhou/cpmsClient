@@ -18,17 +18,26 @@ export const CLIENT_SOCKET_EVENT = "cpms:client-socket";
 export const HUB_SYSTEM_STATE_EVENT = "cpms:hub-system-state";
 export const HUB_NETWORK_CHANGED_EVENT = "cpms:hub-network-changed";
 
-/** 视图端向客户端发送事件。 */
-export async function emitViewEvent(name: string, payload?: unknown) {
+/** 生成标准信封的消息 id。 */
+export function createMessageId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+/** 视图端向客户端发送事件（标准信封 `{ id, type, payload, time }`）。 */
+export async function emitViewEvent(type: string, payload?: unknown) {
   if (!isTauri()) {
     return;
   }
 
   await emit(VIEW_TO_CLIENT_EVENT, {
-    name,
+    id: createMessageId(),
+    type,
     payload,
-    at: new Date().toISOString(),
-  } satisfies Omit<ClientEventPayload, "at"> & { at: string });
+    time: Date.now(),
+  } satisfies ClientEventPayload);
 }
 
 /** 监听客户端向视图端回推事件。 */

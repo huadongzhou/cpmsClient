@@ -10,16 +10,16 @@ use tauri::{AppHandle, Emitter, Listener};
 use crate::result::CommandResult;
 use crate::services;
 use crate::{
-    now_iso_string, ClientEventPayload, CLIENT_NOTIFICATION_EVENT, CLIENT_TO_VIEW_EVENT,
-    MAIN_WINDOW_LABEL, VIEW_TO_CLIENT_EVENT,
+    new_message_id, ClientEventPayload, CLIENT_IFRAME_REFRESH_EVENT, CLIENT_NOTIFICATION_EVENT,
+    CLIENT_TO_VIEW_EVENT, MAIN_WINDOW_LABEL, VIEW_TO_CLIENT_EVENT,
 };
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct ViewEventPayload {
-    name: String,
+    id: Option<String>,
+    #[serde(rename = "type")]
+    kind: Option<String>,
     payload: Option<Value>,
-    at: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -38,13 +38,11 @@ pub fn emit_client_event(
     name: String,
     payload: Option<Value>,
 ) -> CommandResult<bool> {
-    let event_payload = ClientEventPayload {
-        name,
-        payload,
-        at: now_iso_string(),
-    };
-
-    match app.emit_to(MAIN_WINDOW_LABEL, CLIENT_TO_VIEW_EVENT, event_payload) {
+    match app.emit_to(
+        MAIN_WINDOW_LABEL,
+        CLIENT_TO_VIEW_EVENT,
+        ClientEventPayload::new(name, payload),
+    ) {
         Ok(_) => CommandResult::ok(true),
         Err(error) => CommandResult::fail("EMIT_EVENT_ERROR", &error.to_string()),
     }
@@ -61,26 +59,53 @@ pub(crate) fn push_desktop_notification_event(
     }
 }
 
+/// token 最终不可用（认证过期）：通知窗口提示重新登录，并请视图端向 iframe 发 `cpms:refresh`。
+pub(crate) fn notify_auth_expired(app: &AppHandle) {
+    let _ = app.emit_to(
+        MAIN_WINDOW_LABEL,
+        CLIENT_NOTIFICATION_EVENT,
+        json!({
+            "type": "error",
+            "title": "认证已过期",
+            "message": "当前认证已经过期，请重新登录！",
+        }),
+    );
+
+    let _ = app.emit_to(
+        MAIN_WINDOW_LABEL,
+        CLIENT_TO_VIEW_EVENT,
+        ClientEventPayload::new(CLIENT_IFRAME_REFRESH_EVENT, None),
+    );
+
+    services::log_service::warn(
+        app,
+        "token",
+        "认证已过期：已通知用户重新登录，并请求 iframe 刷新（cpms:refresh）",
+    );
+}
+
 pub(crate) fn setup_client_event_bridge(app: &AppHandle) {
     let app_handle = app.clone();
 
     app.listen_any(VIEW_TO_CLIENT_EVENT, move |event| {
         let raw = event.payload();
-        let payload = serde_json::from_str::<ViewEventPayload>(raw).unwrap_or(ViewEventPayload {
-            name: "unknown".into(),
+        let message = serde_json::from_str::<ViewEventPayload>(raw).unwrap_or(ViewEventPayload {
+            id: None,
+            kind: Some("unknown".into()),
             payload: Some(Value::String(raw.to_string())),
-            at: None,
         });
 
-        if handle_view_event(&app_handle, &payload.name, payload.payload.clone()) {
+        let kind = message.kind.unwrap_or_else(|| "unknown".into());
+
+        if handle_view_event(&app_handle, &kind, message.payload.clone()) {
             return;
         }
 
-        let event_payload = ClientEventPayload {
-            name: payload.name,
-            payload: payload.payload,
-            at: payload.at.unwrap_or_else(now_iso_string),
-        };
+        let event_payload = ClientEventPayload::with_id(
+            message.id.unwrap_or_else(new_message_id),
+            kind,
+            message.payload,
+        );
 
         let _ = app_handle.emit_to(MAIN_WINDOW_LABEL, CLIENT_TO_VIEW_EVENT, event_payload);
     });
@@ -212,11 +237,7 @@ fn emit_view_command_result<T: Serialize>(app: &AppHandle, name: &str, result: C
     let _ = app.emit_to(
         MAIN_WINDOW_LABEL,
         CLIENT_TO_VIEW_EVENT,
-        ClientEventPayload {
-            name: name.into(),
-            payload: Some(payload),
-            at: now_iso_string(),
-        },
+        ClientEventPayload::new(name, Some(payload)),
     );
 }
 

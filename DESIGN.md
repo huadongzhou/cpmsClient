@@ -53,7 +53,7 @@ cpms客户端名称：PrintClient
   - 转发打印任务
 - 客户端链接socket
   - 监听推送的打印任务
-6. 通信：
+6. 通信（视图端↔客户端事件统一信封 `{ id, type, payload, time }`，额外字段同层）：
 - 视图端向客户端发送事件
   - 固定按钮事件：固定/取消固定客户端窗口
   - 收起按钮事件：收起客户端窗口
@@ -64,7 +64,9 @@ cpms客户端名称：PrintClient
   - 选择打印机事件：获取选择打印机事件
   - 更新token事件：登录后推送token
 - 客户端向视图端发送事件
-  - 查询token事件：获取iframe实例内的token
+  - 查询token事件：经 postMessage 统一类型 `cpms:token` 获取 iframe 实例内的 token
+- iframe 向客户端推送（postMessage 统一类型 `cpms:token`）
+  - 推送token：iframe 登录/刷新后主动推送 token，由父窗口统一出口监听落库
 
 视图端：
 1. Layout布局容器
@@ -72,8 +74,8 @@ cpms客户端名称：PrintClient
     1.1.1  标题：logo+title
     1.1.2  按钮：固定按钮+收起按钮+全屏按钮+关闭按钮
   1.2 iframe容器
-    1.1.1 postMessage监听公共事件  
-    - token：获取iframe实例内的token
+    1.1.1 postMessage 监听公共事件（统一出口，长期保持，单一消息类型 `cpms:token`）
+    - token：①客户端发 `cpms:token` 手动取 iframe 内 token；②iframe 主动推送 token；两者都经监听 `cpms:token` 处理
   1.3 调试按钮-抽屉弹窗  
     1.3.1 客户端能力状态
     1.3.2 调试客户端能力
@@ -113,14 +115,16 @@ cpms客户端名称：PrintClient
 ```
 
 ### 需求 3：Token 机制
-获取方式：
-1. 登录后视图端发送事件推送token
-2. 客户端主动发送事件  从iframe实例内获取token
+获取方式（postMessage 统一类型 `cpms:token`，父窗口统一出口长期监听）：
+1. 登录后视图端发送事件推送token（视图端→客户端 Tauri 事件）
+2. 客户端主动发 `cpms:token` 从 iframe 实例内获取 token（手动取）
+3. iframe 登录/刷新后主动推送 `cpms:token`（自动推送）
 
-使用方式：
+使用方式（客户端只有一个 token：经 iframe 获取后本地缓存，不存在多份存储）：
 1. 获取到Token时  客户端本地缓存token
 2. 客户端与服务端通信  header中携带token
-  - 请求失败  清理缓存Token  并主动获取一次新的token 如果token不一致  则重新请求任务 
+  - 请求失败  清理缓存Token  并主动获取一次新的token 如果token不一致  则重新请求任务
+  - 重取后仍失败（认证过期）：通过通知窗口提示「当前认证已经过期，请重新登录！」，并向 iframe 发送 `cpms:refresh` 事件
  
 ## 项目接口
 

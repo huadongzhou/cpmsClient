@@ -21,9 +21,9 @@ export function useClientLogBridge() {
   onMounted(async () => {
     unlistenClientEvents = await listenClientEvent((payload) => {
       logStore.appendLog({
-        level: /fail|error/i.test(payload.name) ? "error" : "info",
+        level: /fail|error/i.test(payload.type) ? "error" : "info",
         source: "client-event",
-        title: payload.name,
+        title: payload.type,
         detail:
           payload.payload === undefined || payload.payload === null
             ? undefined

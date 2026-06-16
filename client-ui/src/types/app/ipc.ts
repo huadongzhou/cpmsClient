@@ -1,9 +1,14 @@
 import type { AppNotificationType } from "@/types/app/notification";
 
+/** 视图端 ↔ 客户端通信的标准消息信封（一层结构），额外字段（reason/ok/error 等）补在同层。 */
 export interface ClientEventPayload {
-  name: string;
+  id: string;
+  type: string;
   payload?: unknown;
-  at: string;
+  time: number;
+  reason?: string;
+  ok?: boolean;
+  error?: string;
 }
 
 export interface DesktopNotificationEventPayload {

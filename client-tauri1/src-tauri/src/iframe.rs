@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 use crate::result::CommandResult;
 use crate::services;
 use crate::{
-    now_iso_string, AppRuntimeState, ClientEventPayload, ClientIframeEventPayload,
+    new_message_id, now_epoch_millis, now_iso_string, AppRuntimeState, ClientIframeEventPayload,
     CLIENT_IFRAME_EVENT, CLIENT_IFRAME_PAYLOAD_REPORT_EVENT, CLIENT_IFRAME_PAYLOAD_REQUEST_EVENT,
     CLIENT_TO_VIEW_EVENT, DEFAULT_CPMS_BASE_URL, DEFAULT_IFRAME_CONFIG_PATH,
     DEFAULT_IFRAME_FALLBACK_URL, MAIN_WINDOW_LABEL,
@@ -48,16 +48,17 @@ pub fn client_request_iframe_payload(
 pub fn client_submit_iframe_payload(
     app: AppHandle,
     state: tauri::State<'_, AppRuntimeState>,
-    request_id: String,
-    token: Option<String>,
+    id: String,
+    payload: Option<Value>,
     ok: bool,
     reason: Option<String>,
     error: Option<String>,
 ) -> CommandResult<bool> {
-    // 上报即落库：token 非空就写入加密缓存（供 socket 转发/CPMS 请求直接使用，
-    // 无需等到首次请求 401 才重取）。
-    if let Some(token) = token
-        .as_deref()
+    // 上报即落库：payload 为非空字符串（token）时写入加密缓存（供 socket 转发/CPMS 请求直接
+    // 使用，无需等到首次请求 401 才重取）。
+    if let Some(token) = payload
+        .as_ref()
+        .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
@@ -71,49 +72,38 @@ pub fn client_submit_iframe_payload(
         }
     }
 
-    // 扁平一层结构：{ requestId, token, ok, reason, error, at }。
-    let report = json!({
-        "requestId": request_id,
-        "token": token,
+    // 标准信封一层结构：{ id, type, payload, time, ok, reason, error }。
+    let message = json!({
+        "id": id,
+        "type": CLIENT_IFRAME_PAYLOAD_REPORT_EVENT,
+        "payload": payload,
+        "time": now_epoch_millis(),
         "ok": ok,
         "reason": reason,
         "error": error,
-        "at": now_iso_string(),
     });
 
     if let Ok(mut locked) = state.iframe_payload.lock() {
-        *locked = Some(report.clone());
+        *locked = Some(message.clone());
     }
 
-    let _ = app.emit_to(
-        MAIN_WINDOW_LABEL,
-        CLIENT_TO_VIEW_EVENT,
-        ClientEventPayload {
-            name: CLIENT_IFRAME_PAYLOAD_REPORT_EVENT.into(),
-            payload: Some(report),
-            at: now_iso_string(),
-        },
-    );
+    let _ = app.emit_to(MAIN_WINDOW_LABEL, CLIENT_TO_VIEW_EVENT, message);
 
     CommandResult::ok(true)
 }
 
 pub(crate) fn emit_iframe_payload_request(app: &AppHandle, reason: &str) -> String {
-    let request_id = format!("iframe-payload-{}", now_iso_string());
-    let payload = json!({
-        "requestId": request_id,
+    let request_id = new_message_id();
+    // 标准信封一层结构：{ id, type, payload, time, reason }。
+    let message = json!({
+        "id": request_id,
+        "type": CLIENT_IFRAME_PAYLOAD_REQUEST_EVENT,
+        "payload": Value::Null,
+        "time": now_epoch_millis(),
         "reason": reason,
     });
 
-    let _ = app.emit_to(
-        MAIN_WINDOW_LABEL,
-        CLIENT_TO_VIEW_EVENT,
-        ClientEventPayload {
-            name: CLIENT_IFRAME_PAYLOAD_REQUEST_EVENT.into(),
-            payload: Some(payload),
-            at: now_iso_string(),
-        },
-    );
+    let _ = app.emit_to(MAIN_WINDOW_LABEL, CLIENT_TO_VIEW_EVENT, message);
 
     request_id
 }
@@ -128,7 +118,15 @@ pub(crate) fn initial_iframe_state() -> ClientIframeEventPayload {
 }
 
 fn cpms_base_url() -> String {
-    std::env::var("CPMS_BASE_URL").unwrap_or_else(|_| DEFAULT_CPMS_BASE_URL.into())
+    // 所有向后端的请求（含 iframe 地址获取）统一以 configure.ini 的 ServerAddr 为域名；
+    // env CPMS_BASE_URL 仅作兜底覆盖，最后才用默认值。
+    crate::printclient::cpms_server_base()
+        .or_else(|| {
+            std::env::var("CPMS_BASE_URL")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+        .unwrap_or_else(|| DEFAULT_CPMS_BASE_URL.into())
 }
 
 fn iframe_config_path() -> String {

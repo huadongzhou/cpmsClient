@@ -11,7 +11,7 @@ export function useClientEventBridge() {
     unlisten = await listenClientEvent((payload) => {
       appStore.pushNotification({
         type: "info",
-        title: `客户端事件：${payload.name}`,
+        title: `客户端事件：${payload.type}`,
         message:
           typeof payload.payload === "string" ? payload.payload : JSON.stringify(payload.payload),
         durationMs: 3500,

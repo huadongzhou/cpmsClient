@@ -38,6 +38,7 @@ where
 
     let Some(fresh_token) = refresh_token_via_iframe(app, TOKEN_REFRESH_TIMEOUT) else {
         services::log_service::warn(app, "token", "未能从 iframe 重新获取 token，请求保持失败");
+        crate::event_bridge::notify_auth_expired(app);
         return Err(format!("{error}（token 已清理，且未能从 iframe 重新获取 token）"));
     };
 
@@ -45,11 +46,18 @@ where
 
     if old_token.as_deref() == Some(fresh_token.as_str()) {
         services::log_service::info(app, "token", "重新获取的 token 与原值一致，不再重试");
+        crate::event_bridge::notify_auth_expired(app);
         return Err(error);
     }
 
     services::log_service::info(app, "token", "已获取新 token，重新发起请求");
-    attempt()
+    let retry = attempt();
+    if let Err(retry_error) = &retry {
+        if is_auth_failure_error(retry_error) {
+            crate::event_bridge::notify_auth_expired(app);
+        }
+    }
+    retry
 }
 
 /// 判断失败是否由 token 失效（鉴权失败）引起。
@@ -80,13 +88,13 @@ fn refresh_token_via_iframe(app: &AppHandle, timeout: Duration) -> Option<String
             continue;
         };
 
-        if report.get("requestId").and_then(Value::as_str) != Some(request_id.as_str()) {
+        if report.get("id").and_then(Value::as_str) != Some(request_id.as_str()) {
             continue;
         }
 
-        // 扁平结构：token 直接在顶层 token 字段。
+        // 标准信封：token 作为 payload（字符串）。
         return report
-            .get("token")
+            .get("payload")
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|token| !token.is_empty())

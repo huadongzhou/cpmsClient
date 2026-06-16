@@ -27,6 +27,7 @@ pub(crate) const CLIENT_IFRAME_EVENT: &str = "cpms:client-iframe";
 pub(crate) const CLIENT_TODO_TASK_EVENT: &str = "cpms:client-todo-task";
 pub(crate) const CLIENT_IFRAME_PAYLOAD_REQUEST_EVENT: &str = "client.iframe_payload.request";
 pub(crate) const CLIENT_IFRAME_PAYLOAD_REPORT_EVENT: &str = "client.iframe_payload.reported";
+pub(crate) const CLIENT_IFRAME_REFRESH_EVENT: &str = "client.iframe.refresh";
 pub(crate) const DEFAULT_CPMS_BASE_URL: &str = "http://localhost:8080";
 pub(crate) const DEFAULT_IFRAME_CONFIG_PATH: &str = "/api/client/iframe-config";
 pub(crate) const DEFAULT_LOCAL_SOCKET_URL: &str = "ws://127.0.0.1:18101/ws/task";
@@ -41,12 +42,39 @@ const TRAY_AUTOSTART_DISABLE: &str = "tray.autostart.disable";
 const TRAY_QUIT: &str = "tray.quit";
 const AUTOSTART_INIT_MARKER: &str = ".autostart-initialized";
 
+/// 视图端 ↔ 客户端通信的标准消息信封（一层结构）：
+/// `{ id, type, payload, time }`，额外字段（reason/ok/error 等）补在同层。
 #[derive(Debug, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct ClientEventPayload {
-    pub(crate) name: String,
+    pub(crate) id: String,
+    #[serde(rename = "type")]
+    pub(crate) kind: String,
     pub(crate) payload: Option<Value>,
-    pub(crate) at: String,
+    pub(crate) time: u64,
+}
+
+impl ClientEventPayload {
+    pub(crate) fn new(kind: impl Into<String>, payload: Option<Value>) -> Self {
+        Self {
+            id: new_message_id(),
+            kind: kind.into(),
+            payload,
+            time: now_epoch_millis(),
+        }
+    }
+
+    pub(crate) fn with_id(
+        id: impl Into<String>,
+        kind: impl Into<String>,
+        payload: Option<Value>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            kind: kind.into(),
+            payload,
+            time: now_epoch_millis(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,6 +111,19 @@ pub(crate) fn now_iso_string() -> String {
             .map(|value| value.as_secs())
             .unwrap_or_default()
     )
+}
+
+/// 消息戳：epoch 毫秒（标准信封 time 字段）。
+pub(crate) fn now_epoch_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_millis() as u64)
+        .unwrap_or_default()
+}
+
+/// 标准信封 id 字段：随机 uuid。
+pub(crate) fn new_message_id() -> String {
+    uuid::Uuid::new_v4().to_string()
 }
 
 #[tauri::command]
