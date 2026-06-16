@@ -68,6 +68,9 @@ pub(crate) fn is_auth_failure_error(error: &str) -> bool {
         || error.contains("\"code\": 401")
         || error.contains("\"code\":403")
         || error.contains("\"code\": 403")
+        // 本地压根没缓存 token：同样触发向 iframe 取 token 后重试（DESIGN 需求3：客户端主动取 token）。
+        || error.contains("未登录")
+        || error.contains("token 为空")
 }
 
 /// 向视图端发起一次 iframe payload 查询，轮询等待回传并提取 token。

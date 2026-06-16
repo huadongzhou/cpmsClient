@@ -464,9 +464,8 @@ fn cpms_form_post_once(
 
 fn load_server_user(app: &AppHandle) -> Result<(ServerData, UserData), String> {
     let preferences = load_preferences(app)?;
-    let server = preferences
-        .server
-        .ok_or_else(|| "服务器未配置".to_string())?;
+    // 域名已由 configure.ini 的 ServerAddr 提供（build_cpms_url 优先用它），不强依赖 ServerData。
+    let server = preferences.server.unwrap_or_default();
     let user = preferences.user.ok_or_else(|| "用户未登录".to_string())?;
     let token = user.token.as_deref().unwrap_or_default().trim();
 

@@ -28,23 +28,26 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
         .map(PathBuf::from)
         .ok_or_else(|| "socket 任务缺少 filePath".to_string())?;
 
-    // 请求发起：先记下目标 URL 与任务参数，确保即便后续未登录/缺文件失败也能看到尝试的内容。
-    let target = format!(
-        "{}{UPLOAD_EXEC_PATH}",
-        crate::printclient::cpms_server_base().unwrap_or_default()
-    );
-    super::log_service::http_request(&app, "打印上传", "POST", &target, "", &task_payload.to_string());
-
     let preferences = load_preferences(&app)?;
     let Some(context) = build_upload_context(preferences) else {
-        let reason = "用户未登录或服务器未配置，无法转发打印任务";
-        super::log_service::http_error(&app, "打印上传", reason);
+        // 未登录（无缓存 token）：此时签名头无法构建，只记错误（带任务参数）；
+        // 该错误会被 with_token_retry 识别为鉴权失败 → 自动向 iframe 取 token 后重试。
+        let reason = "未登录：无缓存 token，无法转发打印任务";
+        super::log_service::http_error(
+            &app,
+            "打印上传",
+            &format!("{reason} | 任务参数: {task_payload}"),
+        );
         return Err(reason.into());
     };
 
     if !file_path.exists() {
         let reason = format!("socket 任务文件不存在: {}", file_path.to_string_lossy());
-        super::log_service::http_error(&app, "打印上传", &reason);
+        super::log_service::http_error(
+            &app,
+            "打印上传",
+            &format!("{reason} | 任务参数: {task_payload}"),
+        );
         return Err(reason);
     }
 
@@ -77,7 +80,8 @@ fn build_upload_context(preferences: HubPreferences) -> Option<UploadContext> {
     }
 
     Some(UploadContext {
-        server: preferences.server?,
+        // 域名已由 configure.ini 的 ServerAddr 提供（build_cpms_url 优先用它），不强依赖 ServerData。
+        server: preferences.server.unwrap_or_default(),
         user,
         product_type: preferences.product_type,
         auth_direct_device: preferences.auth_direct_device,
@@ -111,7 +115,7 @@ fn upload_print_payload(
     let token = context.user.token.as_deref().unwrap_or_default();
     let headers = http_service::build_signed_headers(Some(token), UPLOAD_EXEC_PATH, &sign_query)?;
 
-    // 真正发送：记完整最终 URL（含 query）+ 请求头（掩码 token）+ multipart 文件名（最精确的发起日志）。
+    // 请求发起：记完整最终 URL（含 query）+ 完整请求头 + multipart 文件名。
     super::log_service::http_request(
         app,
         "打印上传",
