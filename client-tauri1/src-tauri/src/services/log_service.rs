@@ -60,10 +60,7 @@ pub fn error(app: &AppHandle, source: &str, message: &str) {
     log(app, "ERROR", source, message, None);
 }
 
-const HTTP_LOG_MAX: usize = 2000;
-
-/// 统一请求日志：请求发出前记录 方法/URL，请求头与请求体入 detail。
-/// 请求头里的敏感字段（authorization/cookie/token）已掩码，不会明文落盘。
+/// 统一请求日志：请求发出前记录 方法/URL，请求头与请求体入 detail（全量、不截断）。
 pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, headers: &str, body: &str) {
     let mut parts: Vec<String> = Vec::new();
     if !headers.trim().is_empty() {
@@ -73,7 +70,7 @@ pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, heade
         parts.push(format!("body: {body}"));
     }
     let detail = parts.join("\n");
-    let detail = (!detail.is_empty()).then(|| truncate_log(&detail));
+    let detail = if detail.is_empty() { None } else { Some(detail) };
     log(
         app,
         "INFO",
@@ -92,7 +89,7 @@ pub fn format_headers_for_log(headers: &[(String, String)]) -> String {
         .join("; ")
 }
 
-/// 统一响应日志：2xx/3xx 记 INFO，4xx/5xx 记 WARN；状态码入标题，响应体入 detail（截断）。
+/// 统一响应日志：2xx/3xx 记 INFO，4xx/5xx 记 WARN；状态码入标题，响应体入 detail（全量、不截断）。
 pub fn http_response(app: &AppHandle, label: &str, status: u16, body: &str) {
     let level = if (200..400).contains(&status) { "INFO" } else { "WARN" };
     log(
@@ -100,7 +97,7 @@ pub fn http_response(app: &AppHandle, label: &str, status: u16, body: &str) {
         level,
         "http",
         &format!("← [{label}] status={status}"),
-        Some(&truncate_log(body)),
+        Some(body),
     );
 }
 
@@ -111,17 +108,8 @@ pub fn http_error(app: &AppHandle, label: &str, error: &str) {
         "ERROR",
         "http",
         &format!("✗ [{label}] 请求失败"),
-        Some(&truncate_log(error)),
+        Some(error),
     );
-}
-
-fn truncate_log(text: &str) -> String {
-    let count = text.chars().count();
-    if count <= HTTP_LOG_MAX {
-        return text.to_string();
-    }
-    let head: String = text.chars().take(HTTP_LOG_MAX).collect();
-    format!("{head}…（截断，共 {count} 字符）")
 }
 
 /// 记录一条客户端日志：写入日志文件，并推送给视图端日志面板。
