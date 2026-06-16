@@ -1,7 +1,7 @@
 //! 本地 socket worker：连接 PrintClient，监听任务推送，转发打印任务并做 token 失效重取。
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -30,6 +30,8 @@ use crate::{
 const FORWARD_RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const PENDING_FORWARD_DIR: &str = "pending-forwards";
 const MAX_FORWARD_ATTEMPTS: u64 = 10;
+// 在途任务（.processing）运行期回收阈值：须大于上传最长耗时（30 分钟），避免误回收正在上传的任务。
+const PROCESSING_RECLAIM_AFTER: Duration = Duration::from_secs(35 * 60);
 const SOCKET_RETRY_INTERVAL: Duration = Duration::from_secs(3);
 const SOCKET_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -222,15 +224,13 @@ fn process_push_message(app: &AppHandle, text: &str) {
     services::log_service::log(app, "INFO", "socket", "socket 收到推送", Some(&preview));
 
     if is_print_task_message(payload) {
-        services::log_service::info(app, "socket", "识别为打印任务推送，开始转发");
+        services::log_service::info(app, "socket", "识别为打印任务推送，已落盘待转发");
+        // 收到即落盘：先写入待转发队列，确保即使首次转发未完成就崩溃，重启后也能重发。
+        enqueue_pending_forward(app, payload);
         let app_handle = app.clone();
-        let message = payload.to_string();
         thread::spawn(move || {
-            let result = forward_socket_task_with_token_retry(&app_handle, &message);
-            if result.is_err() {
-                enqueue_failed_forward(&app_handle, &message);
-            }
-            emit_socket_forward_result(&app_handle, result);
+            // 立即认领并转发（与周期 worker 共用认领机制，避免重复转发）。
+            process_pending_forwards(&app_handle);
         });
     } else if let Some(task_payload) = parse_todo_payload(payload) {
         let _ = app.emit_to(MAIN_WINDOW_LABEL, CLIENT_TODO_TASK_EVENT, task_payload);
@@ -349,30 +349,40 @@ fn pending_dir(app: &AppHandle) -> Option<PathBuf> {
     Some(dir)
 }
 
-/// 转发失败（含 token 重取后仍失败）时把原始任务消息落盘，等待重试 worker 重发。
-fn enqueue_failed_forward(app: &AppHandle, message: &str) {
+/// 收到打印任务即落盘到待转发队列（attempts=0），确保转发未完成就崩溃也能在重启后重发。
+fn enqueue_pending_forward(app: &AppHandle, message: &str) {
     let Some(dir) = pending_dir(app) else {
         return;
     };
     let record = json!({ "message": message, "attempts": 0, "at": now_iso_string() });
     let file = dir.join(format!("{}.json", Uuid::new_v4()));
     if fs::write(&file, record.to_string()).is_ok() {
-        services::log_service::info(app, "socket", "转发失败，已加入待重试队列");
+        services::log_service::info(app, "socket", "打印任务已落盘待转发队列");
     }
 }
 
-/// 启动待重试 worker：定期重发 pending-forwards 中的任务，成功出队、超次丢弃。
+/// 启动待转发 worker：先回收上次崩溃残留的在途任务，再定期处理队列。
 pub(crate) fn start_forward_retry_worker(app: AppHandle) {
-    thread::spawn(move || loop {
-        thread::sleep(FORWARD_RETRY_INTERVAL);
-        retry_pending_forwards(&app);
+    thread::spawn(move || {
+        // 启动即回收上次进程崩溃残留的在途任务（.processing → .json）。
+        reclaim_orphaned_processing(&app, true);
+        loop {
+            thread::sleep(FORWARD_RETRY_INTERVAL);
+            process_pending_forwards(&app);
+        }
     });
 }
 
-fn retry_pending_forwards(app: &AppHandle) {
+/// 处理待转发队列：逐个认领（原子 rename → .processing）后转发，成功出队、失败回写计数、超次丢弃。
+/// 认领机制保证「收到即转发」线程、周期 worker、以及多次扫描之间不会重复转发同一任务。
+fn process_pending_forwards(app: &AppHandle) {
     let Some(dir) = pending_dir(app) else {
         return;
     };
+
+    // 回收僵死的在途任务（运行期 panic 残留，超阈值才回收以免误伤正在上传的任务）。
+    reclaim_orphaned_processing(app, false);
+
     let Ok(entries) = fs::read_dir(&dir) else {
         return;
     };
@@ -383,42 +393,89 @@ fn retry_pending_forwards(app: &AppHandle) {
             continue;
         }
 
-        let Ok(raw) = fs::read_to_string(&path) else {
+        // 认领：原子 rename 到 .processing；失败说明已被并发认领，跳过。
+        let claimed = path.with_extension("processing");
+        if fs::rename(&path, &claimed).is_err() {
             continue;
-        };
-        let Ok(record) = serde_json::from_str::<Value>(&raw) else {
-            let _ = fs::remove_file(&path);
-            continue;
-        };
-        let Some(message) = record.get("message").and_then(Value::as_str) else {
-            let _ = fs::remove_file(&path);
-            continue;
-        };
-        let attempts = record.get("attempts").and_then(Value::as_u64).unwrap_or(0);
+        }
 
-        match forward_socket_task_with_token_retry(app, message) {
-            Ok(_) => {
-                let _ = fs::remove_file(&path);
-                services::log_service::info(app, "socket", "待重试任务转发成功，已出队");
+        process_claimed_forward(app, &claimed);
+    }
+}
+
+/// 转发一个已认领（.processing）的任务：成功删文件出队；失败回写 .json（计数+1）或超次丢弃。
+fn process_claimed_forward(app: &AppHandle, claimed: &Path) {
+    let Some((message, attempts, at)) = read_pending_record(claimed) else {
+        let _ = fs::remove_file(claimed);
+        return;
+    };
+
+    let result = forward_socket_task_with_token_retry(app, &message);
+    emit_socket_forward_result(app, result.clone());
+
+    match result {
+        Ok(_) => {
+            let _ = fs::remove_file(claimed);
+            services::log_service::info(app, "socket", "打印任务转发成功，已出队");
+        }
+        Err(error) => {
+            let next = attempts + 1;
+            if next >= MAX_FORWARD_ATTEMPTS {
+                let _ = fs::remove_file(claimed);
+                services::log_service::error(
+                    app,
+                    "socket",
+                    &format!("打印任务转发超过最大次数已丢弃：{error}"),
+                );
+            } else {
+                let record = json!({ "message": message, "attempts": next, "at": at });
+                let _ = fs::write(claimed.with_extension("json"), record.to_string());
+                let _ = fs::remove_file(claimed);
+                services::log_service::warn(
+                    app,
+                    "socket",
+                    &format!("打印任务转发失败，保留待重试（第 {next} 次）：{error}"),
+                );
             }
-            Err(error) => {
-                let next = attempts + 1;
-                if next >= MAX_FORWARD_ATTEMPTS {
-                    let _ = fs::remove_file(&path);
-                    services::log_service::error(
-                        app,
-                        "socket",
-                        &format!("待重试任务超过最大次数已丢弃：{error}"),
-                    );
-                } else {
-                    let updated = json!({
-                        "message": message,
-                        "attempts": next,
-                        "at": record.get("at").cloned().unwrap_or(Value::Null),
-                    });
-                    let _ = fs::write(&path, updated.to_string());
-                }
-            }
+        }
+    }
+}
+
+fn read_pending_record(path: &Path) -> Option<(String, u64, Value)> {
+    let raw = fs::read_to_string(path).ok()?;
+    let record = serde_json::from_str::<Value>(&raw).ok()?;
+    let message = record.get("message").and_then(Value::as_str)?.to_string();
+    let attempts = record.get("attempts").and_then(Value::as_u64).unwrap_or(0);
+    let at = record.get("at").cloned().unwrap_or(Value::Null);
+    Some((message, attempts, at))
+}
+
+/// 回收僵死的 .processing 文件（改回 .json 重新入队）。
+/// `force_all=true`（启动时）回收全部；否则仅回收超过 `PROCESSING_RECLAIM_AFTER` 的（运行期防 panic 残留）。
+fn reclaim_orphaned_processing(app: &AppHandle, force_all: bool) {
+    let Some(dir) = pending_dir(app) else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("processing") {
+            continue;
+        }
+
+        let reclaim = force_all
+            || fs::metadata(&path)
+                .and_then(|meta| meta.modified())
+                .ok()
+                .and_then(|modified| modified.elapsed().ok())
+                .map(|elapsed| elapsed >= PROCESSING_RECLAIM_AFTER)
+                .unwrap_or(true);
+
+        if reclaim && fs::rename(&path, path.with_extension("json")).is_ok() {
+            services::log_service::warn(app, "socket", "回收在途转发任务，重新入队重试");
         }
     }
 }
