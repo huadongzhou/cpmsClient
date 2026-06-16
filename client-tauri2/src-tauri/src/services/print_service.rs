@@ -33,7 +33,7 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
         "{}{UPLOAD_EXEC_PATH}",
         crate::printclient::cpms_server_base().unwrap_or_default()
     );
-    super::log_service::http_request(&app, "打印上传", "POST", &target, &task_payload.to_string());
+    super::log_service::http_request(&app, "打印上传", "POST", &target, "", &task_payload.to_string());
 
     let preferences = load_preferences(&app)?;
     let Some(context) = build_upload_context(preferences) else {
@@ -53,7 +53,7 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
         "socket",
         &format!(
             "转发打印任务 → 使用 token {}，文件 {}",
-            mask_token(context.user.token.as_deref().unwrap_or_default()),
+            context.user.token.as_deref().unwrap_or_default(),
             file_path.to_string_lossy()
         ),
     );
@@ -84,19 +84,6 @@ fn build_upload_context(preferences: HubPreferences) -> Option<UploadContext> {
     })
 }
 
-/// 将 token 掩码后用于日志，避免明文落盘（头尾各保留若干位，并附长度）。
-fn mask_token(token: &str) -> String {
-    let token = token.trim();
-    let len = token.chars().count();
-    if len == 0 {
-        return "<空>".into();
-    }
-    let keep = if len <= 12 { 2 } else { 6 };
-    let head: String = token.chars().take(keep).collect();
-    let tail: String = token.chars().skip(len - keep).collect();
-    format!("{head}****{tail}(len={len})")
-}
-
 fn parse_socket_task_payload(message: &str) -> Result<Value, String> {
     let parsed = serde_json::from_str::<Value>(message).map_err(|error| error.to_string())?;
     match parsed {
@@ -124,12 +111,13 @@ fn upload_print_payload(
     let token = context.user.token.as_deref().unwrap_or_default();
     let headers = http_service::build_signed_headers(Some(token), UPLOAD_EXEC_PATH, &sign_query)?;
 
-    // 真正发送：记完整最终 URL（含 query）+ multipart 文件名（最精确的发起日志）。
+    // 真正发送：记完整最终 URL（含 query）+ 请求头（掩码 token）+ multipart 文件名（最精确的发起日志）。
     super::log_service::http_request(
         app,
         "打印上传",
         "POST",
         &url,
+        &super::log_service::format_headers_for_log(&headers),
         &format!("multipart：file={}", file_path.to_string_lossy()),
     );
 

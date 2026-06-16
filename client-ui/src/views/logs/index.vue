@@ -55,13 +55,19 @@ const filteredEntries = computed(() =>
     : logs.value.filter((entry) => categoryOf(entry.source) === activeCategory.value),
 );
 
-/** 选中类别的日志拼成一段长文本（时间正序），不使用每条一块的日志块。 */
+/** 前端单条日志展示上限（字符）。 */
+const ENTRY_DISPLAY_MAX = 1000;
+
+/** 选中类别的日志拼成一段长文本（时间正序），不使用每条一块的日志块；单条超长截断。 */
 const logText = computed(() =>
   [...filteredEntries.value]
     .reverse()
     .map((entry) => {
       const head = `[${formatTime(entry)}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.title}`;
-      return entry.detail ? `${head}\n    ${entry.detail.replace(/\n/g, "\n    ")}` : head;
+      const block = entry.detail ? `${head}\n    ${entry.detail.replace(/\n/g, "\n    ")}` : head;
+      return block.length > ENTRY_DISPLAY_MAX
+        ? `${block.slice(0, ENTRY_DISPLAY_MAX)}…（已截断，共 ${block.length} 字）`
+        : block;
     })
     .join("\n"),
 );

@@ -387,7 +387,14 @@ fn cpms_get_once(app: &AppHandle, path: &str) -> Result<Value, String> {
     let token = user.token.as_deref().unwrap_or_default();
     let headers = http_service::build_signed_headers(Some(token), path, "")?;
 
-    super::log_service::http_request(app, "CPMS GET", "GET", &url, "");
+    super::log_service::http_request(
+        app,
+        "CPMS GET",
+        "GET",
+        &url,
+        &super::log_service::format_headers_for_log(&headers),
+        "",
+    );
 
     let client = cpms_client()?;
     let mut request = client.get(url);
@@ -426,7 +433,14 @@ fn cpms_form_post_once(
     let headers = http_service::build_signed_headers(Some(token), path, &sign_params)?;
     let body = http_service::query_string(params, true);
 
-    super::log_service::http_request(app, "CPMS POST", "POST", &url, &body);
+    super::log_service::http_request(
+        app,
+        "CPMS POST",
+        "POST",
+        &url,
+        &super::log_service::format_headers_for_log(&headers),
+        &body,
+    );
 
     let client = cpms_client()?;
     let mut request = client

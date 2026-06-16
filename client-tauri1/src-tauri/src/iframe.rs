@@ -246,7 +246,7 @@ pub(crate) async fn refresh_iframe_container(app: &AppHandle) -> ClientIframeEve
         Err(error) => return fallback_iframe_state(app, error),
     };
 
-    services::log_service::http_request(app, "iframe 配置", "GET", &endpoint, "");
+    services::log_service::http_request(app, "iframe 配置", "GET", &endpoint, "", "");
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_millis(8_000))

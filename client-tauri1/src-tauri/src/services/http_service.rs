@@ -45,13 +45,16 @@ pub async fn execute_client_http_request(
         .map_err(|error| error.to_string())?;
     let mut builder = client.request(method, &url);
 
+    let mut header_log = String::new();
     if let Some(headers) = request.headers {
-        for (key, value) in headers {
+        let pairs: Vec<(String, String)> = headers.into_iter().collect();
+        header_log = super::log_service::format_headers_for_log(&pairs);
+        for (key, value) in pairs {
             builder = builder.header(key, value);
         }
     }
 
-    // 记录请求参数（query/body），不记 header（避免 token 泄露）。
+    // 记录请求参数（query/body）。
     let mut params = String::new();
     if let Some(query) = request.query {
         let normalized: Vec<(String, String)> = query
@@ -70,7 +73,7 @@ pub async fn execute_client_http_request(
         builder = builder.json(&body);
     }
 
-    super::log_service::http_request(app, "代理请求", &method_str, &url, &params);
+    super::log_service::http_request(app, "代理请求", &method_str, &url, &header_log, &params);
 
     let response = match builder.send().await {
         Ok(value) => value,

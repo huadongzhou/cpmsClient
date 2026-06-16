@@ -159,7 +159,7 @@ async function runTokenDetect() {
         {
           token: {
             exists: Boolean(iframePayloadToken),
-            value: maskToken(iframePayloadToken),
+            value: iframePayloadToken || "",
             source: "iframe（获取后本地缓存）",
           },
           iframePayloadBridge: normalizeBridgeResult(bridgeResult),
@@ -271,17 +271,6 @@ function toSocketEndpoint(baseUrl: string) {
   return `${normalized.replace("http://", "ws://")}/ws/task`;
 }
 
-function maskToken(token?: string) {
-  if (!token) {
-    return "";
-  }
-
-  if (token.length <= 12) {
-    return `${token.slice(0, 2)}****${token.slice(-2)}`;
-  }
-
-  return `${token.slice(0, 6)}****${token.slice(-6)}`;
-}
 
 function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
   if (!result) {

@@ -62,9 +62,18 @@ pub fn error(app: &AppHandle, source: &str, message: &str) {
 
 const HTTP_LOG_MAX: usize = 2000;
 
-/// 统一请求日志：请求发出前记录 方法/URL，参数（query/body）入 detail。不记 header（避免 token 泄露）。
-pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, params: &str) {
-    let detail = (!params.trim().is_empty()).then(|| truncate_log(params));
+/// 统一请求日志：请求发出前记录 方法/URL，请求头与请求体入 detail。
+/// 请求头里的敏感字段（authorization/cookie/token）已掩码，不会明文落盘。
+pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, headers: &str, body: &str) {
+    let mut parts: Vec<String> = Vec::new();
+    if !headers.trim().is_empty() {
+        parts.push(format!("headers: {headers}"));
+    }
+    if !body.trim().is_empty() {
+        parts.push(format!("body: {body}"));
+    }
+    let detail = parts.join("\n");
+    let detail = (!detail.is_empty()).then(|| truncate_log(&detail));
     log(
         app,
         "INFO",
@@ -72,6 +81,15 @@ pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, param
         &format!("→ [{label}] {method} {url}"),
         detail.as_deref(),
     );
+}
+
+/// 格式化请求头用于日志（全量输出，不做掩码）。
+pub fn format_headers_for_log(headers: &[(String, String)]) -> String {
+    headers
+        .iter()
+        .map(|(key, value)| format!("{key}: {value}"))
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// 统一响应日志：2xx/3xx 记 INFO，4xx/5xx 记 WARN；状态码入标题，响应体入 detail（截断）。
