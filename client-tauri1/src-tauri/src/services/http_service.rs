@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tauri::AppHandle;
 
 use super::crypto_service;
 use super::models::ServerData;
@@ -27,20 +28,22 @@ pub(crate) fn allow_insecure_tls() -> bool {
 }
 
 /// Executes the generic Web-to-client HTTP proxy request.
-pub async fn execute_client_http_request(request: ClientHttpRequest) -> Result<Value, String> {
-    let method = request
-        .method
-        .as_deref()
-        .unwrap_or("GET")
+pub async fn execute_client_http_request(
+    app: &AppHandle,
+    request: ClientHttpRequest,
+) -> Result<Value, String> {
+    let method_str = request.method.as_deref().unwrap_or("GET").to_string();
+    let method = method_str
         .parse::<reqwest::Method>()
         .map_err(|_| "method 非法".to_string())?;
+    let url = request.url.clone();
     let timeout = Duration::from_millis(request.timeout_ms.unwrap_or(15_000));
     let client = reqwest::Client::builder()
         .timeout(timeout)
         .danger_accept_invalid_certs(allow_insecure_tls())
         .build()
         .map_err(|error| error.to_string())?;
-    let mut builder = client.request(method, &request.url);
+    let mut builder = client.request(method, &url);
 
     if let Some(headers) = request.headers {
         for (key, value) in headers {
@@ -48,6 +51,8 @@ pub async fn execute_client_http_request(request: ClientHttpRequest) -> Result<V
         }
     }
 
+    // 记录请求参数（query/body），不记 header（避免 token 泄露）。
+    let mut params = String::new();
     if let Some(query) = request.query {
         let normalized: Vec<(String, String)> = query
             .into_iter()
@@ -55,17 +60,34 @@ pub async fn execute_client_http_request(request: ClientHttpRequest) -> Result<V
             .collect();
 
         if !normalized.is_empty() {
+            params.push_str(&format!("query={normalized:?}"));
             builder = builder.query(&normalized);
         }
     }
 
     if let Some(body) = request.body {
+        params.push_str(&format!("；body={body}"));
         builder = builder.json(&body);
     }
 
-    let response = builder.send().await.map_err(|error| error.to_string())?;
+    super::log_service::http_request(app, "代理请求", &method_str, &url, &params);
+
+    let response = match builder.send().await {
+        Ok(value) => value,
+        Err(error) => {
+            super::log_service::http_error(app, "代理请求", &error.to_string());
+            return Err(error.to_string());
+        }
+    };
     let status_code = response.status().as_u16();
-    let response_text = response.text().await.map_err(|error| error.to_string())?;
+    let response_text = match response.text().await {
+        Ok(value) => value,
+        Err(error) => {
+            super::log_service::http_error(app, "代理请求", &error.to_string());
+            return Err(error.to_string());
+        }
+    };
+    super::log_service::http_response(app, "代理请求", status_code, &response_text);
     let response_payload = parse_response_text(response_text);
 
     if status_code >= 400 {

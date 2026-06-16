@@ -49,7 +49,7 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
         ),
     );
 
-    upload_print_payload(&file_path, &task_payload, &context)?;
+    upload_print_payload(&app, &file_path, &task_payload, &context)?;
 
     Ok(json!({
         "filePath": file_path,
@@ -100,6 +100,7 @@ fn parse_socket_task_payload(message: &str) -> Result<Value, String> {
 }
 
 fn upload_print_payload(
+    app: &AppHandle,
     file_path: &Path,
     param: &Value,
     context: &UploadContext,
@@ -114,6 +115,14 @@ fn upload_print_payload(
     let token = context.user.token.as_deref().unwrap_or_default();
     let headers = http_service::build_signed_headers(Some(token), UPLOAD_EXEC_PATH, &sign_query)?;
 
+    super::log_service::http_request(
+        app,
+        "打印上传",
+        "POST",
+        &url,
+        &format!("file={}；{sign_query}", file_path.to_string_lossy()),
+    );
+
     let form = multipart::Form::new()
         .file("file", file_path)
         .map_err(|error| error.to_string())?;
@@ -126,13 +135,17 @@ fn upload_print_payload(
     for (key, value) in headers {
         request = request.header(key, value);
     }
-    let response = request
-        .multipart(form)
-        .send()
-        .map_err(|error| error.to_string())?;
+    let response = match request.multipart(form).send() {
+        Ok(response) => response,
+        Err(error) => {
+            super::log_service::http_error(app, "打印上传", &error.to_string());
+            return Err(error.to_string());
+        }
+    };
 
     let status = response.status();
     let body = response.text().unwrap_or_default();
+    super::log_service::http_response(app, "打印上传", status.as_u16(), &body);
     if !status.is_success() {
         return Err(format!("上传失败，HTTP status={status}，body={body}"));
     }

@@ -246,8 +246,11 @@ pub(crate) async fn refresh_iframe_container(app: &AppHandle) -> ClientIframeEve
         Err(error) => return fallback_iframe_state(app, error),
     };
 
+    services::log_service::http_request(app, "iframe 配置", "GET", &endpoint, "");
+
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_millis(8_000))
+        .danger_accept_invalid_certs(services::http_service::allow_insecure_tls())
         .build()
     {
         Ok(value) => value,
@@ -256,10 +259,23 @@ pub(crate) async fn refresh_iframe_container(app: &AppHandle) -> ClientIframeEve
 
     let response = match client.get(endpoint).send().await {
         Ok(value) => value,
-        Err(error) => return fallback_iframe_state(app, error.to_string()),
+        Err(error) => {
+            services::log_service::http_error(app, "iframe 配置", &error.to_string());
+            return fallback_iframe_state(app, error.to_string());
+        }
     };
 
-    let payload = match response.json::<Value>().await {
+    let status = response.status().as_u16();
+    let body = match response.text().await {
+        Ok(value) => value,
+        Err(error) => {
+            services::log_service::http_error(app, "iframe 配置", &error.to_string());
+            return fallback_iframe_state(app, error.to_string());
+        }
+    };
+    services::log_service::http_response(app, "iframe 配置", status, &body);
+
+    let payload = match serde_json::from_str::<Value>(&body) {
         Ok(value) => value,
         Err(error) => return fallback_iframe_state(app, error.to_string()),
     };

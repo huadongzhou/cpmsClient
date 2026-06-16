@@ -60,6 +60,52 @@ pub fn error(app: &AppHandle, source: &str, message: &str) {
     log(app, "ERROR", source, message, None);
 }
 
+const HTTP_LOG_MAX: usize = 2000;
+
+/// 统一请求日志：请求发出前记录 方法/URL，参数（query/body）入 detail。不记 header（避免 token 泄露）。
+pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, params: &str) {
+    let detail = (!params.trim().is_empty()).then(|| truncate_log(params));
+    log(
+        app,
+        "INFO",
+        "http",
+        &format!("→ [{label}] {method} {url}"),
+        detail.as_deref(),
+    );
+}
+
+/// 统一响应日志：2xx/3xx 记 INFO，4xx/5xx 记 WARN；状态码入标题，响应体入 detail（截断）。
+pub fn http_response(app: &AppHandle, label: &str, status: u16, body: &str) {
+    let level = if (200..400).contains(&status) { "INFO" } else { "WARN" };
+    log(
+        app,
+        level,
+        "http",
+        &format!("← [{label}] status={status}"),
+        Some(&truncate_log(body)),
+    );
+}
+
+/// 统一错误日志：网络/解析等未拿到响应的错误。
+pub fn http_error(app: &AppHandle, label: &str, error: &str) {
+    log(
+        app,
+        "ERROR",
+        "http",
+        &format!("✗ [{label}] 请求失败"),
+        Some(&truncate_log(error)),
+    );
+}
+
+fn truncate_log(text: &str) -> String {
+    let count = text.chars().count();
+    if count <= HTTP_LOG_MAX {
+        return text.to_string();
+    }
+    let head: String = text.chars().take(HTTP_LOG_MAX).collect();
+    format!("{head}…（截断，共 {count} 字符）")
+}
+
 /// 记录一条客户端日志：写入日志文件，并推送给视图端日志面板。
 pub fn log(app: &AppHandle, level: &str, source: &str, message: &str, detail: Option<&str>) {
     write_line(&format_line(level, source, message, detail));

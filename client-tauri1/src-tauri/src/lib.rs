@@ -127,8 +127,11 @@ pub(crate) fn new_message_id() -> String {
 }
 
 #[tauri::command]
-async fn client_http_request(request: services::ClientHttpRequest) -> CommandResult<Value> {
-    match services::http_service::execute_client_http_request(request).await {
+async fn client_http_request(
+    app: AppHandle,
+    request: services::ClientHttpRequest,
+) -> CommandResult<Value> {
+    match services::http_service::execute_client_http_request(&app, request).await {
         Ok(value) => CommandResult::ok(value),
         Err(error) => CommandResult::fail("HTTP_REQUEST_ERROR", &error),
     }

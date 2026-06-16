@@ -386,6 +386,9 @@ fn cpms_get_once(app: &AppHandle, path: &str) -> Result<Value, String> {
     let url = http_service::build_cpms_url(&server, path)?;
     let token = user.token.as_deref().unwrap_or_default();
     let headers = http_service::build_signed_headers(Some(token), path, "")?;
+
+    super::log_service::http_request(app, "CPMS GET", "GET", &url, "");
+
     let client = cpms_client()?;
     let mut request = client.get(url);
 
@@ -393,7 +396,14 @@ fn cpms_get_once(app: &AppHandle, path: &str) -> Result<Value, String> {
         request = request.header(key, value);
     }
 
-    read_cpms_response(request.send().map_err(|error| error.to_string())?)
+    let response = match request.send() {
+        Ok(response) => response,
+        Err(error) => {
+            super::log_service::http_error(app, "CPMS GET", &error.to_string());
+            return Err(error.to_string());
+        }
+    };
+    read_cpms_response(app, "CPMS GET", response)
 }
 
 fn cpms_form_post(
@@ -415,6 +425,9 @@ fn cpms_form_post_once(
     let token = user.token.as_deref().unwrap_or_default();
     let headers = http_service::build_signed_headers(Some(token), path, &sign_params)?;
     let body = http_service::query_string(params, true);
+
+    super::log_service::http_request(app, "CPMS POST", "POST", &url, &body);
+
     let client = cpms_client()?;
     let mut request = client
         .post(url)
@@ -425,7 +438,14 @@ fn cpms_form_post_once(
         request = request.header(key, value);
     }
 
-    read_cpms_response(request.send().map_err(|error| error.to_string())?)
+    let response = match request.send() {
+        Ok(response) => response,
+        Err(error) => {
+            super::log_service::http_error(app, "CPMS POST", &error.to_string());
+            return Err(error.to_string());
+        }
+    };
+    read_cpms_response(app, "CPMS POST", response)
 }
 
 fn load_server_user(app: &AppHandle) -> Result<(ServerData, UserData), String> {
@@ -451,9 +471,15 @@ fn cpms_client() -> Result<Client, String> {
         .map_err(|error| error.to_string())
 }
 
-fn read_cpms_response(response: reqwest::blocking::Response) -> Result<Value, String> {
+fn read_cpms_response(
+    app: &AppHandle,
+    label: &str,
+    response: reqwest::blocking::Response,
+) -> Result<Value, String> {
     let status = response.status();
     let body = response.text().unwrap_or_default();
+
+    super::log_service::http_response(app, label, status.as_u16(), &body);
 
     if !status.is_success() {
         return Err(format!("CPMS 请求失败，HTTP status={status}，body={body}"));

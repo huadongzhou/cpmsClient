@@ -27,6 +27,9 @@ function categoryOf(source: string): string {
   if (key === "socket") {
     return "任务 / Socket";
   }
+  if (key === "http") {
+    return "请求 / HTTP";
+  }
   if (key === "token") {
     return "Token";
   }
