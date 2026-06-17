@@ -188,7 +188,7 @@ fn build_print_query_params(param: &Value, context: &UploadContext) -> Vec<(Stri
         ),
         ("printProperties.driverName".into(), "PdfDriver".into()),
         ("printProperties.portShared".into(), "0".into()),
-        ("printProperties.terminalType".into(), "harmony".into()),
+        ("printProperties.terminalType".into(), "windows".into()),
         (
             "printProperties.pageCount".into(),
             text_field(print_properties, "pageCount", "1"),

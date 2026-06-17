@@ -51,15 +51,16 @@
 |--------|-----------------|----------------------|------|
 | 布局 | 左右分栏 + 装饰圆 + 响应式 `sm/md/lg` | 左右分栏卡片 + CSS media query | 视觉基本对齐，缺少装饰圆 |
 | 自动登录 | ✅ 启动时尝试自动登录 | ✅ 挂载时检测已认证态并跳转；存在历史服务器时自动加载认证方式 | 已对齐 |
-| 服务器检测 | ✅ 输入框防抖 3s 自动检测 | ⚠️ 必须点击“检测服务端”按钮 | 交互流程不同 |
-| 本地账号密码 | ✅ | ✅ | 对齐 |
-| AD 域登录 | ✅ | ✅ | 对齐 |
-| 二维码登录 | ✅ | ✅ | 对齐 |
-| Welink 登录 | ✅ `Web` + `javaScriptProxy` | ✅ iframe + `hmWelinkJsObj` + `message` | 实现方式不同，能力对齐 |
+| 服务器检测 | ✅ 输入框防抖 3s 自动检测 | ⚠️ 需点击“检测并登录”/“登录”触发 | 交互流程不同 |
+| A 产品交互 | ✅ 仅显示服务器地址 + 登录按钮 | ✅ 已按产品类型动态显示：A 产品简化为服务器 + 登录按钮 | 已修复 |
+| 本地账号密码 | ✅ | ✅（C 产品） | 对齐 |
+| AD 域登录 | ✅ | ✅（C 产品） | 对齐 |
+| 二维码登录 | ✅ | ✅（C 产品） | 对齐 |
+| Welink 登录 | ✅ `Web` + `javaScriptProxy` | ✅ iframe + `hmWelinkJsObj` + `message`（C 产品） | 实现方式不同，能力对齐 |
 | 子节点选择 | ✅ `initServerInfoForSysNode` | ❌ 完全缺失 | **能力缺口** |
 | License 检查 | ✅ 必须含“鸿蒙客户端授权” | ✅ | 对齐 |
 | 服务端版本检查 | 提示要求 `20250905` 以上 | ✅ 已统一为 `buildId >= 20250905` | 已修复 |
-| HUB 认证 | 有独立 HUB A/B 登录分支（含硬编码假账号） | ✅ 已排除二维码归类，显示账号密码表单 | 已修复 |
+| HUB/A 产品一键登录 | ✅ 硬编码假账号一键登录 | ✅ A 产品优先使用服务端返回账号密码真实登录；无返回时回退硬编码 HUB 账号 | 已修复 |
 | 隐私模式 | `WindowUtils.setWindowPrivacyModeInPage` | ❌ 无 | 复刻版缺失 |
 | 图片 | `startIcon.png`、policy/about/manual | 均已复制 ✅ | 对齐 |
 
@@ -366,7 +367,7 @@
 | `hub-platform/src/stores/job.ts` | 增加错误状态 |
 | `hub-platform/src/stores/print.ts` | 选择打印机同步服务端 |
 | `hub-platform/src/services/api/printer.api.ts` | 新增 `selectDirectDevice` |
-| `hub-platform/src/pages/LoginPage.vue` | 自动登录、自动加载认证方式 |
+| `hub-platform/src/pages/LoginPage.vue` | 自动登录、A 产品简化交互、HUB 一键登录、自动加载认证方式 |
 | `hub-platform/src/pages/HomePage.vue` | 轮播图、USB ID 复制 |
 | `hub-platform/src/pages/PrintDevicePage.vue` | 下拉刷新、服务端同步、错误提示 |
 | `hub-platform/src/pages/PrintJobPageForC.vue` | 下拉刷新、滚动加载、状态色、错误重试 |

@@ -6,8 +6,8 @@ use base64::{engine::general_purpose, Engine as _};
 use cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyInit};
 use uuid::Uuid;
 
-const CLIENT_ID: &str = "0ca6eaf66cbf4f2bb1db6902c9c8d988";
-const CLIENT_SECRET: &str = "8c0a5f3388154e2c959f2bd44fc2dd88";
+const CLIENT_ID: &str = "eebc76c9ed0d44fbbd42ab2ab43df333";
+const CLIENT_SECRET: &str = "36fcbd2d8bab41f99375413c6b7b666b";
 const CLIENT_PLATFORM: &str = "pc";
 const CLIENT_KEY: &str = "#iSn##s$olu.@@sm";
 

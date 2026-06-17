@@ -138,7 +138,7 @@ pub fn build_signed_headers(
             crypto_service::sign_request(uri, params)?,
         ),
         ("client".into(), "client".into()),
-        ("platform".into(), "harmony".into()),
+        ("platform".into(), "windows".into()),
     ];
 
     if let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) {
