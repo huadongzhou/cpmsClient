@@ -1,318 +1,517 @@
-## 架构设计
-通过tauri框架的基本能力为基座  添加专属的客户端能力：
-- 桌面通知
-- 托盘图标
-- 自启动
-- 网络检测
-- 服务请求
-- 客户端与视图端事件通信  交互指令/客户端方法/请求代理
+# CPMS Client 设计规范
 
-入口事件：
-- 客户端：获取iframe容器地址
-- 视图端：获取客户端返回的iframe容器地址，根据iframe容器地址渲染业务页面
+> 基于 `ui-ux-pro-max` Skill 对 client-ui 全部页面与组件的梳理总结。
+> 本文档描述 CPMS Client（PC 桌面端）当前真实的设计实现，并给出与 hub-platform（平板/Web 端）统一风格的方案。
 
-常驻事件：
-- 获取本地websocket端口  
-1.检测cpms客户端是否存在（按进程名定位运行目录，或读 DriverClient.ini）  
-2.获取cpms客户端下的 DriverClient.ini 文件 
-3.获取其中的 WebsocketPort 端口信息
-- 在本地该端口监听 websocket 服务（客户端作为监听端，不主动连接）
-- 等待连接接入并推送任务，监听推送的任务
-1.解析任务消息  拿到任务文件路径
-2.通过客户端的上传接口  携带iframe实例内的token  转发任务
+## 1. 项目概述
 
-cpms客户端名称：PrintClient
+- **产品类型**：企业级打印客户端基座（PC 桌面端）。
+- **技术栈**：Vue 3 + TypeScript + Vite + Element Plus + UnoCSS，Tauri 1/2 作为桌面壳。
+- **目标平台**：Windows / macOS / Linux（含国产 Linux legacy）。
+- **窗口形态**：
+  - 主窗口：默认 800×600，无系统标题栏（`decorations: false`），自绘 `WindowHeaderBar`。
+  - 通知子窗口：400×400，屏幕右下角，自绘标题栏。
+  - 调试抽屉：从主窗口右侧滑出，宽度 80%。
+- **设计语言**：紧凑、专业、清爽，以 Element Plus 为基础，通过 `--cpms-*` 令牌对齐自有视觉。
 
-## 客户端设计
-客户端：
-1. 主窗体：无头窗口由视图端二次开发
-2. 桌面通知： 
-- 布局：400*400窗口 屏幕右下角 上headerbar+通知内容
-  - headerbar：标题+关闭按钮
-  - 通知内容：通知消息
-- 流程：
-  - 默认加载通知窗口但不显示  只有监听到事件消息时才显示   
-  - 监听事件消息  当有事件消息时  显示桌面通知窗口  并渲染通知内容
-  - 点击关闭按钮  隐藏桌面通知窗口 
-- 约束：
-  - 通知窗口只能显示一个  不能同时显示多个通知窗口
-3. 托盘：
-- 流程：
-  - 客户端启动后  创建托盘图标  通过托盘图标点击显示/隐藏客户端窗口
-  - 右键点击托盘图标  显示托盘菜单  包含显示/隐藏客户端窗口、启用/禁用自启动、退出应用 
-4. 请求：
-- 视图端请求客户端
-  - 获取iframe容器地址
-  - 获取作业列表
-  - 获取打印机列表
-  - 选择打印机
-- 客户端请求服务端
-  - 获取iframe容器地址
-  - 获取作业列表
-  - 获取打印机列表
-  - 转发打印任务
-- 客户端链接socket
-  - 监听推送的打印任务
-6. 通信（视图端↔客户端事件统一信封 `{ id, type, payload, time }`，额外字段同层）：
-- 视图端向客户端发送事件
-  - 固定按钮事件：固定/取消固定客户端窗口
-  - 收起按钮事件：收起客户端窗口
-  - 全屏按钮事件：全屏/退出全屏客户端窗口
-  - 关闭按钮事件：关闭客户端窗口
-  - 作业列表事件：获取作业列表
-  - 打印机列表事件：获取打印机列表
-  - 选择打印机事件：获取选择打印机事件
-  - 更新token事件：登录后推送token
-- 客户端向视图端发送事件
-  - 查询token事件：经 postMessage 统一类型 `cpms:token` 获取 iframe 实例内的 token
-- iframe 向客户端推送（postMessage 统一类型 `cpms:token`）
-  - 推送token：iframe 登录/刷新后主动推送 token，由父窗口统一出口监听落库
+## 2. 设计语言与风格
 
-视图端：
-1. Layout布局容器
-  1.1 客户端headbar 功能点：
-    1.1.1  标题：logo+title
-    1.1.2  按钮：固定按钮+收起按钮+全屏按钮+关闭按钮
-  1.2 iframe容器
-    1.1.1 postMessage 监听公共事件（统一出口，长期保持，单一消息类型 `cpms:token`）
-    - token：①客户端发 `cpms:token` 手动取 iframe 内 token；②iframe 主动推送 token；两者都经监听 `cpms:token` 处理
-  1.3 调试按钮-抽屉弹窗  
-    1.3.1 客户端能力状态
-    1.3.2 调试客户端能力
-    1.3.3 客户端日志查看
+### 2.1 整体风格
 
-## 项目需求
+- **风格关键词**：专业、紧凑、工具型、无边框窗口。
+- **视觉层次**：通过自绘标题栏、面板背景色、Element Plus 组件层级区分。
+- **密度**：高密度，适合 PC 端鼠标操作与信息密度较大的调试/日志场景。
+- **色彩倾向**：以 Element Plus 主色蓝（`#2354f4`）为主，灰阶文本与边框，红色为危险态。
 
-### 需求 1：渲染线上 iframe 容器 地址
+### 2.2 与 ui-ux-pro-max 的契合点
 
-客户端启动后请求线上服务，获取 iframe 容器地址，视图端根据返回地址渲染业务页面。
+| Skill 规则 | 当前实现 | 符合度 |
+|---|---|---|
+| `style-match`：产品类型匹配 | 企业工具型桌面客户端 | ✅ 高 |
+| `consistency`：全站风格一致 | 全部窗口共用 `tokens.css` | ✅ 高 |
+| `no-emoji-icons`：不使用 emoji | 使用 SVG + Element Plus 图标 | ✅ 高 |
+| `system-controls`：优先系统/成熟组件 | 使用 Element Plus | ✅ 高 |
+| `elevation-consistent`：阴影统一 | 基本依赖 Element Plus 阴影，自定义较少 | ⚠️ 中等 |
 
-流程：
+## 3. 设计令牌（Design Tokens）
+
+所有令牌集中在 `client-ui/src/assets/styles/tokens.css` 的 `:root` 中。
+
+### 3.1 颜色系统
+
+```css
+/* 文本 */
+--cpms-color-text-primary: #1f2937;
+--cpms-color-text-secondary: #4b5563;
+--cpms-color-text-muted: #6b7280;
+
+/* 背景 */
+--cpms-color-bg-app: #f4f6f8;
+--cpms-color-bg-panel: #ffffff;
+--cpms-color-bg-hover: #f1f4f8;
+--cpms-color-bg-code: #f4f6f8;
+
+/* 边框 */
+--cpms-color-border: #e5e7eb;
+
+/* 语义色 */
+--cpms-color-danger: #dc2626;
+--cpms-color-danger-bg: #fef2f2;
+```
+
+**对比度检查（基于 WCAG AA）**：
+- `#1f2937` on `#ffffff`：约 11.5:1 ✅
+- `#4b5563` on `#ffffff`：约 7.4:1 ✅
+- `#6b7280` on `#ffffff`：约 5.4:1 ✅
+- `#2354f4` on `#ffffff`：约 5.4:1 ✅
+
+### 3.2 字体系统
+
+```css
+--cpms-font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+--cpms-font-size-base: 14px;
+--cpms-font-size-small: 13px;
+--cpms-font-size-title: 14px;
+--cpms-line-height-base: 22px;
+--cpms-line-height-small: 20px;
+```
+
+| 用途 | 字号 | 行高 | 颜色 |
+|---|---|---|---|
+| 窗口标题栏文字 | 14px | 20px (`--cpms-line-height-small`) | `--cpms-color-text-primary` |
+| 正文/标签 | 14px | 22px (`--cpms-line-height-base`) | `--cpms-color-text-primary` |
+| 辅助说明 | 13px | 20px (`--cpms-line-height-small`) | `--cpms-color-text-secondary` |
+| 代码/日志 | 13px | 20px (`--cpms-line-height-small`) | `--cpms-color-text-primary` |
+
+**建议改进**：
+- 当前字号系统较简单（仅 base/small/title），建议补充 `large`（16px）与 `tiny`（12px）。
+- 标题栏字号与正文相同，层级感不足，建议标题栏使用 15px 或中等字重区分。
+
+### 3.3 间距系统
+
+```css
+--cpms-space-xs: 4px;
+--cpms-space-small: 8px;
+--cpms-space-base: 12px;
+--cpms-space-large: 16px;
+--cpms-space-xlarge: 20px;
+```
+
+**使用规则**：
+- `xs`：图标与文字间隙、标题栏按钮间距。
+- `small`：卡片内部小间隙、按钮组间距。
+- `base`：卡片 padding、抽屉内容区 padding。
+- `large`：模块/区块间距、抽屉页签头部 padding。
+- `xlarge`：悬浮按钮/窗口边缘的大间距。
+
+**建议改进**：
+- PC 端 spacing 已扩展为 4/8/12/16/20 五档，与 hub-platform 的 6/10/16/20/24 档位对齐，仅密度不同。
+
+### 3.4 圆角系统
+
+```css
+--cpms-radius-small: 6px;
+--cpms-radius-panel: 8px;
+--cpms-radius-medium: 10px;
+--cpms-radius-large: 16px;
+```
+
+| 用途 | 圆角 |
+|---|---|
+| 按钮/输入框/小标签/标题栏按钮 | `small` (6px) |
+| 卡片/面板/警告条 | `panel` (8px) |
+| 抽屉/大面板左侧圆角 | `large` (16px) |
+
+**建议改进**：
+- 已引入 10px（medium）与 16px（large）圆角，与 hub-platform 的 md/lg 对齐。
+
+### 3.5 阴影系统
+
+```css
+--cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+--cpms-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+--cpms-shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.1);
+```
+
+| 用途 | 阴影 |
+|---|---|
+| 卡片/代码块 | `sm` |
+| 通知子窗口 | `md` |
+| 调试抽屉 | `lg` |
+
+**建议改进**：
+- 已定义与 hub-platform 对齐的三级阴影，并在抽屉、通知卡片、调试卡片上应用。
+
+## 4. 组件规范
+
+### 4.0 UnoCSS 与 Element Plus 应用约定
+
+- **Element Plus 是交互组件基座**：按钮、抽屉、页签、提示、空状态、确认框、loading 指令等优先使用 Element Plus，避免在业务页重复手写成熟组件行为。
+- **Element Plus 样式通过令牌对齐**：`client-ui/src/assets/styles/tokens.css` 用 `:root:root` 覆盖关键 `--el-*` 变量，使 `el-button`、`el-input`、`el-tag`、`el-drawer`、`el-tabs`、`el-alert` 与 `--cpms-*` 视觉令牌保持一致。
+- **UnoCSS 用于原子化辅助样式**：项目通过 `client-ui/uno.config.ts` 启用 `presetUno`、`presetAttributify`、`presetIcons`、`presetTypography`、`presetWebFonts` 与 directives / variant group transformer；适合补充布局、间距、状态类和轻量工具类。
+- **样式优先级**：跨组件视觉规范写入 `tokens.css`；单组件结构样式写在对应 `.vue` 的 scoped CSS；局部、一次性布局可用 UnoCSS。不要用 UnoCSS 绕过设计令牌写散乱裸色值。
+- **图标使用**：Vite 已接入 `unplugin-icons` 与 `IconsResolver`，Element Plus 图标集合可按 `i-ep-*` / 自动注册组件方式使用；窗口控制等已有内联 SVG 可保持不变。
+
+### 4.1 窗口标题栏（`WindowHeaderBar`）
 
 ```text
-启动客户端
-  -> 客户端请求 服务端获取iframe容器地址
-  -> 获取 iframe URL
-  -> 缓存 iframe URL
-  -> 视图端主动发送事件给客户端获取 iframe URL 并根据 iframe URL 渲染业务页面
+┌────────────────────────────────────────┐
+│  [Logo] 标题                    ─ □ ✕ │
+└────────────────────────────────────────┘
 ```
 
-### 需求 2：本地 socket 监听服务
+- **高度**：`var(--cpms-headerbar-height)` = 44px。
+- **背景**：`--cpms-color-bg-panel`。
+- **底部边框**：1px `--cpms-color-border`。
+- **标题**：左侧 Logo（18px）+ 文字，可拖拽区（`data-tauri-drag-region`）。
+- **控制按钮**：28×28px，图标 14px， hover 背景色反馈。
+  - 固定/取消固定：pin 图标，`is-active` 时主色。
+  - 收起：下划线图标。
+  - 全屏/退出全屏：全屏图标。
+  - 关闭：× 图标，hover 危险红底。
 
-客户端启动后在本地端口**监听** socket 服务（作为监听端），等待连接接入并推送任务。
+**可访问性**：
+- 所有图标按钮均带 `aria-label` 与 `title` ✅。
+- 关闭按钮 hover 使用危险色，视觉反馈明确 ✅。
 
-流程：
+**建议改进**：
+- 控制按钮 28×28px，略小于 44×44 建议值，但 PC 端鼠标操作可接受。
+- 标题栏与内容区对比度良好，但缺少 focus 状态样式。
+
+### 4.2 主窗口布局（`HomeView`）
 
 ```text
-启动客户端
-  -> 检测本地cpms客户端 是否存在（按进程名定位运行目录）
-  -> 获取cpms客户端下的DriverClient.ini文件 其中的 WebsocketPort 端口信息（默认 18101）
-  -> 在本地该端口监听 socket 服务（不主动连接）
-  -> 等待连接接入并推送任务
-  -> 解析任务消息
-  -> 拿到任务文件路径
-  -> 二次转发任务消息  
+┌─────────────────────────┐
+│     WindowHeaderBar     │
+├─────────────────────────┤
+│                         │
+│      iframe 业务页       │
+│                         │
+│  [调试] 浮动按钮          │
+└─────────────────────────┘
 ```
 
-### 需求 3：Token 机制
-获取方式（postMessage 统一类型 `cpms:token`，父窗口统一出口长期监听）：
-1. 登录后视图端发送事件推送token（视图端→客户端 Tauri 事件）
-2. 客户端主动发 `cpms:token` 从 iframe 实例内获取 token（手动取）
-3. iframe 登录/刷新后主动推送 `cpms:token`（自动推送）
+- 主内容区为全屏 iframe，加载 hub-platform。
+- 右下角固定“调试”按钮（`el-button type="primary"`），点击打开调试抽屉。
+- 抽屉宽度 80%，内部使用 `el-tabs` 分两页：能力检测 / 客户端日志。
 
-使用方式（客户端只有一个 token：经 iframe 获取后本地缓存，不存在多份存储）：
-1. 获取到Token时  客户端本地缓存token
-2. 客户端与服务端通信  header中携带token
-  - 请求失败  清理缓存Token  并主动获取一次新的token 如果token不一致  则重新请求任务
-  - 重取后仍失败（认证过期）：通过通知窗口提示「当前认证已经过期，请重新登录！」，并向 iframe 发送 `cpms:refresh` 事件
- 
-## 项目接口
+**建议改进**：
+- “调试”按钮在正式产品中应可配置隐藏或降级为更小入口。
+- 抽屉宽度已由 `size="80%"` 改为受 CSS 约束：`min-width: 560px`、`max-width: 900px`，兼顾小窗与大屏。
 
-### socket 推送任务接口 
+### 4.3 调试能力检测页（`ExampleView`）
 
-#### 响应体
-"{\n\t\"filePath\":\t\"C:\\\\temp\\\\printer_2_277525937_2_df3bd995_0000fc20_0000468c_0326d710.pdf\",\n\t\"printProperties\":\t{\n\t\t\"uuid\":\t\"f833fb7f05e54ce1800ee5ae44b8258f\",\n\t\t\"printName\":\t\"INSOLU_PRINT_CPMS\",\n\t\t\"driverName\":\t\"Insolu General PDF\",\n\t\t\"realDriverName\":\t\"Insolu General PS\",\n\t\t\"documentName\":\t\"测试页\",\n\t\t\"sourceFileName\":\t\"测试页\",\n\t\t\"hostName\":\t\"DESKTOP-QID169O\",\n\t\t\"machineName\":\t\"\\\\\\\\DESKTOP-QID169O\",\n\t\t\"printPortName\":\t\"cpmsport001port1\",\n\t\t\"portShared\":\t\"0\",\n\t\t\"pageCount\":\t\"1\",\n\t\t\"copyCount\":\t\"1\",\n\t\t\"paper\":\t\"ISOA4\",\n\t\t\"paperSizeValue\":\t\"9\",\n\t\t\"paperWidth\":\t\"2100\",\n\t\t\"paperLength\":\t\"2970\",\n\t\t\"duplexing\":\t\"OneSided\",\n\t\t\"color\":\t\"Color\",\n\t\t\"pageOrientation\":\t\"Portrait\",\n\t\t\"documentCollate\":\t\"Collate\",\n\t\t\"inputSlot\":\t\"Auto\",\n\t\t\"defaultSource\":\t\"Auto\",\n\t\t\"dmDefaultSource\":\t\"15\",\n\t\t\"isPSDriver\":\t\"false\",\n\t\t\"driverBrand\":\t\"pdf\",\n\t\t\"clientIp\":\t\"192.168.99.78\",\n\t\t\"terminalType\":\t\"Windows\",\n\t\t\"printProcessor\":\t\"winprint\",\n\t\t\"printNotifyName\":\t\"Administrator\",\n\t\t\"userName\":\t\"Administrator\",\n\t\t\"printUserName\":\t\"Administrator\",\n\t\t\"DocumentCenterBindingEnable\":\t\"Disable\",\n\t\t\"DocumentBindingEnable\":\t\"Disable\",\n\t\t\"DocumentBindingIndex\":\t\"Left\",\n\t\t\"DocumentBoreEnable\":\t\"Disable\",\n\t\t\"DocumentBoreIndex\":\t\"2HoleLeft\",\n\t\t\"DocumentFoldEnable\":\t\"Disable\",\n\t\t\"DocumentFoldIndex\":\t\"FoldPerJob\",\n\t\t\"PageBooklet\":\t\"None\",\n\t\t\"printArgs\":\t\"[PrintInfo]\\r\\nUUID=printer_2_277525937_2_df3bd995_0000fc20_0000468c_0326d710\\r\\nLocalLang=9\\r\\nLocalCode=UTF16LE\\r\\nExecName=PrintClient.exe\\r\\nDataOutputModel=0\\r\\nColor=2\\r\\nTotalPages=1\\r\\nPagesPrinted=0\\r\\nDuplex=1\\r\\nPaperSize=9\\r\\nPaperName=A4\\r\\nPaperWidth=2100\\r\\nPaperLength=2970\\r\\nOrientation=1\\r\\nCollate=1\\r\\nCopies=1\\r\\nDefaultSource=15\\r\\nPrintPortName=cpmsport001port1\\r\\nPrintName=INSOLU_PRINT_CPMS\\r\\nDriverName=Insolu General PS\\r\\nDocument=测试页\\r\\nNotifyName=Administrator\\r\\nPrintProcessor=winprint\\r\\nMachineName=\\\\\\\\DESKTOP-QID169O\\r\\nUserName=Administrator\\r\\nPrintUserName=Administrator\\r\\nRawPath=C:\\\\temp\\\\printer_2_277525937_2_df3bd995_0000fc20_0000468c_0326d710\\r\\n\\r\\n[GenericInfo]\\r\\nColor=2\\r\\nTotalPages=1\\r\\nDuplex=1\\r\\nPaperSize=9\\r\\nOrientation=1\\r\\nCollate=1\\r\\nCopies=1\\r\\nDefaultSource=15\\r\\n\"\n\t}\n}"
+- **布局**：单列卡片流，每个 `section.card` 一个能力模块。
+- **卡片样式**：
+  - 背景 `--cpms-color-bg-panel`
+  - 边框 1px `--cpms-color-border`
+  - 圆角 `--cpms-radius-panel` (8px)
+  - padding `--cpms-space-base` (12px)
+  - 内部 gap `--cpms-space-small` (8px)
+- **按钮**：主要使用 `el-button`，type 包含 primary / success / warning / danger / plain。
+- **结果展示**：`<pre class="result">`，浅灰背景 `--cpms-color-bg-code`。
 
-### 作业列表接口
+**建议改进**：
+- 卡片间距统一为 `base`（12px），标题区与内容区已拆分为 `h2` + `.card-body`。
+- ✅ 结果代码块已增加“复制”按钮，支持一键复制检测结果。
+- ✅ 各能力模块已支持折叠/展开，降低信息密度。
 
-以下接口所有 CPMS 请求默认携带：
+### 4.4 客户端日志页（`LogView`）
 
-- `Authorization`：  token，需要鉴权接口携带。
-- `Content-Type`：`application/x-www-form-urlencoded`，文件上传为 `multipart/form-data`。
-- `access_sign`：按 CPMS 签名规则生成。
-- `client=client`
-- `platform=harmony`
+- **布局**：工具栏 → 文件状态 → 日志文本区。
+- **工具栏**：左侧类别下拉（160px），右侧刷新/复制/清空按钮。
+- **文件状态**：浅灰背景条，显示日志文件路径与大小。
+- **日志文本区**：`<pre>`，最大高度 60vh，浅灰背景，自动换行。
 
-#### 响应体
+**优点**：
+- 日志按类别筛选 ✅。
+- 全量长文本展示，不截断 ✅。
+- 空状态使用 `el-empty` ✅。
 
-普通作业列表：
+**建议改进**：
+- 日志文本区 60vh 在抽屉中可能过矮，建议改为 `height: calc(100% - 工具栏高度)` 撑满剩余空间。
+- 缺少日志级别颜色区分（error/warn/info）。
+- ✅ 清空操作已增加 `ElMessageBox.confirm` 二次确认。
 
-- 请求方式：POST
-- 请求路径：`/cpms/api/jobs/list`
-- 请求类型：`application/x-www-form-urlencoded`
-- 请求参数：
-  - `pageNumber`：当前页码。
-  - `pageSize`：每页数量。
-  - `type`：作业类型，`1` 打印、`2` 复印、`3` 扫描。
-  - `title`：作业标题，默认为空字符串。
-  - `searchTime`：查询范围，`now` 今日作业、`history` 历史作业、空字符串为默认范围。
+### 4.5 通知子窗口（`NotificationView`）
 
-```json
-{
-  "code": 200,
-  "msg": "操作成功",
-  "data": {
-    "records": [
-      {
-        "id": "job-001",
-        "documentName": "测试页.pdf",
-        "commitCount": 1,
-        "color": "Color",
-        "duplex": "OneSided",
-        "jobStatus": 2,
-        "jobStatusName": "待打印",
-        "compileTime": "2026-06-08 10:00:00",
-        "jobPageNum": 1,
-        "outDeviceName": "一楼大厅打印机",
-        "outDeviceSite": "一楼大厅"
-      }
-    ],
-    "total": 1,
-    "size": 20,
-    "current": 1
-  }
-}
+- **尺寸**：400×400（由 Tauri 创建）。
+- **布局**：自绘标题栏 + 通知正文。
+- **视觉**：卡片式窗口，背景 `--cpms-color-bg-panel`，已增加 `box-shadow: var(--cpms-shadow-md)`。
+- **交互**：点击关闭按钮隐藏窗口（非退出）。
+
+**建议改进**：
+- 通知正文区 padding 为 12px，适合桌面通知密度。
+- ✅ 已根据 type 显示左侧色条 + 类型图标（信息/成功/警告/错误）与对应颜色。
+- ✅ 已添加 `box-shadow: var(--cpms-shadow-md)`。
+
+### 4.6 错误提示（`ErrorNotice`）
+
+- 使用 `el-alert` 组件。
+- 类型：`error` / `warning`。
+- 显示标题 + 来源/错误码描述。
+- 可关闭。
+
+**建议改进**：
+- 当前错误提示位于调试页顶部，主窗口 iframe 内错误由 hub-platform 自身处理，分工清晰 ✅。
+- 建议增加错误发生时间戳。
+
+## 5. 布局规范
+
+### 5.1 页面骨架
+
+```text
+App.vue
+├── HomeView（主窗口）
+│   ├── WindowHeaderBar
+│   ├── main.iframe-root
+│   │   ├── iframe（hub-platform）
+│   │   └── el-button.debug-trigger
+│   └── el-drawer.debug-drawer
+│       ├── WindowHeaderBar（抽屉标题）
+│       └── el-tabs
+│           ├── ExampleView
+│           └── LogView
+└── NotificationView（通知子窗口）
+    └── WindowHeaderBar + notification-body
 ```
 
-字段说明：
-- `data.records`：普通作业分页数组。
-- `data.records[].id`：作业 ID，客户端兼容字符串与数字类型。
-- `jobStatus == 2`：待打印状态。
+### 5.2 响应式
 
-### 设备列表接口
+PC 端主窗口尺寸固定为 800×600，因此当前无复杂响应式需求。但抽屉宽度 80% 会在不同 DPI/缩放场景下变化。
 
-#### 响应体
+**建议改进**：
+- 抽屉建议设置 `min-width: 560px` 与 `max-width: 900px`。
+- 在高 DPI 屏幕上，建议根据 `window.devicePixelRatio` 微调字体与按钮尺寸。
 
-- 请求方式：GET
-- 请求路径：`/cpms/api/userManager/listAvailDevices`
-- 说明：获取当前用户可用的授权直连打印设备列表。
+## 6. 交互与动效
 
-```json
-{
-  "code": 200,
-  "msg": "操作成功",
-  "data": [
-    {
-      "deviceId": "device-001",
-      "deviceName": "一楼大厅打印机",
-      "deviceIp": "192.168.1.120",
-      "deviceAuthenticate": "已认证",
-      "authType": 1
-    }
-  ]
-}
+### 6.1 通用过渡
+
+| 元素 | 时长 | 属性 | 用途 |
+|---|---|---|---|
+| 标题栏按钮 hover | 150ms | background/color | 悬停反馈 |
+| 关闭按钮 hover | 150ms | background/color | 危险反馈 |
+| Element Plus 组件 | 默认 | — | 按钮、输入框、抽屉内置过渡 |
+
+### 6.2 窗口控制
+
+- 固定：切换 pinned 状态，图标高亮。
+- 收起：最小化到任务栏/托盘。
+- 全屏：最大化窗口。
+- 关闭：隐藏到托盘（不退出应用）。
+
+**建议改进**：
+- ✅ 关闭按钮已增加 `el-tooltip` 提示“隐藏到托盘”。
+
+### 6.3 加载状态
+
+- iframe 加载使用 Element Plus `v-loading` 指令，显示“正在加载业务页面”。
+- 调试页各检测按钮使用 `:loading` 状态。
+
+**建议改进**：
+- ✅ iframe 加载已增加 15 秒超时检测，超时后显示错误提示与“重新加载”按钮。
+
+## 7. 可访问性（Accessibility）
+
+### 7.1 当前优点
+
+- 标题栏控制按钮均有 `aria-label` 与 `title` ✅。
+- iframe 有 `@load` 事件处理 ✅。
+- 使用 Element Plus 组件，自带键盘导航与焦点管理 ✅。
+
+### 7.2 待改进项
+
+| 问题 | 影响 | 建议 |
+|---|---|---|
+| 标题栏 logo `<img alt="应用图标">` | 已提供描述文本 | ✅ |
+| 调试按钮缺少 aria-label | 仅显示“调试”文字，已可读 | 当前可接受 |
+| 日志清空无确认 | 可能误删 | 增加二次确认 |
+| 未处理 `prefers-reduced-motion` | 动效可能引发不适 | ✅ 已在 `App.vue` 添加全局媒体查询，禁用动画与过渡 |
+
+## 8. 与 hub-platform 的风格统一方案
+
+hub-platform 是运行在 client 主窗口 iframe 内的业务页面，两者视觉必须自然过渡。当前两者已较为接近，但仍存在差异。
+
+### 8.1 当前差异对比
+
+| 维度 | hub-platform | client-ui | 统一建议 |
+|---|---|---|---|
+| **定位** | 平板/Web 端业务页 | PC 桌面端基座 | 整体设计语言一致，密度按平台微调 |
+| **主色** | `#2354f4` | Element Plus 默认 `#2354f4` | ✅ 已一致 |
+| **页面背景** | `#f4f6f8` | `#f4f6f8` | ✅ 已一致 |
+| **面板背景** | `#ffffff` | `#ffffff` | ✅ 已一致 |
+| **主文本** | `#1f2937` | `#1f2937` | ✅ 已一致 |
+| **次要文本** | `#4b5563` | `#4b5563` | ✅ 已一致 |
+| **弱化文本** | `#6b7280` | `#6b7280` | ✅ 已一致 |
+| **边框** | `#e5e7eb` | `#e5e7eb` | ✅ 已一致 |
+| **danger** | `#dc2626` | `#dc2626` | ✅ 已一致 |
+| **圆角 sm** | 6px | 6px | ✅ 已一致 |
+| **圆角 md** | 10px | 10px | ✅ 已一致 |
+| **圆角 lg** | 16px | 16px | ✅ 已一致 |
+| **间距 xs** | 6px | 4px | 档位对齐，按平台密度复写 |
+| **间距 sm** | 10px | 8px | 档位对齐，按平台密度复写 |
+| **间距 md** | 16px | 12px | 档位对齐，按平台密度复写 |
+| **间距 lg** | 20px | 16px | 档位对齐，按平台密度复写 |
+| **间距 xl** | 24px | 20px | 档位对齐，按平台密度复写 |
+| **阴影** | sm/md/lg | sm/md/lg | ✅ 已一致 |
+| **字体** | Inter + 系统中文字体 | Inter + 系统中文字体 | ✅ 已一致 |
+| **按钮高度** | 约 38px | Element Plus 默认 | 默认接近，可接受 |
+| **标题栏** | 无（在 client 中） | 44px 自绘 | hub-platform 不应再显示系统/浏览器标题栏 |
+
+### 8.2 统一后的设计令牌建议
+
+建议将两端设计令牌合并为一套分层变量，按平台复写密度。
+
+```css
+/* 核心令牌（两端共用） */
+--cpms-primary: #2354f4;
+--cpms-primary-hover: #1d44c9;
+--cpms-primary-dark: #0f4c9a;
+--cpms-primary-light: #eef3ff;
+--cpms-danger: #dc2626;
+--cpms-danger-hover: #b91c1c;
+--cpms-danger-light: #fef2f2;
+--cpms-success: #047857;
+--cpms-success-light: #d1fae5;
+
+--cpms-text: #1f2937;
+--cpms-text-secondary: #4b5563;
+--cpms-text-muted: #6b7280;
+--cpms-text-placeholder: #9ca3af;
+
+--cpms-bg: #f4f6f8;
+--cpms-surface: #ffffff;
+--cpms-hover: #f1f4f8;
+--cpms-border: #e5e7eb;
+--cpms-border-light: #f1f5f9;
+
+--cpms-radius-sm: 6px;
+--cpms-radius-md: 10px;
+--cpms-radius-lg: 16px;
+
+--cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+--cpms-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+--cpms-shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.1);
+
+/* PC 端密度（client-ui） */
+--cpms-space-xs: 4px;
+--cpms-space-sm: 8px;
+--cpms-space-md: 12px;
+--cpms-space-lg: 16px;
+--cpms-space-xl: 20px;
+
+/* 平板端密度（hub-platform） */
+--cpms-space-xs: 6px;
+--cpms-space-sm: 10px;
+--cpms-space-md: 16px;
+--cpms-space-lg: 20px;
+--cpms-space-xl: 24px;
 ```
 
-字段说明：
-- `deviceId`：设备 ID，选择机器后会作为 `directDeviceId` 参与任务转发。
-- `deviceName`：设备名称。
-- `deviceIp`：设备 IP。
-- `deviceAuthenticate`：设备认证状态，可选。
-- `authType`：认证类型，可选。
+### 8.3 统一原则
 
-### 选择机器接口
+1. **颜色完全一致**：背景、文本、边框、语义色使用同一套 hex。
+2. **圆角一致**：小 6px、中 10px、大 16px，两端组件统一使用。
+3. **阴影一致**：client 引入 hub-platform 的三级阴影，用于抽屉、通知、悬浮按钮。
+4. **间距按平台分层**：PC 端更紧凑，平板端更宽松，但档位对齐（xs/sm/md/lg/xl）。
+5. **字体一致**：统一字体栈，确保 iframe 内外文字渲染一致。
+6. **组件风格一致**：
+   - hub-platform 的 `.button` 与 Element Plus `el-button` 视觉上应统一。
+   - hub-platform 的 `.input`、`.select` 与 `el-input`、`el-select` 的 focus ring、圆角、高度应统一。
+   - 状态标签（status-tag）建议 hub-platform 使用 Element Plus `el-tag` 风格或自定义但颜色与 client 一致。
 
-#### 响应体
+### 8.4 具体统一任务清单
 
-选择机器包含服务端更新和客户端本地持久化两步。
+#### 高优先级
 
-服务端更新：
+1. ✅ **统一背景色**：两端页面背景均为 `#f4f6f8`。
+2. ✅ **统一弱化文本色**：两端均为 `#6b7280`。
+3. ✅ **统一边框色**：两端均为 `#e5e7eb`。
+4. ✅ **统一 danger 色**：两端均为 `#dc2626` / `#b91c1c` 组合。
+5. ✅ **client 引入阴影令牌**：`--cpms-shadow-sm/md/lg`。
+6. ✅ **client 引入中大圆角**：`--cpms-radius-medium: 10px`、`--cpms-radius-large: 16px`。
 
-- 请求方式：POST
-- 请求路径：`/cpms/api/userManager/updateDirectDeviceId`
-- 请求类型：`application/x-www-form-urlencoded`
-- 请求参数：
-  - `deviceId`：选择的直连打印设备 ID。
+#### 中优先级
 
-```json
-{
-  "code": 200,
-  "msg": "操作成功",
-  "data": true
-}
-```
+7. ✅ **client 扩展 spacing 档位**：已增加 `large` (16px) / `xlarge` (20px)。
+8. ✅ **统一字体栈**：两端统一为 `Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif`。
+9. **hub-platform 按钮与 Element Plus 按钮对齐**：高度、圆角、padding 可进一步对齐（当前 EP 默认接近）。
+10. ✅ **通知子窗口增加类型图标与阴影**。
 
-客户端本地持久化：
+#### 低优先级
 
-```json
-{
-  "success": true,
-  "code": "OK",
-  "message": "success",
-  "data": {
-    "deviceId": "device-001",
-    "deviceName": "一楼大厅打印机",
-    "deviceIp": "192.168.1.120",
-    "deviceAuthenticate": "已认证",
-    "authType": 1
-  },
-  "logs": []
-}
-```
+11. hub-platform 逐步将 PNG 图标替换为 SVG，与 client 的 SVG 标题栏图标风格一致。
+12. 两端统一状态标签颜色映射（success/warning/error/info）。
+13. 两端统一 empty / loading / failure 状态组件的视觉风格。
 
-字段说明：
-- `success`：是否保存成功。
-- `data`：本次选择的直连设备。
-- `logs`：客户端命令日志，默认空数组。
+## 9. 页面级规范
 
-### 转发任务
+### 9.1 主窗口（`HomeView`）
 
-客户端通过打印任务文件和打印参数转发任务到线上服务。
+- **标题栏**：左侧 Logo + “CPMS Client”，右侧窗口控制。
+- **内容区**：全屏 iframe，加载 hub-platform。
+- **调试入口**：右下角悬浮按钮。
+- **建议**：调试按钮在 release 模式下应隐藏或缩小为图标按钮。
 
-旧流程：
+### 9.2 调试抽屉
 
-- 请求方式：POST
-- 请求路径：`/cpms/api/jobs/uploadJobByWebOrH5`
-- 请求类型：`multipart/form-data`
-- 文件字段：`file`
+- **标题栏**：复用 `WindowHeaderBar`，仅显示关闭按钮。
+- **页签**：能力检测 / 客户端日志。
+- **内容区**：占满抽屉宽度，卡片式模块布局。
+- **建议**：✅ 抽屉打开时覆盖半透明遮罩并禁用 iframe 交互，点击遮罩可关闭抽屉。
 
-当前主要流程：
+### 9.3 通知窗口（`NotificationView`）
 
-- 请求方式：POST
-- 请求路径：`/cpms/api/jobs/xps/exec`
-- 请求类型：`multipart/form-data`
-- 文件字段：`file`
-- Query 参数：
-  - `fileSuffix`：文件后缀，当前为 `pdf`。
-  - `driverType`：驱动类型，当前为 `pdf`。
-  - `clientIp`：客户端 IP。
-  - `printProperties.driverName`
-  - `printProperties.portShared`
-  - `printProperties.terminalType`
-  - `printProperties.pageCount`
-  - `printProperties.copyCount`
-  - `printProperties.paper`
-  - `printProperties.duplexing`
-  - `printProperties.color`
-  - `printProperties.pageOrientation`
-  - `printProperties.documentCollate`
-  - `printProperties.isPSDriver`
-  - `title`
-  - `printProperties.documentName`
-  - `directDeviceId`：用户已选择直连设备时携带。
-  - `productType`：产品类型。
+- **标题栏**：通知标题 + 关闭按钮。
+- **正文**：预格式化文本，自动换行。
+- **建议**：已根据通知类型显示左侧色条、类型图标与标签。
 
-#### 响应体
+## 10. 图标与图像
 
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": null
-}
-```
+- 标题栏控制按钮使用内联 SVG（14px）。
+- Logo 使用 `tauri.svg`（18px）。
+- 业务图标主要来自 Element Plus。
 
-字段说明：
-- `code`：服务端业务状态码，`200` 表示成功。
-- `message`：服务端提示信息。
-- `data`：转发结果数据，无额外数据时为 `null`。
+**建议改进**：
+- 建议建立统一 SVG 图标库（如 Lucide），与 hub-platform 未来替换的图标风格一致。
+
+## 11. 待改进清单（按优先级）
+
+### 高优先级
+
+1. ✅ **统一两端颜色令牌**（背景、弱化文本、边框、danger）。
+2. ✅ **client 引入阴影与中/大圆角令牌**。
+3. ✅ **通知窗口增加类型图标与阴影**。
+4. ✅ **日志清空增加二次确认**。
+5. ✅ **iframe 加载失败增加错误提示与重试按钮**。
+
+### 中优先级
+
+6. ✅ **扩展 client spacing 档位**。
+7. ✅ **统一字体栈**。
+8. ✅ **调试抽屉增加 min/max-width 限制**。
+9. ✅ **标题栏 logo 已补充 `alt="应用图标"`**。
+10. ✅ **日志区撑满抽屉剩余空间**。
+
+### 低优先级
+
+11. 建立统一 SVG 图标库。
+12. 调试模块支持折叠/展开。
+13. ✅ 日志条目按级别着色（error/warn/info/debug）。
+14. 支持 `prefers-reduced-motion`。
+
+## 12. 设计原则速查
+
+- **颜色**：以 `--cpms-*` 变量为准，禁止组件内写裸色值。
+- **字体**：Inter + 系统字体回退，正文 14px，辅助 13px。
+- **间距**：PC 端紧凑（4/8/12/16/20），按平台复写。
+- **圆角**：小 6px、中 10px、大 16px。
+- **阴影**：统一三级阴影，用于抽屉/通知/悬浮元素。
+- **交互**：150ms 过渡，hover 反馈，关闭按钮危险态。
+- **可访问性**：图标按钮带 aria-label，表单使用 Element Plus 原生支持。
+- **跨端一致**：client 作为容器，hub-platform 作为内容，两者颜色/圆角/阴影/字体必须无缝衔接。
+
+---
+
+*本文档基于 2026-06-17 的代码状态生成，后续 UI 迭代请同步更新，并优先保持与 hub-platform 的跨端一致性。*

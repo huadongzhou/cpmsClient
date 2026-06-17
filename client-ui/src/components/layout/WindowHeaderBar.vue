@@ -28,7 +28,7 @@ const emit = defineEmits<{
 <template>
   <header class="window-headerbar" data-tauri-drag-region>
     <div class="headerbar-title" data-tauri-drag-region>
-      <img v-if="icon" :src="icon" class="headerbar-logo" alt="" data-tauri-drag-region />
+      <img v-if="icon" :src="icon" class="headerbar-logo" alt="应用图标" data-tauri-drag-region />
       <strong class="headerbar-text" data-tauri-drag-region>{{ title }}</strong>
     </div>
     <nav class="headerbar-actions">
@@ -76,21 +76,23 @@ const emit = defineEmits<{
           />
         </svg>
       </button>
-      <button
-        v-if="controls.includes('close')"
-        type="button"
-        class="headerbar-button headerbar-button-close"
-        aria-label="关闭窗口"
-        title="关闭"
-        @click="emit('close')"
-      >
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-          <path
-            d="M4.1 3 8 6.9 11.9 3 13 4.1 9.1 8 13 11.9 11.9 13 8 9.1 4.1 13 3 11.9 6.9 8 3 4.1z"
-            fill="currentColor"
-          />
-        </svg>
-      </button>
+      <el-tooltip content="隐藏到托盘" placement="bottom">
+        <button
+          v-if="controls.includes('close')"
+          type="button"
+          class="headerbar-button headerbar-button-close"
+          aria-label="关闭窗口"
+          title="关闭"
+          @click="emit('close')"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path
+              d="M4.1 3 8 6.9 11.9 3 13 4.1 9.1 8 13 11.9 11.9 13 8 9.1 4.1 13 3 11.9 6.9 8 3 4.1z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      </el-tooltip>
     </nav>
   </header>
 </template>
@@ -123,7 +125,7 @@ const emit = defineEmits<{
 
 .headerbar-text {
   font-size: var(--cpms-font-size-title);
-  line-height: 20px;
+  line-height: var(--cpms-line-height-small);
   color: var(--cpms-color-text-primary);
   white-space: nowrap;
   overflow: hidden;

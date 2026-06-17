@@ -20,6 +20,7 @@ declare module 'vue' {
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
     ElTabs: typeof import('element-plus/es')['ElTabs']
+    ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ErrorNotice: typeof import('./../components/common/ErrorNotice.vue')['default']
     WindowHeaderBar: typeof import('./../components/layout/WindowHeaderBar.vue')['default']
   }

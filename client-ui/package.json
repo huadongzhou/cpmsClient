@@ -12,6 +12,7 @@
     "lint": "vp lint"
   },
   "dependencies": {
+    "@iconify/iconify": "^3.1.1",
     "@tauri-apps/api": "^2",
     "@types/node": "^25.9.1",
     "@vueuse/core": "^14.3.0",
@@ -20,10 +21,12 @@
     "vue": "^3.5.13"
   },
   "devDependencies": {
+    "@iconify/json": "^2.2.487",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "~5.6.2",
     "unocss": "^66.7.0",
     "unplugin-auto-import": "^21.0.0",
+    "unplugin-icons": "^23.0.1",
     "unplugin-vue-components": "^32.1.0",
     "unplugin-vue-setup-extend-plus": "^1.0.1",
     "vite": "catalog:",

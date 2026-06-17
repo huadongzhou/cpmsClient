@@ -1,6 +1,14 @@
 # CPMS Client Agent 说明
 
-设计需求源文档：[DESIGN.md](DESIGN.md)。本文档列出系统能力 / 系统需求 / 业务需求三类清单及其实现状态，并描述当前真实的项目结构与工作约定。
+设计需求源文档：[DESIGN.md](DESIGN.md)。产品与业务源文档：[PRODUCT.md](PRODUCT.md)。本文档列出系统能力 / 系统需求 / 业务需求三类清单及其实现状态，并描述当前真实的项目结构与工作约定。
+
+## 0. 文档分工
+
+| 文档 | 作用 |
+| --- | --- |
+| [PRODUCT.md](PRODUCT.md) | 产品/业务源文档：描述客户端要解决的业务问题、架构设计、核心流程、项目需求与接口契约。新增或调整业务需求时先同步这里。 |
+| [DESIGN.md](DESIGN.md) | 设计规范源文档：描述 client-ui 的视觉语言、设计令牌、Element Plus / UnoCSS 使用方式、组件规范与跨端一致性。新增或调整 UI 风格时先同步这里。 |
+| [AGENTS.md](AGENTS.md) | 代理协作说明：面向编码代理，汇总当前实现状态、项目结构、命令与工作约定。不要把它当作唯一需求来源；需求以 PRODUCT/DESIGN 为准。 |
 
 ## 1. 项目定位
 
@@ -83,7 +91,7 @@ client/
     src/
       main.ts                   # 挂载入口；注入 __HUB_CLIENT__ 桥
       App.vue                   # 按窗口 label 分发：main → home，notification → notification
-      assets/styles/tokens.css  # 设计令牌：全窗口共用的颜色/字号/圆角/间距变量
+      assets/styles/tokens.css  # 设计令牌：全窗口共用的颜色/字号/行高/圆角/间距/阴影变量
       views/
         home/index.vue          # 主窗口：headerbar + iframe 容器 + 调试抽屉（能力检测/客户端日志双页签）
         notification/index.vue  # 通知子窗口：headerbar(标题+关闭) + 通知内容
@@ -142,7 +150,7 @@ client/
 
 ## 6. 窗口与样式约定
 
-- 所有窗口内容统一引用 `client-ui/src/assets/styles/tokens.css` 中的 `--cpms-*` 设计令牌（颜色、字号、圆角、间距、headerbar 高度、danger 色），组件内禁止写裸色值/裸字号。
+- 所有窗口内容统一引用 `client-ui/src/assets/styles/tokens.css` 中的 `--cpms-*` 设计令牌（颜色、字号、行高、圆角、间距、阴影、headerbar 高度、danger 色），组件内禁止写裸色值/裸字号。
 - `tokens.css` 用 `:root:root` 把 Element Plus 关键变量（`--el-text-color-*`/`--el-border-color*`/`--el-fill-color-*`/`--el-border-radius-base`/`--el-font-size-base`）对齐到 `--cpms-*`，让 el-button/el-input/el-tag/el-drawer/el-tabs/el-alert 与自绘外壳同一套视觉语言；`--el-color-primary`（强调蓝）保留 EP 默认。
 - 主窗口、通知子窗口、**调试抽屉**外壳统一使用 `WindowHeaderBar.vue`：主窗口 logo+标题+固定/收起/全屏/关闭，通知窗口/抽屉 标题+关闭（抽屉用 el-drawer `#header` 插槽嵌入）；headerbar 即拖拽区（`data-tauri-drag-region`）。
 - 主窗口关闭按钮与系统关闭请求一致：隐藏到托盘而非退出；退出从托盘菜单走 `system_destroy` 后 `exit(0)`。

@@ -20,6 +20,7 @@ import { useRuntimeStore } from "@/stores/runtime";
 import { useTaskStore } from "@/stores/task";
 import type { IframePayloadBridgeResult } from "@/composables/useIframePayloadBridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { ElMessage } from "element-plus";
 
 const props = defineProps<{
   queryIframePayload?: (reason?: string) => Promise<IframePayloadBridgeResult>;
@@ -44,7 +45,12 @@ const httpResult = ref("");
 const httpLoading = ref(false);
 const socketResult = ref("");
 const socketReconnectLoading = ref(false);
-const socketLink = ref<ClientSocketStatePayload>({ url: "", port: null, status: "", updatedAt: "" });
+const socketLink = ref<ClientSocketStatePayload>({
+  url: "",
+  port: null,
+  status: "",
+  updatedAt: "",
+});
 const printClient = ref<PrintClientInfo>();
 const printClientLoading = ref(false);
 let unlistenClientEvent: UnlistenFn | undefined;
@@ -56,12 +62,39 @@ const SOCKET_STATUS_TEXT: Record<string, string> = {
   listening: "监听中（等待推送连接）",
   failed: "监听失败",
 };
-const socketStatusText = computed(() => SOCKET_STATUS_TEXT[socketLink.value.status] ?? socketLink.value.status);
+const socketStatusText = computed(
+  () => SOCKET_STATUS_TEXT[socketLink.value.status] ?? socketLink.value.status,
+);
 const socketLinkUrl = computed(() => socketLink.value.url || socketEndpoint.value);
 const socketLinkPort = computed(() => socketLink.value.port ?? "未知");
 
 const pageAddress = computed(() => window.location.href);
 const iframeAddress = computed(() => iframe.value.url || "about:blank");
+const collapsedCards = ref<Set<string>>(new Set());
+
+function isCollapsed(key: string) {
+  return collapsedCards.value.has(key);
+}
+
+function toggleCard(key: string) {
+  const next = new Set(collapsedCards.value);
+  if (next.has(key)) {
+    next.delete(key);
+  } else {
+    next.add(key);
+  }
+  collapsedCards.value = next;
+}
+
+async function copyResult(text: string) {
+  if (!text) {
+    ElMessage.info("暂无可复制内容");
+    return;
+  }
+
+  await navigator.clipboard.writeText(text);
+  ElMessage.success("结果已复制");
+}
 // 客户端只有一个 token：经 iframe 获取后本地缓存，等待拉取/推送更新。
 const iframeTokenStatus = computed(() => (runtimeStore.iframeToken ? "存在" : "不存在"));
 const socketEndpoint = computed(() => toSocketEndpoint(appStore.config.localServiceUrl));
@@ -271,7 +304,6 @@ function toSocketEndpoint(baseUrl: string) {
   return `${normalized.replace("http://", "ws://")}/ws/task`;
 }
 
-
 function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
   if (!result) {
     return {
@@ -294,91 +326,188 @@ function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
   <main class="example">
     <ErrorNotice />
 
-    <section class="card">
-      <h2>状态</h2>
-      <p>页面地址：{{ pageAddress }}</p>
-      <p>iframe 地址：{{ iframeAddress }}</p>
-      <p>开机自启动：{{ autostartEnabled ? "已开启" : "已关闭" }}</p>
-      <p>网络状态：{{ isOnline ? "online" : "offline" }}</p>
-      <el-button :loading="loading" @click="loadIframeContainer">刷新 iframe 地址</el-button>
-    </section>
-
-    <section class="card">
-      <h2>通知检测</h2>
-      <div class="actions">
-        <el-button type="primary" plain @click="runNotificationDetect">发送通知</el-button>
-      </div>
-      <pre v-if="notifyResult" class="result">{{ notifyResult }}</pre>
-    </section>
-
-    <section class="card">
-      <h2>通信检测</h2>
-      <el-input v-model="communicationInput" placeholder="输入模拟传输文本" />
-      <div class="actions">
-        <el-button type="primary" plain @click="runCommunicationDetect">执行通信检测</el-button>
-      </div>
-      <pre v-if="communicationSendText" class="result">{{ communicationSendText }}</pre>
-      <pre v-if="communicationReceiveText" class="result">{{ communicationReceiveText }}</pre>
-    </section>
-
-    <section class="card">
-      <h2>Token 检测</h2>
-      <p>客户端 token（iframe 获取，本地缓存）：{{ iframeTokenStatus }}</p>
-      <div class="actions">
-        <el-button type="primary" plain :loading="tokenLoading" @click="runTokenDetect"
-          >执行 Token 检测</el-button
-        >
-      </div>
-      <pre v-if="tokenResult" class="result">{{ tokenResult }}</pre>
-    </section>
-
-    <section class="card">
-      <h2>本地 CPMS 客户端（PrintClient）</h2>
-      <p>运行目录（按进程名）：{{ printClient?.processDir || "未检测到运行中的 PrintClient" }}</p>
-      <p>安装路径：{{ printClient?.dir || "未检测到" }}</p>
-      <p>配置文件：{{ printClient?.configPath || "未检测到" }}</p>
-      <p>WebsocketPort：{{ printClient?.websocketPort ?? "未知" }}</p>
-      <p>ServerAddr（服务端域名）：{{ printClient?.serverAddr || "未检测到" }}</p>
-      <p>CenterServerAddr：{{ printClient?.centerServerAddr || "未检测到" }}</p>
-      <p>解析地址：{{ printClient?.socketUrl || "未知" }}</p>
-      <div class="actions">
-        <el-button :loading="printClientLoading" @click="refreshPrintClientInfo"
-          >刷新客户端信息</el-button
-        >
+    <section class="card" :class="{ 'is-collapsed': isCollapsed('status') }">
+      <h2>
+        状态
+        <button type="button" class="collapse-button" @click="toggleCard('status')">
+          {{ isCollapsed('status') ? "展开" : "收起" }}
+        </button>
+      </h2>
+      <div class="card-body">
+        <p>页面地址：{{ pageAddress }}</p>
+        <p>iframe 地址：{{ iframeAddress }}</p>
+        <p>开机自启动：{{ autostartEnabled ? "已开启" : "已关闭" }}</p>
+        <p>网络状态：{{ isOnline ? "online" : "offline" }}</p>
+        <div class="actions">
+          <el-button :loading="loading" @click="loadIframeContainer">刷新 iframe 地址</el-button>
+        </div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>请求检测</h2>
-      <h3>HTTP</h3>
-      <el-button type="primary" :loading="httpLoading" @click="runHttpDetect"
-        >执行 HTTP 请求检测</el-button
-      >
-      <pre v-if="httpResult" class="result">{{ httpResult }}</pre>
-      <h3>Socket（监听端，等待推送连接）</h3>
-      <p>监听地址：{{ socketLinkUrl }}</p>
-      <p>监听端口：{{ socketLinkPort }}</p>
-      <p>监听状态：{{ socketStatusText }}</p>
-      <p v-if="socketLink.message">最近说明：{{ socketLink.message }}</p>
-      <div class="actions">
-        <el-button type="success" plain @click="runSocketDetect">执行 Socket 请求检测</el-button>
-        <el-button
-          type="warning"
-          plain
-          :loading="socketReconnectLoading"
-          @click="runSocketReconnect"
-          >重启监听服务</el-button
-        >
+    <section class="card" :class="{ 'is-collapsed': isCollapsed('notification') }">
+      <h2>
+        通知检测
+        <button type="button" class="collapse-button" @click="toggleCard('notification')">
+          {{ isCollapsed('notification') ? "展开" : "收起" }}
+        </button>
+      </h2>
+      <div class="card-body">
+        <div class="actions">
+          <el-button type="primary" plain @click="runNotificationDetect">发送通知</el-button>
+        </div>
+        <div v-if="notifyResult" class="result-block">
+          <el-button class="copy-button" size="small" plain @click="copyResult(notifyResult)">
+            复制
+          </el-button>
+          <pre class="result">{{ notifyResult }}</pre>
+        </div>
       </div>
-      <pre v-if="socketResult" class="result">{{ socketResult }}</pre>
     </section>
 
-    <section class="card">
-      <h2>开机自启动</h2>
-      <el-button :loading="autostartLoading" @click="toggleAutostart">
-        {{ autostartEnabled ? "关闭自启动" : "开启自启动" }}
-      </el-button>
-      <p>当前状态：{{ autostartEnabled ? "已开启" : "已关闭" }}</p>
+    <section class="card" :class="{ 'is-collapsed': isCollapsed('communication') }">
+      <h2>
+        通信检测
+        <button type="button" class="collapse-button" @click="toggleCard('communication')">
+          {{ isCollapsed('communication') ? "展开" : "收起" }}
+        </button>
+      </h2>
+      <div class="card-body">
+        <el-input v-model="communicationInput" placeholder="输入模拟传输文本" />
+        <div class="actions">
+          <el-button type="primary" plain @click="runCommunicationDetect">执行通信检测</el-button>
+        </div>
+        <div v-if="communicationSendText" class="result-block">
+          <el-button
+            class="copy-button"
+            size="small"
+            plain
+            @click="copyResult(communicationSendText)"
+          >
+            复制
+          </el-button>
+          <pre class="result">{{ communicationSendText }}</pre>
+        </div>
+        <div v-if="communicationReceiveText" class="result-block">
+          <el-button
+            class="copy-button"
+            size="small"
+            plain
+            @click="copyResult(communicationReceiveText)"
+          >
+            复制
+          </el-button>
+          <pre class="result">{{ communicationReceiveText }}</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" :class="{ 'is-collapsed': isCollapsed('token') }">
+      <h2>
+        Token 检测
+        <button type="button" class="collapse-button" @click="toggleCard('token')">
+          {{ isCollapsed('token') ? "展开" : "收起" }}
+        </button>
+      </h2>
+      <div class="card-body">
+        <p>客户端 token（iframe 获取，本地缓存）：{{ iframeTokenStatus }}</p>
+        <div class="actions">
+          <el-button type="primary" plain :loading="tokenLoading" @click="runTokenDetect">
+            执行 Token 检测
+          </el-button>
+        </div>
+        <div v-if="tokenResult" class="result-block">
+          <el-button class="copy-button" size="small" plain @click="copyResult(tokenResult)">
+            复制
+          </el-button>
+          <pre class="result">{{ tokenResult }}</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" :class="{ 'is-collapsed': isCollapsed('printclient') }">
+      <h2>
+        本地 CPMS 客户端（PrintClient）
+        <button type="button" class="collapse-button" @click="toggleCard('printclient')">
+          {{ isCollapsed('printclient') ? "展开" : "收起" }}
+        </button>
+      </h2>
+      <div class="card-body">
+        <p>运行目录（按进程名）：{{ printClient?.processDir || "未检测到运行中的 PrintClient" }}</p>
+        <p>安装路径：{{ printClient?.dir || "未检测到" }}</p>
+        <p>配置文件：{{ printClient?.configPath || "未检测到" }}</p>
+        <p>WebsocketPort：{{ printClient?.websocketPort ?? "未知" }}</p>
+        <p>ServerAddr（服务端域名）：{{ printClient?.serverAddr || "未检测到" }}</p>
+        <p>CenterServerAddr：{{ printClient?.centerServerAddr || "未检测到" }}</p>
+        <p>解析地址：{{ printClient?.socketUrl || "未知" }}</p>
+        <div class="actions">
+          <el-button :loading="printClientLoading" @click="refreshPrintClientInfo">
+            刷新客户端信息
+          </el-button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" :class="{ 'is-collapsed': isCollapsed('http-socket') }">
+      <h2>
+        请求检测
+        <button type="button" class="collapse-button" @click="toggleCard('http-socket')">
+          {{ isCollapsed('http-socket') ? "展开" : "收起" }}
+        </button>
+      </h2>
+      <div class="card-body">
+        <h3>HTTP</h3>
+        <div class="actions">
+          <el-button type="primary" :loading="httpLoading" @click="runHttpDetect">
+            执行 HTTP 请求检测
+          </el-button>
+        </div>
+        <div v-if="httpResult" class="result-block">
+          <el-button class="copy-button" size="small" plain @click="copyResult(httpResult)">
+            复制
+          </el-button>
+          <pre class="result">{{ httpResult }}</pre>
+        </div>
+
+        <h3>Socket（监听端，等待推送连接）</h3>
+        <p>监听地址：{{ socketLinkUrl }}</p>
+        <p>监听端口：{{ socketLinkPort }}</p>
+        <p>监听状态：{{ socketStatusText }}</p>
+        <p v-if="socketLink.message">最近说明：{{ socketLink.message }}</p>
+        <div class="actions">
+          <el-button type="success" plain @click="runSocketDetect">执行 Socket 请求检测</el-button>
+          <el-button
+            type="warning"
+            plain
+            :loading="socketReconnectLoading"
+            @click="runSocketReconnect"
+          >
+            重启监听服务
+          </el-button>
+        </div>
+        <div v-if="socketResult" class="result-block">
+          <el-button class="copy-button" size="small" plain @click="copyResult(socketResult)">
+            复制
+          </el-button>
+          <pre class="result">{{ socketResult }}</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" :class="{ 'is-collapsed': isCollapsed('autostart') }">
+      <h2>
+        开机自启动
+        <button type="button" class="collapse-button" @click="toggleCard('autostart')">
+          {{ isCollapsed('autostart') ? "展开" : "收起" }}
+        </button>
+      </h2>
+      <div class="card-body">
+        <div class="actions">
+          <el-button :loading="autostartLoading" @click="toggleAutostart">
+            {{ autostartEnabled ? "关闭自启动" : "开启自启动" }}
+          </el-button>
+        </div>
+        <p>当前状态：{{ autostartEnabled ? "已开启" : "已关闭" }}</p>
+      </div>
     </section>
   </main>
 </template>
@@ -391,6 +520,10 @@ function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
 }
 
 h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cpms-space-small);
   margin: 0;
   font-size: var(--cpms-font-size-base);
   color: var(--cpms-color-text-primary);
@@ -409,12 +542,44 @@ h3 {
   border: 1px solid var(--cpms-color-border);
   border-radius: var(--cpms-radius-panel);
   padding: var(--cpms-space-base);
+  box-shadow: var(--cpms-shadow-sm);
+}
+
+.card.is-collapsed .card-body {
+  display: none;
+}
+
+.card-body {
+  display: grid;
+  gap: var(--cpms-space-small);
+}
+
+.collapse-button {
+  border: 0;
+  padding: var(--cpms-space-xs) var(--cpms-space-small);
+  border-radius: var(--cpms-radius-small);
+  background: var(--cpms-color-bg-hover);
+  color: var(--cpms-color-text-muted);
+  font: inherit;
+  font-size: var(--cpms-font-size-small);
+  cursor: pointer;
 }
 
 .actions {
   display: flex;
   gap: var(--cpms-space-small);
   flex-wrap: wrap;
+}
+
+.result-block {
+  position: relative;
+}
+
+.copy-button {
+  position: absolute;
+  top: var(--cpms-space-small);
+  right: var(--cpms-space-small);
+  z-index: 1;
 }
 
 .result {
@@ -424,6 +589,8 @@ h3 {
   background: var(--cpms-color-bg-code);
   border-radius: var(--cpms-radius-small);
   padding: var(--cpms-space-small);
+  padding-right: 60px;
   font-size: var(--cpms-font-size-small);
+  box-shadow: var(--cpms-shadow-sm);
 }
 </style>

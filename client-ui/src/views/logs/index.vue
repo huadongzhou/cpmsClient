@@ -1,6 +1,6 @@
 <script setup lang="ts" name="LogView">
 import { storeToRefs } from "pinia";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { getClientLogState } from "@/api/tauri/log";
 import { useLogStore } from "@/stores/log";
 import type { ClientLogEntry, ClientLogFileState } from "@/types/app/log";
@@ -55,14 +55,23 @@ const filteredEntries = computed(() =>
     : logs.value.filter((entry) => categoryOf(entry.source) === activeCategory.value),
 );
 
-/** 选中类别的日志拼成一段长文本（时间正序），不使用每条一块的日志块；全量、不截断。 */
+/** 选中类别的日志条目（时间正序），用于按级别着色展示。 */
+const formattedLogEntries = computed(() =>
+  [...filteredEntries.value].reverse().map((entry) => {
+    const head = `[${formatTime(entry)}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.title}`;
+    return {
+      id: `${entry.at}-${entry.source}-${entry.title}`,
+      level: entry.level,
+      head,
+      detail: entry.detail ? entry.detail.replace(/\n/g, "\n    ") : undefined,
+    };
+  }),
+);
+
+/** 供复制用的纯文本拼接（与展示顺序一致）。 */
 const logText = computed(() =>
-  [...filteredEntries.value]
-    .reverse()
-    .map((entry) => {
-      const head = `[${formatTime(entry)}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.title}`;
-      return entry.detail ? `${head}\n    ${entry.detail.replace(/\n/g, "\n    ")}` : head;
-    })
+  formattedLogEntries.value
+    .map((entry) => (entry.detail ? `${entry.head}\n    ${entry.detail}` : entry.head))
     .join("\n"),
 );
 
@@ -91,6 +100,21 @@ async function copyLogs() {
   ElMessage.success("日志已复制");
 }
 
+async function confirmClearLogs() {
+  try {
+    await ElMessageBox.confirm("确定要清空当前显示的客户端日志吗？此操作不可恢复。", "清空日志", {
+      confirmButtonText: "清空",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+
+    logStore.clearLogs();
+    ElMessage.success("日志已清空");
+  } catch {
+    // 用户取消，不做任何操作。
+  }
+}
+
 function formatTime(entry: ClientLogEntry) {
   return new Date(entry.at).toLocaleString();
 }
@@ -112,12 +136,17 @@ function formatFileSize(sizeBytes: number) {
   <main class="logs-view">
     <section class="toolbar">
       <el-select v-model="activeCategory" class="category-select" placeholder="类别">
-        <el-option v-for="category in categories" :key="category" :label="category" :value="category" />
+        <el-option
+          v-for="category in categories"
+          :key="category"
+          :label="category"
+          :value="category"
+        />
       </el-select>
       <div class="actions">
         <el-button plain :loading="fileStateLoading" @click="refreshFileState">刷新</el-button>
         <el-button plain @click="copyLogs">复制</el-button>
-        <el-button plain type="danger" @click="logStore.clearLogs">清空</el-button>
+        <el-button plain type="danger" @click="confirmClearLogs">清空</el-button>
       </div>
     </section>
 
@@ -127,7 +156,16 @@ function formatFileSize(sizeBytes: number) {
     </section>
 
     <el-empty v-if="filteredEntries.length === 0" description="暂无客户端日志" />
-    <pre v-else class="log-text">{{ logText }}</pre>
+    <div v-else class="log-text">
+      <div
+        v-for="entry in formattedLogEntries"
+        :key="entry.id"
+        :class="['log-entry', `is-${entry.level}`]"
+      >
+        <div class="log-head">{{ entry.head }}</div>
+        <div v-if="entry.detail" class="log-detail">{{ entry.detail }}</div>
+      </div>
+    </div>
   </main>
 </template>
 
@@ -136,6 +174,8 @@ function formatFileSize(sizeBytes: number) {
   display: grid;
   gap: var(--cpms-space-base);
   padding: var(--cpms-space-base);
+  height: 100%;
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .toolbar {
@@ -175,7 +215,7 @@ function formatFileSize(sizeBytes: number) {
 
 .log-text {
   margin: 0;
-  max-height: 60vh;
+  height: 100%;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
@@ -185,6 +225,37 @@ function formatFileSize(sizeBytes: number) {
   padding: var(--cpms-space-base);
   color: var(--cpms-color-text-primary);
   font-size: var(--cpms-font-size-small);
-  line-height: 20px;
+  line-height: var(--cpms-line-height-small);
+  box-shadow: var(--cpms-shadow-sm);
+}
+
+.log-entry {
+  margin-bottom: var(--cpms-space-xs);
+}
+
+.log-entry.is-error {
+  color: var(--cpms-color-danger);
+}
+
+.log-entry.is-warn {
+  color: var(--el-color-warning);
+}
+
+.log-entry.is-info {
+  color: var(--cpms-color-text-secondary);
+}
+
+.log-entry.is-debug {
+  color: var(--cpms-color-text-muted);
+}
+
+.log-head {
+  font-weight: 500;
+}
+
+.log-detail {
+  padding-left: var(--cpms-space-base);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

@@ -3,6 +3,8 @@ import vue from "@vitejs/plugin-vue";
 import UnoCSS from "unocss/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
+import Icons from "unplugin-icons/vite";
+import IconsResolver from "unplugin-icons/resolver";
 import VueSetupExtend from "unplugin-vue-setup-extend-plus/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import { fileURLToPath, URL } from "node:url";
@@ -27,12 +29,26 @@ export default defineConfig(() => {
       UnoCSS(),
       AutoImport({
         imports: ["vue", "pinia", "@vueuse/core"],
-        resolvers: [ElementPlusResolver()],
+        resolvers: [
+          IconsResolver({
+            enabledCollections: ["ep"],
+          }),
+          ElementPlusResolver(),
+        ],
+        vueTemplate: true,
         dts: "src/types/auto-imports.d.ts",
       }),
       Components({
-        resolvers: [ElementPlusResolver({ importStyle: "css" })],
+        resolvers: [
+          ElementPlusResolver({ importStyle: "css" }),
+          IconsResolver({
+            enabledCollections: ["ep"],
+          }),
+        ],
         dts: "src/types/components.d.ts",
+      }),
+      Icons({
+        autoInstall: true,
       }),
     ],
     resolve: {

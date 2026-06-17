@@ -4,34 +4,43 @@
  * 颜色、字号、圆角、间距一律从这里取值，禁止在组件里写裸色值。
  */
 :root {
-  --cpms-font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  --cpms-font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
   --cpms-font-size-base: 14px;
   --cpms-font-size-small: 13px;
   --cpms-font-size-title: 14px;
   --cpms-line-height-base: 22px;
+  --cpms-line-height-small: 20px;
 
   --cpms-color-text-primary: #1f2937;
   --cpms-color-text-secondary: #4b5563;
-  --cpms-color-text-muted: #687385;
+  --cpms-color-text-muted: #6b7280;
 
   --cpms-color-bg-app: #f4f6f8;
   --cpms-color-bg-panel: #ffffff;
   --cpms-color-bg-hover: #f1f4f8;
   --cpms-color-bg-code: #f4f6f8;
 
-  --cpms-color-border: #e4e9f0;
+  --cpms-color-border: #e5e7eb;
 
-  --cpms-color-danger: #b91c1c;
-  --cpms-color-danger-bg: #fde8e8;
+  --cpms-color-danger: #dc2626;
+  --cpms-color-danger-bg: #fef2f2;
 
   --cpms-radius-small: 6px;
   --cpms-radius-panel: 8px;
+  --cpms-radius-medium: 10px;
+  --cpms-radius-large: 16px;
 
   --cpms-headerbar-height: 44px;
 
   --cpms-space-xs: 4px;
   --cpms-space-small: 8px;
   --cpms-space-base: 12px;
+  --cpms-space-large: 16px;
+  --cpms-space-xlarge: 20px;
+
+  --cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --cpms-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+  --cpms-shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.1);
 }
 
 /**
