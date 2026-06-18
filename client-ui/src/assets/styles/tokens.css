@@ -2,45 +2,198 @@
  * CPMS 客户端设计令牌。
  * 主窗口、桌面通知子窗口、调试抽屉等所有窗口内容共用同一套视觉变量，
  * 颜色、字号、圆角、间距一律从这里取值，禁止在组件里写裸色值。
+ *
+ * 设计方向：Minimalism & Swiss Style + Trust & Authority（Enterprise Gateway）。
  */
 :root {
+  /* 字体 */
   --cpms-font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-  --cpms-font-size-base: 14px;
+  --cpms-font-family-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+
+  /* 字号体系 */
+  --cpms-font-size-xs: 12px;
   --cpms-font-size-small: 13px;
-  --cpms-font-size-title: 14px;
-  --cpms-line-height-base: 22px;
+  --cpms-font-size-base: 14px;
+  --cpms-font-size-medium: 15px;
+  --cpms-font-size-large: 16px;
+  --cpms-font-size-xl: 18px;
+  --cpms-font-size-2xl: 20px;
+  --cpms-font-size-3xl: 24px;
+
+  /* 行高体系 */
+  --cpms-line-height-tight: 1.25;
   --cpms-line-height-small: 20px;
+  --cpms-line-height-base: 22px;
+  --cpms-line-height-relaxed: 1.625;
 
-  --cpms-color-text-primary: #1f2937;
-  --cpms-color-text-secondary: #4b5563;
-  --cpms-color-text-muted: #6b7280;
+  /* 字重 */
+  --cpms-font-weight-normal: 400;
+  --cpms-font-weight-medium: 500;
+  --cpms-font-weight-semibold: 600;
+  --cpms-font-weight-bold: 700;
 
-  --cpms-color-bg-app: #f4f6f8;
+  /* 文字颜色 */
+  --cpms-color-text-primary: #0f172a;
+  --cpms-color-text-secondary: #334155;
+  --cpms-color-text-muted: #64748b;
+  --cpms-color-text-disabled: #94a3b8;
+  --cpms-color-text-on-primary: #ffffff;
+  --cpms-color-text-on-danger: #ffffff;
+
+  /* 背景与表面 */
+  --cpms-color-bg-app: #f8fafc;
   --cpms-color-bg-panel: #ffffff;
-  --cpms-color-bg-hover: #f1f4f8;
-  --cpms-color-bg-code: #f4f6f8;
+  --cpms-color-surface: #ffffff;
+  --cpms-color-surface-elevated: #ffffff;
+  --cpms-color-bg-hover: #f1f5f9;
+  --cpms-color-bg-active: #e2e8f0;
+  --cpms-color-bg-code: #f1f5f9;
+  --cpms-color-bg-overlay: rgba(15, 23, 42, 0.28);
 
-  --cpms-color-border: #e5e7eb;
+  /* 边框与分隔 */
+  --cpms-color-border: #e2e8f0;
+  --cpms-color-border-strong: #cbd5e1;
+  --cpms-color-divider: #e2e8f0;
 
+  /* 主色（专业蓝） */
+  --cpms-color-primary: #2563eb;
+  --cpms-color-primary-hover: #1d4ed8;
+  --cpms-color-primary-active: #1e40af;
+  --cpms-color-primary-bg: #eff6ff;
+  --cpms-color-primary-bg-subtle: #dbeafe;
+  --cpms-color-primary-border: #bfdbfe;
+  --cpms-color-primary-text: #2563eb;
+
+  /* 成功/强调（交易绿） */
+  --cpms-color-success: #059669;
+  --cpms-color-success-bg: #ecfdf5;
+  --cpms-color-success-border: #a7f3d0;
+  --cpms-color-success-text: #047857;
+
+  /* 警告 */
+  --cpms-color-warning: #d97706;
+  --cpms-color-warning-bg: #fffbeb;
+  --cpms-color-warning-border: #fde68a;
+  --cpms-color-warning-text: #b45309;
+
+  /* 危险 */
   --cpms-color-danger: #dc2626;
+  --cpms-color-danger-hover: #b91c1c;
   --cpms-color-danger-bg: #fef2f2;
+  --cpms-color-danger-border: #fecaca;
+  --cpms-color-danger-text: #991b1b;
 
+  /* 信息 */
+  --cpms-color-info: #0369a1;
+  --cpms-color-info-bg: #f0f9ff;
+  --cpms-color-info-border: #bae6fd;
+  --cpms-color-info-text: #0c4a6e;
+
+  /* 圆角 */
+  --cpms-radius-xs: 4px;
   --cpms-radius-small: 6px;
-  --cpms-radius-panel: 8px;
-  --cpms-radius-medium: 10px;
+  --cpms-radius-panel: 10px;
+  --cpms-radius-medium: 12px;
   --cpms-radius-large: 16px;
+  --cpms-radius-xl: 20px;
+  --cpms-radius-full: 9999px;
 
+  /* 标题栏 */
   --cpms-headerbar-height: 44px;
 
-  --cpms-space-xs: 4px;
-  --cpms-space-small: 8px;
-  --cpms-space-base: 12px;
-  --cpms-space-large: 16px;
-  --cpms-space-xlarge: 20px;
+  /* 间距体系（4pt 网格） */
+  --cpms-space-1: 4px;
+  --cpms-space-2: 8px;
+  --cpms-space-3: 12px;
+  --cpms-space-4: 16px;
+  --cpms-space-5: 20px;
+  --cpms-space-6: 24px;
+  --cpms-space-8: 32px;
+  --cpms-space-10: 40px;
+  --cpms-space-12: 48px;
 
-  --cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
-  --cpms-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
-  --cpms-shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.1);
+  /* 兼容性别名（旧代码使用） */
+  --cpms-space-xs: var(--cpms-space-1);
+  --cpms-space-small: var(--cpms-space-2);
+  --cpms-space-base: var(--cpms-space-3);
+  --cpms-space-large: var(--cpms-space-4);
+  --cpms-space-xlarge: var(--cpms-space-5);
+
+  /* 阴影 */
+  --cpms-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
+  --cpms-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --cpms-shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --cpms-shadow-xl: 0 12px 32px rgba(15, 23, 42, 0.16);
+
+  /* 动效 */
+  --cpms-duration-fast: 120ms;
+  --cpms-duration-base: 180ms;
+  --cpms-duration-slow: 260ms;
+  --cpms-easing-base: cubic-bezier(0.4, 0, 0.2, 1);
+  --cpms-easing-out: cubic-bezier(0, 0, 0.2, 1);
+  --cpms-easing-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* 滚动条 */
+  --cpms-scrollbar-track: transparent;
+  --cpms-scrollbar-thumb: #cbd5e1;
+  --cpms-scrollbar-thumb-hover: #94a3b8;
+}
+
+/**
+ * 暗色模式：使用 prefers-color-scheme 动态切换。
+ * Tauri webview 支持系统暗色时自动生效。
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cpms-color-text-primary: #f1f5f9;
+    --cpms-color-text-secondary: #cbd5e1;
+    --cpms-color-text-muted: #94a3b8;
+    --cpms-color-text-disabled: #64748b;
+
+    --cpms-color-bg-app: #0f172a;
+    --cpms-color-bg-panel: #1e293b;
+    --cpms-color-surface: #1e293b;
+    --cpms-color-surface-elevated: #334155;
+    --cpms-color-bg-hover: #334155;
+    --cpms-color-bg-active: #475569;
+    --cpms-color-bg-code: #1e293b;
+    --cpms-color-bg-overlay: rgba(0, 0, 0, 0.5);
+
+    --cpms-color-border: #334155;
+    --cpms-color-border-strong: #475569;
+    --cpms-color-divider: #334155;
+
+    --cpms-color-primary-bg: #1e3a8a;
+    --cpms-color-primary-bg-subtle: #1e40af;
+    --cpms-color-primary-border: #3b82f6;
+    --cpms-color-primary-text: #60a5fa;
+
+    --cpms-color-success-bg: #064e3b;
+    --cpms-color-success-border: #10b981;
+    --cpms-color-success-text: #34d399;
+
+    --cpms-color-warning-bg: #78350f;
+    --cpms-color-warning-border: #f59e0b;
+    --cpms-color-warning-text: #fbbf24;
+
+    --cpms-color-danger-bg: #7f1d1d;
+    --cpms-color-danger-border: #f87171;
+    --cpms-color-danger-text: #fca5a5;
+
+    --cpms-color-info-bg: #0c4a6e;
+    --cpms-color-info-border: #38bdf8;
+    --cpms-color-info-text: #7dd3fc;
+
+    --cpms-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --cpms-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --cpms-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --cpms-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --cpms-shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.45);
+
+    --cpms-scrollbar-thumb: #475569;
+    --cpms-scrollbar-thumb-hover: #64748b;
+  }
 }
 
 /**
@@ -52,14 +205,57 @@
   --el-text-color-primary: var(--cpms-color-text-primary);
   --el-text-color-regular: var(--cpms-color-text-secondary);
   --el-text-color-secondary: var(--cpms-color-text-muted);
+  --el-text-color-placeholder: var(--cpms-color-text-disabled);
+  --el-text-color-disabled: var(--cpms-color-text-disabled);
 
   --el-border-color: var(--cpms-color-border);
   --el-border-color-light: var(--cpms-color-border);
   --el-border-color-lighter: var(--cpms-color-border);
+  --el-border-color-extra-light: var(--cpms-color-border-strong);
 
   --el-fill-color-light: var(--cpms-color-bg-hover);
   --el-fill-color-blank: var(--cpms-color-bg-panel);
+  --el-fill-color: var(--cpms-color-bg-hover);
+
+  --el-bg-color: var(--cpms-color-bg-app);
+  --el-bg-color-page: var(--cpms-color-bg-app);
+  --el-bg-color-overlay: var(--cpms-color-surface-elevated);
+
+  --el-color-primary: var(--cpms-color-primary);
+  --el-color-success: var(--cpms-color-success);
+  --el-color-warning: var(--cpms-color-warning);
+  --el-color-danger: var(--cpms-color-danger);
+  --el-color-info: var(--cpms-color-info);
 
   --el-border-radius-base: var(--cpms-radius-small);
+  --el-border-radius-small: var(--cpms-radius-xs);
+  --el-border-radius-round: var(--cpms-radius-full);
   --el-font-size-base: var(--cpms-font-size-base);
+  --el-font-size-extra-small: var(--cpms-font-size-xs);
+  --el-font-size-small: var(--cpms-font-size-small);
+  --el-font-size-medium: var(--cpms-font-size-medium);
+  --el-font-size-large: var(--cpms-font-size-large);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:root {
+    --el-text-color-primary: var(--cpms-color-text-primary);
+    --el-text-color-regular: var(--cpms-color-text-secondary);
+    --el-text-color-secondary: var(--cpms-color-text-muted);
+    --el-text-color-placeholder: var(--cpms-color-text-disabled);
+    --el-text-color-disabled: var(--cpms-color-text-disabled);
+
+    --el-border-color: var(--cpms-color-border);
+    --el-border-color-light: var(--cpms-color-border);
+    --el-border-color-lighter: var(--cpms-color-border);
+    --el-border-color-extra-light: var(--cpms-color-border-strong);
+
+    --el-fill-color-light: var(--cpms-color-bg-hover);
+    --el-fill-color-blank: var(--cpms-color-bg-panel);
+    --el-fill-color: var(--cpms-color-bg-hover);
+
+    --el-bg-color: var(--cpms-color-bg-app);
+    --el-bg-color-page: var(--cpms-color-bg-app);
+    --el-bg-color-overlay: var(--cpms-color-surface-elevated);
+  }
 }

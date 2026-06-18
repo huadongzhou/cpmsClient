@@ -2,6 +2,7 @@
 import { storeToRefs } from "pinia";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { getClientLogState } from "@/api/tauri/log";
+import Icon from "@/components/common/Icon.vue";
 import { useLogStore } from "@/stores/log";
 import type { ClientLogEntry, ClientLogFileState } from "@/types/app/log";
 
@@ -130,80 +131,151 @@ function formatFileSize(sizeBytes: number) {
 
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+function levelClass(level: string) {
+  switch (level) {
+    case "error":
+      return "is-error";
+    case "warn":
+      return "is-warn";
+    case "info":
+      return "is-info";
+    case "debug":
+      return "is-debug";
+    default:
+      return "is-info";
+  }
+}
 </script>
 
 <template>
   <main class="logs-view">
     <section class="toolbar">
-      <el-select v-model="activeCategory" class="category-select" placeholder="类别">
-        <el-option
-          v-for="category in categories"
-          :key="category"
-          :label="category"
-          :value="category"
-        />
-      </el-select>
+      <div class="toolbar-left">
+        <el-select v-model="activeCategory" class="category-select" placeholder="类别">
+          <el-option
+            v-for="category in categories"
+            :key="category"
+            :label="category"
+            :value="category"
+          />
+        </el-select>
+        <span class="entry-count">共 {{ formattedLogEntries.length }} 条</span>
+      </div>
       <div class="actions">
-        <el-button plain :loading="fileStateLoading" @click="refreshFileState">刷新</el-button>
-        <el-button plain @click="copyLogs">复制</el-button>
-        <el-button plain type="danger" @click="confirmClearLogs">清空</el-button>
+        <el-button plain :loading="fileStateLoading" @click="refreshFileState">
+          <template #icon>
+            <Icon icon="solar:refresh-square-bold" />
+          </template>
+          刷新
+        </el-button>
+        <el-button plain @click="copyLogs">
+          <template #icon>
+            <Icon icon="solar:copy-bold" />
+          </template>
+          复制
+        </el-button>
+        <el-button plain type="danger" @click="confirmClearLogs">
+          <template #icon>
+            <Icon icon="solar:trash-bin-minimalistic-bold" />
+          </template>
+          清空
+        </el-button>
       </div>
     </section>
 
     <section v-if="fileState" class="file-state">
-      <span class="file-path">{{ fileState.path }}</span>
-      <span>{{ formatFileSize(fileState.sizeBytes) }}</span>
+      <div class="file-state-main">
+        <Icon icon="solar:document-text-bold" class="file-state-icon" />
+        <span class="file-path" :title="fileState.path">{{ fileState.path }}</span>
+      </div>
+      <span class="file-size">{{ formatFileSize(fileState.sizeBytes) }}</span>
     </section>
 
-    <el-empty v-if="filteredEntries.length === 0" description="暂无客户端日志" />
-    <div v-else class="log-text">
-      <div
-        v-for="entry in formattedLogEntries"
-        :key="entry.id"
-        :class="['log-entry', `is-${entry.level}`]"
-      >
-        <div class="log-head">{{ entry.head }}</div>
-        <div v-if="entry.detail" class="log-detail">{{ entry.detail }}</div>
+    <section class="log-panel">
+      <el-empty v-if="filteredEntries.length === 0" description="暂无客户端日志" />
+      <div v-else class="log-text">
+        <div
+          v-for="entry in formattedLogEntries"
+          :key="entry.id"
+          :class="['log-entry', levelClass(entry.level)]"
+        >
+          <div class="log-head">{{ entry.head }}</div>
+          <div v-if="entry.detail" class="log-detail">{{ entry.detail }}</div>
+        </div>
       </div>
-    </div>
+    </section>
   </main>
 </template>
 
 <style scoped>
 .logs-view {
-  display: grid;
-  gap: var(--cpms-space-base);
-  padding: var(--cpms-space-base);
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  padding: var(--cpms-space-base);
+  gap: var(--cpms-space-base);
+  overflow: hidden;
 }
 
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--cpms-space-small);
+  gap: var(--cpms-space-2);
+  padding: var(--cpms-space-3);
+  background: var(--cpms-color-surface);
+  border: 1px solid var(--cpms-color-border);
+  border-radius: var(--cpms-radius-panel);
+  box-shadow: var(--cpms-shadow-xs);
   flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-3);
 }
 
 .category-select {
   width: 160px;
 }
 
+.entry-count {
+  font-size: var(--cpms-font-size-small);
+  color: var(--cpms-color-text-muted);
+}
+
 .actions {
   display: flex;
-  gap: var(--cpms-space-small);
+  gap: var(--cpms-space-2);
 }
 
 .file-state {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--cpms-space-small);
-  padding: var(--cpms-space-small);
+  gap: var(--cpms-space-2);
+  padding: var(--cpms-space-2) var(--cpms-space-3);
   color: var(--cpms-color-text-secondary);
   background: var(--cpms-color-bg-code);
+  border: 1px solid var(--cpms-color-border);
   border-radius: var(--cpms-radius-small);
   font-size: var(--cpms-font-size-small);
+}
+
+.file-state-main {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-2);
+  min-width: 0;
+}
+
+.file-state-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--cpms-color-text-muted);
 }
 
 .file-path {
@@ -213,32 +285,55 @@ function formatFileSize(sizeBytes: number) {
   white-space: nowrap;
 }
 
+.file-size {
+  flex: none;
+  font-weight: var(--cpms-font-weight-medium);
+  color: var(--cpms-color-text-primary);
+}
+
+.log-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--cpms-color-surface);
+  border: 1px solid var(--cpms-color-border);
+  border-radius: var(--cpms-radius-panel);
+  box-shadow: var(--cpms-shadow-xs);
+  overflow: hidden;
+}
+
 .log-text {
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
-  height: 100%;
   overflow: auto;
+  padding: var(--cpms-space-base);
   white-space: pre-wrap;
   word-break: break-word;
-  background: var(--cpms-color-bg-code);
-  border: 1px solid var(--cpms-color-border);
-  border-radius: var(--cpms-radius-small);
-  padding: var(--cpms-space-base);
   color: var(--cpms-color-text-primary);
+  font-family: var(--cpms-font-family-mono);
   font-size: var(--cpms-font-size-small);
-  line-height: var(--cpms-line-height-small);
-  box-shadow: var(--cpms-shadow-sm);
+  line-height: var(--cpms-line-height-relaxed);
 }
 
 .log-entry {
-  margin-bottom: var(--cpms-space-xs);
+  padding: var(--cpms-space-1) 0;
+  border-bottom: 1px solid transparent;
+  transition: background-color var(--cpms-duration-fast) var(--cpms-easing-base);
+}
+
+.log-entry:hover {
+  background: var(--cpms-color-bg-hover);
+  border-bottom-color: var(--cpms-color-border);
 }
 
 .log-entry.is-error {
-  color: var(--cpms-color-danger);
+  color: var(--cpms-color-danger-text);
 }
 
 .log-entry.is-warn {
-  color: var(--el-color-warning);
+  color: var(--cpms-color-warning-text);
 }
 
 .log-entry.is-info {
@@ -250,12 +345,19 @@ function formatFileSize(sizeBytes: number) {
 }
 
 .log-head {
-  font-weight: 500;
+  font-weight: var(--cpms-font-weight-medium);
 }
 
 .log-detail {
   padding-left: var(--cpms-space-base);
   white-space: pre-wrap;
   word-break: break-word;
+  opacity: 0.92;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-entry {
+    transition: none;
+  }
 }
 </style>

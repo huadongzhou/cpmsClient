@@ -15,7 +15,7 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Manager, WindowEvent, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
 use result::CommandResult;
@@ -36,10 +36,7 @@ pub(crate) const DEFAULT_LOCAL_SOCKET_URL: &str = "ws://127.0.0.1:18101/ws/task"
 pub(crate) const DEFAULT_IFRAME_FALLBACK_URL: &str = "http://127.0.0.1:9528/#/";
 pub(crate) const DEFAULT_LOCAL_SOCKET_PATH: &str = "/ws/task";
 
-const TRAY_SHOW: &str = "tray.show";
-const TRAY_HIDE: &str = "tray.hide";
-const TRAY_AUTOSTART_ENABLE: &str = "tray.autostart.enable";
-const TRAY_AUTOSTART_DISABLE: &str = "tray.autostart.disable";
+const TRAY_AUTOSTART_TOGGLE: &str = "tray.autostart.toggle";
 const TRAY_QUIT: &str = "tray.quit";
 const AUTOSTART_INIT_MARKER: &str = ".autostart-initialized";
 
@@ -102,6 +99,7 @@ pub(crate) struct ClientTodoTaskPayload {
 pub(crate) struct AppRuntimeState {
     pub(crate) iframe: Mutex<ClientIframeEventPayload>,
     pub(crate) iframe_payload: Mutex<Option<Value>>,
+    tray_autostart_item: Mutex<Option<MenuItem<Wry>>>,
 }
 
 pub(crate) fn now_iso_string() -> String {
@@ -149,7 +147,10 @@ fn autostart_is_enabled(app: AppHandle) -> CommandResult<bool> {
 #[tauri::command]
 fn autostart_set_enabled(app: AppHandle, enabled: bool) -> CommandResult<bool> {
     match set_autostart_enabled(&app, enabled) {
-        Ok(_) => CommandResult::ok(enabled),
+        Ok(_) => {
+            refresh_tray_autostart_state(&app);
+            CommandResult::ok(enabled)
+        }
         Err(error) => CommandResult::fail("AUTOSTART_UPDATE_ERROR", &error.to_string()),
     }
 }
@@ -163,34 +164,45 @@ fn set_autostart_enabled(app: &AppHandle, enabled: bool) -> Result<(), String> {
     }
 }
 
+fn autostart_menu_label(enabled: bool) -> &'static str {
+    if enabled {
+        "✔ 开机自启动"
+    } else {
+        "开机自启动"
+    }
+}
+
+fn autostart_enabled_value(app: &AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+fn refresh_tray_autostart_state(app: &AppHandle) {
+    let enabled = autostart_enabled_value(app);
+    if let Some(state) = app.try_state::<AppRuntimeState>() {
+        if let Ok(guard) = state.tray_autostart_item.lock() {
+            if let Some(item) = guard.as_ref() {
+                let _ = item.set_text(autostart_menu_label(enabled));
+            }
+        }
+    }
+}
+
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
-    let show_item = MenuItem::with_id(app, TRAY_SHOW, "显示主窗口", true, None::<&str>)?;
-    let hide_item = MenuItem::with_id(app, TRAY_HIDE, "隐藏到托盘", true, None::<&str>)?;
-    let autostart_enable_item = MenuItem::with_id(
+    let autostart_item = MenuItem::with_id(
         app,
-        TRAY_AUTOSTART_ENABLE,
-        "开启开机自启动",
-        true,
-        None::<&str>,
-    )?;
-    let autostart_disable_item = MenuItem::with_id(
-        app,
-        TRAY_AUTOSTART_DISABLE,
-        "关闭开机自启动",
+        TRAY_AUTOSTART_TOGGLE,
+        autostart_menu_label(autostart_enabled_value(app)),
         true,
         None::<&str>,
     )?;
     let quit_item = MenuItem::with_id(app, TRAY_QUIT, "退出", true, None::<&str>)?;
-    let tray_menu = Menu::with_items(
-        app,
-        &[
-            &show_item,
-            &hide_item,
-            &autostart_enable_item,
-            &autostart_disable_item,
-            &quit_item,
-        ],
-    )?;
+    let tray_menu = Menu::with_items(app, &[&autostart_item, &quit_item])?;
+
+    if let Some(state) = app.try_state::<AppRuntimeState>() {
+        if let Ok(mut guard) = state.tray_autostart_item.lock() {
+            *guard = Some(autostart_item.clone());
+        }
+    }
 
     let mut tray_builder = TrayIconBuilder::with_id("cpms-tray")
         .menu(&tray_menu)
@@ -203,13 +215,10 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 
     tray_builder
         .on_menu_event(|app, event| match event.id().as_ref() {
-            TRAY_SHOW => window::show_main_window(app),
-            TRAY_HIDE => window::hide_main_window(app),
-            TRAY_AUTOSTART_ENABLE => {
-                let _ = set_autostart_enabled(app, true);
-            }
-            TRAY_AUTOSTART_DISABLE => {
-                let _ = set_autostart_enabled(app, false);
+            TRAY_AUTOSTART_TOGGLE => {
+                let next_enabled = !autostart_enabled_value(app);
+                let _ = set_autostart_enabled(app, next_enabled);
+                refresh_tray_autostart_state(app);
             }
             TRAY_QUIT => {
                 let _ = services::system_destroy(app.clone());
@@ -282,6 +291,7 @@ pub fn run() {
         .manage(AppRuntimeState {
             iframe: Mutex::new(iframe::initial_iframe_state()),
             iframe_payload: Mutex::new(None),
+            tray_autostart_item: Mutex::new(None),
         })
         .setup(move |app| {
             if let Some(listener) = singleton {

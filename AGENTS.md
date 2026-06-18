@@ -151,11 +151,15 @@ client/
 
 ## 6. 窗口与样式约定
 
-- 所有窗口内容统一引用 `client-ui/src/assets/styles/tokens.css` 中的 `--cpms-*` 设计令牌（颜色、字号、行高、圆角、间距、阴影、headerbar 高度、danger 色），组件内禁止写裸色值/裸字号。
-- `tokens.css` 用 `:root:root` 把 Element Plus 关键变量（`--el-text-color-*`/`--el-border-color*`/`--el-fill-color-*`/`--el-border-radius-base`/`--el-font-size-base`）对齐到 `--cpms-*`，让 el-button/el-input/el-tag/el-drawer/el-tabs/el-alert 与自绘外壳同一套视觉语言；`--el-color-primary`（强调蓝）保留 EP 默认。
+- **统一容器**：`html`/`body` 占满视口（`width:100vw; height:100vh; overflow:hidden`），`#app` 占满容器且不滚动，各视图内部按需滚动。
+- **统一滚动条**：全局 WebKit 滚动条样式（`--cpms-scrollbar-thumb`/`--cpms-scrollbar-thumb-hover`），细轨圆角，跟随明暗主题切换。
+- 所有窗口内容统一引用 `client-ui/src/assets/styles/tokens.css` 中的 `--cpms-*` 设计令牌（颜色、字号、行高、圆角、间距、阴影、headerbar 高度、语义色板、动效、滚动条），组件内禁止写裸色值/裸字号。
+- `tokens.css` 已扩展为完整语义色板：`primary`/`success`/`warning`/`danger`/`info` 均提供 `*-bg`/`*-border`/`*-text` 变体；新增 `surface`/`surface-elevated`/`bg-overlay` 层级；`prefers-color-scheme: dark` 下自动切换暗色令牌。
+- `tokens.css` 用 `:root:root` 把 Element Plus 关键变量（`--el-text-color-*`/`--el-border-color*`/`--el-fill-color-*`/`--el-border-radius-base`/`--el-font-size-base`/`--el-color-*`）对齐到 `--cpms-*`，让 el-button/el-input/el-tag/el-drawer/el-tabs/el-alert 与自绘外壳同一套视觉语言。
 - 主窗口、通知子窗口、**调试抽屉**外壳统一使用 `WindowHeaderBar.vue`：主窗口 logo+标题+固定/收起/全屏/关闭，通知窗口/抽屉 标题+关闭（抽屉用 el-drawer `#header` 插槽嵌入）；headerbar 即拖拽区（`data-tauri-drag-region`）。
 - 主窗口关闭按钮与系统关闭请求一致：隐藏到托盘而非退出；退出从托盘菜单走 `system_destroy` 后 `exit(0)`。
 - 通知子窗口固定 400×400、右下角、置顶、不进任务栏，同一时刻只显示一条通知。
+- 图标统一使用 Element Plus Icons（`unplugin-icons` 的 `<i-ep-*>`），避免 Emoji 与位图图标，保持线宽与风格一致。
 
 ## 6.5 通信协议（统一信封 + cpms:token）
 
@@ -218,6 +222,7 @@ Rust 校验：在 `client-tauri{1,2}/src-tauri` 下 `cargo check`。CI（`.githu
 - **api/tauri 命令层**：现存 `client`(invoke 封装)、`desktop`、`events`、`log`、`notification`(通知子窗口)，均被视图端实际使用；iframe 侧统一经 `utils/hubBridge.ts` 的 postMessage 桥调用，`createHubClientBridge` 内部用 `unwrapCommand` 拆包，iframe 收到的是实际业务值。
 - **已清理的脚手架/死代码（2026-06-15）**：删除模板示例 `greet` 命令、`vue.svg`/`vite.svg`、未用的 `panel-title` uno 快捷类、根目录 `job-logs.txt`、死代码类型目录 `types/hub/`；删除未被任何 view 引用的浏览器侧 HTTP 客户端（`api/{http,cpms,localService}/client.ts`）与类型化命令镜像（`api/tauri/{hub-client,version,hub-crypto,external}.ts`）；删除 UI 完全未用的命令 `window_maximize`/`window_unmaximize`、`ping_server`、SM4 整条链路（`sm4_encrypt` 命令 + `crypto_service::sm4_encrypt_hex` + `sm4` 依赖）。保留但供 iframe 备用的工具命令：`get_app_version`、`open_external`、`close_window_with_confirm`、`sign_request`。
 - **结构整理（2026-06-15）**：Rust `hub/`→`services/`、根 `models.rs`→`result.rs`；UI `api/desktop/notification.ts`→`api/tauri/notification.ts`、`api/request/config.ts`→`api/config.ts`、`types/task/todoTask.ts`→`todo-task.ts`；`lib.rs`(1200+ 行) 拆为 `window/event_bridge/iframe/printclient/socket` 模块，lib.rs 仅留 app shell。
+- **UI/UX 全面重设计（2026-06-18）**：基于 `ui-ux-pro-max` skill 的 Enterprise Gateway / Trust & Authority / Minimalism & Swiss Style 方向，重设计 `tokens.css`（语义色板 + 暗色模式）、`WindowHeaderBar.vue`、`home`/`entry`/`notification`/`example`/`logs` 全部视图；统一容器与滚动条样式；图标统一为 Element Plus Icons（`<i-ep-*>`）。
 
 ## 8.1 待补充能力（需外部资产或需真机验证，暂未启用）
 

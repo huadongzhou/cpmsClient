@@ -12,6 +12,7 @@ import {
 } from "@/api/tauri/desktop";
 import type { ClientSocketStatePayload, PrintClientInfo } from "@/types/app/runtime";
 import ErrorNotice from "@/components/common/ErrorNotice.vue";
+import Icon from "@/components/common/Icon.vue";
 import { useIframeContainer } from "@/composables/useIframeContainer";
 import { useAppNotification } from "@/composables/useAppNotification";
 import { useAppStore } from "@/stores/app";
@@ -95,6 +96,7 @@ async function copyResult(text: string) {
   await navigator.clipboard.writeText(text);
   ElMessage.success("结果已复制");
 }
+
 // 客户端只有一个 token：经 iframe 获取后本地缓存，等待拉取/推送更新。
 const iframeTokenStatus = computed(() => (runtimeStore.iframeToken ? "存在" : "不存在"));
 const socketEndpoint = computed(() => toSocketEndpoint(appStore.config.localServiceUrl));
@@ -143,11 +145,11 @@ onBeforeUnmount(() => {
 
 async function runNotificationDetect() {
   const payload = {
-    type: "info",
+    type: "info" as const,
     title: "通知检测",
     message: "desktop notification body message",
     durationMs: 5000,
-  } as const;
+  };
 
   notify(payload);
   await pushClientNotificationEvent(payload);
@@ -320,266 +322,564 @@ function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
     token: result.token,
   };
 }
+
+// 内联结果块子组件，避免额外文件依赖。
+const ResultBlock = defineComponent({
+  props: {
+    text: { type: String, required: true },
+    title: { type: String, default: "" },
+  },
+  emits: ["copy"],
+  setup(props, { emit }) {
+    return () =>
+      h("div", { class: "result-block" }, [
+        props.title ? h("h4", { class: "result-title" }, props.title) : null,
+        h(
+          "button",
+          {
+            class: "result-copy",
+            type: "button",
+            onClick: () => emit("copy"),
+          },
+          [h(Icon, { icon: "solar:copy-bold", class: "result-copy-icon" }), h("span", "复制")],
+        ),
+        h("pre", { class: "result" }, props.text),
+      ]);
+  },
+});
 </script>
 
 <template>
   <main class="example">
     <ErrorNotice />
 
-    <section class="card" :class="{ 'is-collapsed': isCollapsed('status') }">
-      <h2>
-        状态
-        <button type="button" class="collapse-button" @click="toggleCard('status')">
-          {{ isCollapsed('status') ? "展开" : "收起" }}
-        </button>
-      </h2>
-      <div class="card-body">
-        <p>页面地址：{{ pageAddress }}</p>
-        <p>iframe 地址：{{ iframeAddress }}</p>
-        <p>开机自启动：{{ autostartEnabled ? "已开启" : "已关闭" }}</p>
-        <p>网络状态：{{ isOnline ? "online" : "offline" }}</p>
-        <div class="actions">
-          <el-button :loading="loading" @click="loadIframeContainer">刷新 iframe 地址</el-button>
+    <div class="cards-grid">
+      <section class="card" :class="{ 'is-collapsed': isCollapsed('status') }">
+        <header class="card-header">
+          <div class="card-title">
+            <Icon icon="solar:monitor-bold" class="card-icon" />
+            <span>状态</span>
+          </div>
+          <button type="button" class="collapse-button" @click="toggleCard('status')">
+            <Icon v-if="!isCollapsed('status')" icon="solar:alt-arrow-down-bold" />
+            <Icon v-else icon="solar:alt-arrow-right-bold" />
+          </button>
+        </header>
+        <div class="card-body">
+          <div class="status-list">
+            <div class="status-row">
+              <span class="status-label">页面地址</span>
+              <span class="status-value" :title="pageAddress">{{ pageAddress }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">iframe 地址</span>
+              <span class="status-value" :title="iframeAddress">{{ iframeAddress }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">开机自启动</span>
+              <span class="status-value">
+                <el-tag :type="autostartEnabled ? 'success' : 'info'" size="small">
+                  {{ autostartEnabled ? "已开启" : "已关闭" }}
+                </el-tag>
+              </span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">网络状态</span>
+              <span class="status-value">
+                <el-tag :type="isOnline ? 'success' : 'danger'" size="small">
+                  {{ isOnline ? "online" : "offline" }}
+                </el-tag>
+              </span>
+            </div>
+          </div>
+          <div class="actions">
+            <el-button :loading="loading" @click="loadIframeContainer">
+              <template #icon>
+                <Icon icon="solar:refresh-square-bold" />
+              </template>
+              刷新 iframe 地址
+            </el-button>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card" :class="{ 'is-collapsed': isCollapsed('notification') }">
-      <h2>
-        通知检测
-        <button type="button" class="collapse-button" @click="toggleCard('notification')">
-          {{ isCollapsed('notification') ? "展开" : "收起" }}
-        </button>
-      </h2>
-      <div class="card-body">
-        <div class="actions">
-          <el-button type="primary" plain @click="runNotificationDetect">发送通知</el-button>
+      <section class="card" :class="{ 'is-collapsed': isCollapsed('notification') }">
+        <header class="card-header">
+          <div class="card-title">
+            <Icon icon="solar:bell-bold" class="card-icon" />
+            <span>通知检测</span>
+          </div>
+          <button type="button" class="collapse-button" @click="toggleCard('notification')">
+            <Icon v-if="!isCollapsed('notification')" icon="solar:alt-arrow-down-bold" />
+            <Icon v-else icon="solar:alt-arrow-right-bold" />
+          </button>
+        </header>
+        <div class="card-body">
+          <p class="card-desc">向客户端发送一条测试通知，验证桌面通知子窗口是否正常弹出。</p>
+          <div class="actions">
+            <el-button type="primary" plain @click="runNotificationDetect">
+              <template #icon>
+                <Icon icon="solar:bell-bing-bold" />
+              </template>
+              发送通知
+            </el-button>
+          </div>
+          <ResultBlock v-if="notifyResult" :text="notifyResult" @copy="copyResult(notifyResult)" />
         </div>
-        <div v-if="notifyResult" class="result-block">
-          <el-button class="copy-button" size="small" plain @click="copyResult(notifyResult)">
-            复制
-          </el-button>
-          <pre class="result">{{ notifyResult }}</pre>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card" :class="{ 'is-collapsed': isCollapsed('communication') }">
-      <h2>
-        通信检测
-        <button type="button" class="collapse-button" @click="toggleCard('communication')">
-          {{ isCollapsed('communication') ? "展开" : "收起" }}
-        </button>
-      </h2>
-      <div class="card-body">
-        <el-input v-model="communicationInput" placeholder="输入模拟传输文本" />
-        <div class="actions">
-          <el-button type="primary" plain @click="runCommunicationDetect">执行通信检测</el-button>
+      <section class="card" :class="{ 'is-collapsed': isCollapsed('communication') }">
+        <header class="card-header">
+          <div class="card-title">
+            <Icon icon="solar:link-circle-bold" class="card-icon" />
+            <span>通信检测</span>
+          </div>
+          <button type="button" class="collapse-button" @click="toggleCard('communication')">
+            <Icon v-if="!isCollapsed('communication')" icon="solar:alt-arrow-down-bold" />
+            <Icon v-else icon="solar:alt-arrow-right-bold" />
+          </button>
+        </header>
+        <div class="card-body">
+          <el-input v-model="communicationInput" placeholder="输入模拟传输文本" />
+          <div class="actions">
+            <el-button type="primary" plain @click="runCommunicationDetect">
+              <template #icon>
+                <Icon icon="solar:plain-bold" />
+              </template>
+              执行通信检测
+            </el-button>
+          </div>
+          <ResultBlock
+            v-if="communicationSendText"
+            title="发送内容"
+            :text="communicationSendText"
+            @copy="copyResult(communicationSendText)"
+          />
+          <ResultBlock
+            v-if="communicationReceiveText"
+            title="接收内容"
+            :text="communicationReceiveText"
+            @copy="copyResult(communicationReceiveText)"
+          />
         </div>
-        <div v-if="communicationSendText" class="result-block">
-          <el-button
-            class="copy-button"
-            size="small"
-            plain
-            @click="copyResult(communicationSendText)"
-          >
-            复制
-          </el-button>
-          <pre class="result">{{ communicationSendText }}</pre>
-        </div>
-        <div v-if="communicationReceiveText" class="result-block">
-          <el-button
-            class="copy-button"
-            size="small"
-            plain
-            @click="copyResult(communicationReceiveText)"
-          >
-            复制
-          </el-button>
-          <pre class="result">{{ communicationReceiveText }}</pre>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card" :class="{ 'is-collapsed': isCollapsed('token') }">
-      <h2>
-        Token 检测
-        <button type="button" class="collapse-button" @click="toggleCard('token')">
-          {{ isCollapsed('token') ? "展开" : "收起" }}
-        </button>
-      </h2>
-      <div class="card-body">
-        <p>客户端 token（iframe 获取，本地缓存）：{{ iframeTokenStatus }}</p>
-        <div class="actions">
-          <el-button type="primary" plain :loading="tokenLoading" @click="runTokenDetect">
-            执行 Token 检测
-          </el-button>
+      <section class="card" :class="{ 'is-collapsed': isCollapsed('token') }">
+        <header class="card-header">
+          <div class="card-title">
+            <Icon icon="solar:key-bold" class="card-icon" />
+            <span>Token 检测</span>
+          </div>
+          <button type="button" class="collapse-button" @click="toggleCard('token')">
+            <Icon v-if="!isCollapsed('token')" icon="solar:alt-arrow-down-bold" />
+            <Icon v-else icon="solar:alt-arrow-right-bold" />
+          </button>
+        </header>
+        <div class="card-body">
+          <div class="status-row">
+            <span class="status-label">客户端 token</span>
+            <span class="status-value">
+              <el-tag :type="runtimeStore.iframeToken ? 'success' : 'info'" size="small">
+                {{ iframeTokenStatus }}
+              </el-tag>
+            </span>
+          </div>
+          <p class="card-desc">从 iframe 获取 token 并写入本地加密缓存。</p>
+          <div class="actions">
+            <el-button type="primary" plain :loading="tokenLoading" @click="runTokenDetect">
+              <template #icon>
+                <Icon icon="solar:refresh-square-bold" />
+              </template>
+              执行 Token 检测
+            </el-button>
+          </div>
+          <ResultBlock v-if="tokenResult" :text="tokenResult" @copy="copyResult(tokenResult)" />
         </div>
-        <div v-if="tokenResult" class="result-block">
-          <el-button class="copy-button" size="small" plain @click="copyResult(tokenResult)">
-            复制
-          </el-button>
-          <pre class="result">{{ tokenResult }}</pre>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card" :class="{ 'is-collapsed': isCollapsed('printclient') }">
-      <h2>
-        本地 CPMS 客户端（PrintClient）
-        <button type="button" class="collapse-button" @click="toggleCard('printclient')">
-          {{ isCollapsed('printclient') ? "展开" : "收起" }}
-        </button>
-      </h2>
-      <div class="card-body">
-        <p>运行目录（按进程名）：{{ printClient?.processDir || "未检测到运行中的 PrintClient" }}</p>
-        <p>安装路径：{{ printClient?.dir || "未检测到" }}</p>
-        <p>配置文件：{{ printClient?.configPath || "未检测到" }}</p>
-        <p>WebsocketPort：{{ printClient?.websocketPort ?? "未知" }}</p>
-        <p>ServerAddr（服务端域名）：{{ printClient?.serverAddr || "未检测到" }}</p>
-        <p>CenterServerAddr：{{ printClient?.centerServerAddr || "未检测到" }}</p>
-        <p>解析地址：{{ printClient?.socketUrl || "未知" }}</p>
-        <div class="actions">
-          <el-button :loading="printClientLoading" @click="refreshPrintClientInfo">
-            刷新客户端信息
-          </el-button>
+      <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('printclient') }">
+        <header class="card-header">
+          <div class="card-title">
+            <Icon icon="solar:printer-bold" class="card-icon" />
+            <span>本地 CPMS 客户端（PrintClient）</span>
+          </div>
+          <button type="button" class="collapse-button" @click="toggleCard('printclient')">
+            <Icon v-if="!isCollapsed('printclient')" icon="solar:alt-arrow-down-bold" />
+            <Icon v-else icon="solar:alt-arrow-right-bold" />
+          </button>
+        </header>
+        <div class="card-body">
+          <div class="status-list">
+            <div class="status-row">
+              <span class="status-label">运行目录</span>
+              <span class="status-value">{{
+                printClient?.processDir || "未检测到运行中的 PrintClient"
+              }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">安装路径</span>
+              <span class="status-value">{{ printClient?.dir || "未检测到" }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">配置文件</span>
+              <span class="status-value">{{ printClient?.configPath || "未检测到" }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">WebsocketPort</span>
+              <span class="status-value">{{ printClient?.websocketPort ?? "未知" }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">ServerAddr</span>
+              <span class="status-value">{{ printClient?.serverAddr || "未检测到" }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">CenterServerAddr</span>
+              <span class="status-value">{{ printClient?.centerServerAddr || "未检测到" }}</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">解析地址</span>
+              <span class="status-value">{{ printClient?.socketUrl || "未知" }}</span>
+            </div>
+          </div>
+          <div class="actions">
+            <el-button :loading="printClientLoading" @click="refreshPrintClientInfo">
+              <template #icon>
+                <Icon icon="solar:refresh-square-bold" />
+              </template>
+              刷新客户端信息
+            </el-button>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card" :class="{ 'is-collapsed': isCollapsed('http-socket') }">
-      <h2>
-        请求检测
-        <button type="button" class="collapse-button" @click="toggleCard('http-socket')">
-          {{ isCollapsed('http-socket') ? "展开" : "收起" }}
-        </button>
-      </h2>
-      <div class="card-body">
-        <h3>HTTP</h3>
-        <div class="actions">
-          <el-button type="primary" :loading="httpLoading" @click="runHttpDetect">
-            执行 HTTP 请求检测
-          </el-button>
-        </div>
-        <div v-if="httpResult" class="result-block">
-          <el-button class="copy-button" size="small" plain @click="copyResult(httpResult)">
-            复制
-          </el-button>
-          <pre class="result">{{ httpResult }}</pre>
-        </div>
+      <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('http-socket') }">
+        <header class="card-header">
+          <div class="card-title">
+            <Icon icon="solar:cpu-bold" class="card-icon" />
+            <span>请求检测</span>
+          </div>
+          <button type="button" class="collapse-button" @click="toggleCard('http-socket')">
+            <Icon v-if="!isCollapsed('http-socket')" icon="solar:alt-arrow-down-bold" />
+            <Icon v-else icon="solar:alt-arrow-right-bold" />
+          </button>
+        </header>
+        <div class="card-body">
+          <div class="subsection">
+            <h3 class="subsection-title">
+              <Icon icon="solar:link-minimalistic-bold" class="subsection-icon" />
+              HTTP
+            </h3>
+            <p class="card-desc">
+              向 CPMS 基础地址发送一次 GET 代理请求，检测客户端 HTTP 代理能力。
+            </p>
+            <div class="actions">
+              <el-button type="primary" :loading="httpLoading" @click="runHttpDetect">
+                <template #icon>
+                  <Icon icon="solar:plain-bold" />
+                </template>
+                执行 HTTP 请求检测
+              </el-button>
+            </div>
+            <ResultBlock v-if="httpResult" :text="httpResult" @copy="copyResult(httpResult)" />
+          </div>
 
-        <h3>Socket（监听端，等待推送连接）</h3>
-        <p>监听地址：{{ socketLinkUrl }}</p>
-        <p>监听端口：{{ socketLinkPort }}</p>
-        <p>监听状态：{{ socketStatusText }}</p>
-        <p v-if="socketLink.message">最近说明：{{ socketLink.message }}</p>
-        <div class="actions">
-          <el-button type="success" plain @click="runSocketDetect">执行 Socket 请求检测</el-button>
-          <el-button
-            type="warning"
-            plain
-            :loading="socketReconnectLoading"
-            @click="runSocketReconnect"
-          >
-            重启监听服务
-          </el-button>
-        </div>
-        <div v-if="socketResult" class="result-block">
-          <el-button class="copy-button" size="small" plain @click="copyResult(socketResult)">
-            复制
-          </el-button>
-          <pre class="result">{{ socketResult }}</pre>
-        </div>
-      </div>
-    </section>
+          <el-divider />
 
-    <section class="card" :class="{ 'is-collapsed': isCollapsed('autostart') }">
-      <h2>
-        开机自启动
-        <button type="button" class="collapse-button" @click="toggleCard('autostart')">
-          {{ isCollapsed('autostart') ? "展开" : "收起" }}
-        </button>
-      </h2>
-      <div class="card-body">
-        <div class="actions">
-          <el-button :loading="autostartLoading" @click="toggleAutostart">
-            {{ autostartEnabled ? "关闭自启动" : "开启自启动" }}
-          </el-button>
+          <div class="subsection">
+            <h3 class="subsection-title">
+              <Icon icon="solar:chat-round-dots-bold" class="subsection-icon" />
+              Socket（监听端，等待推送连接）
+            </h3>
+            <div class="status-list">
+              <div class="status-row">
+                <span class="status-label">监听地址</span>
+                <span class="status-value">{{ socketLinkUrl }}</span>
+              </div>
+              <div class="status-row">
+                <span class="status-label">监听端口</span>
+                <span class="status-value">{{ socketLinkPort }}</span>
+              </div>
+              <div class="status-row">
+                <span class="status-label">监听状态</span>
+                <span class="status-value">
+                  <el-tag
+                    :type="
+                      socketLink.status === 'listening'
+                        ? 'success'
+                        : socketLink.status === 'failed'
+                          ? 'danger'
+                          : 'info'
+                    "
+                    size="small"
+                  >
+                    {{ socketStatusText }}
+                  </el-tag>
+                </span>
+              </div>
+              <div v-if="socketLink.message" class="status-row">
+                <span class="status-label">最近说明</span>
+                <span class="status-value">{{ socketLink.message }}</span>
+              </div>
+            </div>
+            <div class="actions">
+              <el-button type="success" plain @click="runSocketDetect">
+                <template #icon>
+                  <Icon icon="solar:target-bold" />
+                </template>
+                执行 Socket 请求检测
+              </el-button>
+              <el-button
+                type="warning"
+                plain
+                :loading="socketReconnectLoading"
+                @click="runSocketReconnect"
+              >
+                <template #icon>
+                  <Icon icon="solar:restart-square-bold" />
+                </template>
+                重启监听服务
+              </el-button>
+            </div>
+            <ResultBlock
+              v-if="socketResult"
+              :text="socketResult"
+              @copy="copyResult(socketResult)"
+            />
+          </div>
         </div>
-        <p>当前状态：{{ autostartEnabled ? "已开启" : "已关闭" }}</p>
-      </div>
-    </section>
+      </section>
+
+      <section class="card" :class="{ 'is-collapsed': isCollapsed('autostart') }">
+        <header class="card-header">
+          <div class="card-title">
+            <Icon icon="solar:settings-bold" class="card-icon" />
+            <span>开机自启动</span>
+          </div>
+          <button type="button" class="collapse-button" @click="toggleCard('autostart')">
+            <Icon v-if="!isCollapsed('autostart')" icon="solar:alt-arrow-down-bold" />
+            <Icon v-else icon="solar:alt-arrow-right-bold" />
+          </button>
+        </header>
+        <div class="card-body">
+          <div class="status-row">
+            <span class="status-label">当前状态</span>
+            <span class="status-value">
+              <el-tag :type="autostartEnabled ? 'success' : 'info'" size="small">
+                {{ autostartEnabled ? "已开启" : "已关闭" }}
+              </el-tag>
+            </span>
+          </div>
+          <div class="actions">
+            <el-button :loading="autostartLoading" @click="toggleAutostart">
+              <template #icon>
+                <Icon v-if="!autostartEnabled" icon="solar:check-circle-bold" />
+                <Icon v-else icon="solar:close-circle-bold" />
+              </template>
+              {{ autostartEnabled ? "关闭自启动" : "开启自启动" }}
+            </el-button>
+          </div>
+        </div>
+      </section>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .example {
-  display: grid;
-  gap: var(--cpms-space-base);
-  padding: var(--cpms-space-base);
-}
-
-h2 {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--cpms-space-small);
-  margin: 0;
-  font-size: var(--cpms-font-size-base);
-  color: var(--cpms-color-text-primary);
+  flex-direction: column;
+  height: 100%;
+  padding: var(--cpms-space-base);
+  overflow: auto;
 }
 
-h3 {
-  margin: 0;
-  font-size: var(--cpms-font-size-base);
-  color: var(--cpms-color-text-secondary);
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: var(--cpms-space-base);
+  align-content: start;
 }
 
 .card {
-  display: grid;
-  gap: var(--cpms-space-small);
-  background: var(--cpms-color-bg-panel);
+  display: flex;
+  flex-direction: column;
+  background: var(--cpms-color-surface);
   border: 1px solid var(--cpms-color-border);
   border-radius: var(--cpms-radius-panel);
   padding: var(--cpms-space-base);
+  box-shadow: var(--cpms-shadow-xs);
+  transition: box-shadow var(--cpms-duration-base) var(--cpms-easing-base);
+}
+
+.card:hover {
   box-shadow: var(--cpms-shadow-sm);
+}
+
+.card.is-wide {
+  grid-column: 1 / -1;
 }
 
 .card.is-collapsed .card-body {
   display: none;
 }
 
-.card-body {
-  display: grid;
-  gap: var(--cpms-space-small);
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cpms-space-2);
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-2);
+  margin: 0;
+  font-size: var(--cpms-font-size-base);
+  font-weight: var(--cpms-font-weight-semibold);
+  color: var(--cpms-color-text-primary);
+}
+
+.card-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--cpms-color-primary);
 }
 
 .collapse-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: 0;
-  padding: var(--cpms-space-xs) var(--cpms-space-small);
   border-radius: var(--cpms-radius-small);
-  background: var(--cpms-color-bg-hover);
+  background: transparent;
   color: var(--cpms-color-text-muted);
-  font: inherit;
-  font-size: var(--cpms-font-size-small);
+  font-size: 14px;
   cursor: pointer;
+  transition:
+    color var(--cpms-duration-fast) var(--cpms-easing-base),
+    background-color var(--cpms-duration-fast) var(--cpms-easing-base);
+}
+
+.collapse-button:hover {
+  background: var(--cpms-color-bg-hover);
+  color: var(--cpms-color-text-primary);
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpms-space-3);
+  margin-top: var(--cpms-space-3);
+}
+
+.card-desc {
+  margin: 0;
+  font-size: var(--cpms-font-size-small);
+  color: var(--cpms-color-text-muted);
+  line-height: var(--cpms-line-height-small);
+}
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpms-space-2);
+}
+
+.status-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--cpms-space-2);
+  font-size: var(--cpms-font-size-small);
+}
+
+.status-label {
+  flex: none;
+  width: 96px;
+  color: var(--cpms-color-text-muted);
+}
+
+.status-value {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--cpms-color-text-secondary);
+  word-break: break-word;
 }
 
 .actions {
   display: flex;
-  gap: var(--cpms-space-small);
+  gap: var(--cpms-space-2);
   flex-wrap: wrap;
+}
+
+.subsection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpms-space-3);
+}
+
+.subsection-title {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-2);
+  margin: 0;
+  font-size: var(--cpms-font-size-base);
+  font-weight: var(--cpms-font-weight-semibold);
+  color: var(--cpms-color-text-secondary);
+}
+
+.subsection-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--cpms-color-primary);
 }
 
 .result-block {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpms-space-1);
 }
 
-.copy-button {
+.result-title {
+  margin: 0;
+  font-size: var(--cpms-font-size-small);
+  font-weight: var(--cpms-font-weight-medium);
+  color: var(--cpms-color-text-muted);
+}
+
+.result-copy {
   position: absolute;
-  top: var(--cpms-space-small);
-  right: var(--cpms-space-small);
+  top: var(--cpms-space-2);
+  right: var(--cpms-space-2);
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cpms-space-1);
+  padding: 4px 8px;
+  font-size: var(--cpms-font-size-xs);
+  color: var(--cpms-color-text-secondary);
+  background: var(--cpms-color-surface);
+  border: 1px solid var(--cpms-color-border);
+  border-radius: var(--cpms-radius-small);
+  cursor: pointer;
+  transition:
+    color var(--cpms-duration-fast) var(--cpms-easing-base),
+    border-color var(--cpms-duration-fast) var(--cpms-easing-base),
+    background-color var(--cpms-duration-fast) var(--cpms-easing-base);
+}
+
+.result-copy:hover {
+  color: var(--cpms-color-primary-text);
+  border-color: var(--cpms-color-primary-border);
+  background: var(--cpms-color-primary-bg);
+}
+
+.result-copy-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .result {
@@ -587,10 +887,23 @@ h3 {
   white-space: pre-wrap;
   word-break: break-word;
   background: var(--cpms-color-bg-code);
+  border: 1px solid var(--cpms-color-border);
   border-radius: var(--cpms-radius-small);
-  padding: var(--cpms-space-small);
-  padding-right: 60px;
+  padding: var(--cpms-space-3);
+  padding-right: 72px;
+  font-family: var(--cpms-font-family-mono);
   font-size: var(--cpms-font-size-small);
-  box-shadow: var(--cpms-shadow-sm);
+  color: var(--cpms-color-text-secondary);
+  line-height: var(--cpms-line-height-relaxed);
+  max-height: 280px;
+  overflow: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .collapse-button,
+  .result-copy {
+    transition: none;
+  }
 }
 </style>

@@ -26,7 +26,12 @@ interface HubClientBridge {
   getAppVersion: () => Promise<unknown>;
   openExternal: (url: string) => Promise<unknown>;
   signRequest: (uri: string, params?: string) => Promise<unknown>;
-  pushLog: (entry: { level?: string; source?: string; message: string; detail?: string }) => Promise<unknown>;
+  pushLog: (entry: {
+    level?: string;
+    source?: string;
+    message: string;
+    detail?: string;
+  }) => Promise<unknown>;
   listen: (eventName: string, handler: (payload: unknown) => void) => Promise<() => void>;
 }
 
@@ -119,64 +124,62 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
     }
   }
 
-  async function handleRequest(event: MessageEvent<unknown>, data: {
-    id: string;
-    method: string;
-    args?: unknown[];
-  }) {
+  async function handleRequest(
+    event: MessageEvent<unknown>,
+    data: {
+      id: string;
+      method: string;
+      args?: unknown[];
+    },
+  ) {
     const { id, method, args = [] } = data;
     const target = bridge[method as HubClientMethod];
 
     if (typeof target !== "function") {
-      postTo(event.source, 
-        {
-          type: HUB_CLIENT_RESPONSE,
-          id,
-          ok: false,
-          error: { code: "UNKNOWN_METHOD", message: `未知方法: ${method}` },
-        }
-      );
+      postTo(event.source, {
+        type: HUB_CLIENT_RESPONSE,
+        id,
+        ok: false,
+        error: { code: "UNKNOWN_METHOD", message: `未知方法: ${method}` },
+      });
       return;
     }
 
     try {
       const result = await (target as (...arguments_: unknown[]) => Promise<unknown>)(...args);
-      postTo(event.source, 
-        { type: HUB_CLIENT_RESPONSE, id, ok: true, result }
-      );
+      postTo(event.source, { type: HUB_CLIENT_RESPONSE, id, ok: true, result });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const code = error instanceof Error && "code" in error ? String(error.code) : "BRIDGE_ERROR";
-      postTo(event.source, 
-        { type: HUB_CLIENT_RESPONSE, id, ok: false, error: { code, message } }
-      );
+      postTo(event.source, { type: HUB_CLIENT_RESPONSE, id, ok: false, error: { code, message } });
     }
   }
 
-  async function handleListen(event: MessageEvent<unknown>, data: {
-    id: string;
-    eventName: string;
-  }) {
+  async function handleListen(
+    event: MessageEvent<unknown>,
+    data: {
+      id: string;
+      eventName: string;
+    },
+  ) {
     const { id, eventName } = data;
     subscriptionCounter += 1;
     const subscriptionId = `sub-${subscriptionCounter}`;
 
     try {
       const unlisten = await bridge.listen(eventName, (payload) => {
-        postTo(
-          event.source,
-          { type: HUB_CLIENT_EVENT, subscriptionId, eventName, payload }
-        );
+        postTo(event.source, { type: HUB_CLIENT_EVENT, subscriptionId, eventName, payload });
       });
       subscriptions.set(subscriptionId, unlisten);
-      postTo(event.source, 
-        { type: HUB_CLIENT_RESPONSE, id, ok: true, result: { subscriptionId } }
-      );
+      postTo(event.source, { type: HUB_CLIENT_RESPONSE, id, ok: true, result: { subscriptionId } });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      postTo(event.source, 
-        { type: HUB_CLIENT_RESPONSE, id, ok: false, error: { code: "LISTEN_ERROR", message } }
-      );
+      postTo(event.source, {
+        type: HUB_CLIENT_RESPONSE,
+        id,
+        ok: false,
+        error: { code: "LISTEN_ERROR", message },
+      });
     }
   }
 

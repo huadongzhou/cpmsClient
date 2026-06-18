@@ -81,12 +81,6 @@ pub(crate) fn show_main_window(app: &AppHandle) {
     }
 }
 
-pub(crate) fn hide_main_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        let _ = window.hide();
-    }
-}
-
 /// 启动时恢复上次保存的主窗口大小/位置（best-effort，失败不影响启动）。
 pub(crate) fn restore_geometry(app: &AppHandle) {
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {

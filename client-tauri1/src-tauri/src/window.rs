@@ -74,9 +74,3 @@ pub(crate) fn show_main_window(app: &AppHandle) {
         let _ = window.set_focus();
     }
 }
-
-pub(crate) fn hide_main_window(app: &AppHandle) {
-    if let Some(window) = app.get_window(MAIN_WINDOW_LABEL) {
-        let _ = window.hide();
-    }
-}

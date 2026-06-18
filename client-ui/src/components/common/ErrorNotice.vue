@@ -20,6 +20,8 @@ const { latestError, clearError } = useAppError();
 <style scoped>
 .error-notice {
   margin-bottom: var(--cpms-space-base);
-  border-radius: var(--cpms-radius-small);
+  border-radius: var(--cpms-radius-panel);
+  border: 1px solid var(--cpms-color-border);
+  background: var(--cpms-color-surface);
 }
 </style>

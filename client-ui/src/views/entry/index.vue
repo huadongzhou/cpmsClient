@@ -1,6 +1,7 @@
 <script setup lang="ts" name="EntryView">
 import { ElMessage } from "element-plus";
 import { setClientIframeUrl } from "@/api/tauri/desktop";
+import Icon from "@/components/common/Icon.vue";
 
 const LAST_IFRAME_URL_KEY = "cpms-last-iframe-url";
 
@@ -10,6 +11,7 @@ const error = ref("");
 
 const recentUrl = computed(() => localStorage.getItem(LAST_IFRAME_URL_KEY) ?? "");
 const hasRecentUrl = computed(() => recentUrl.value.length > 0);
+const isSubmittable = computed(() => !loading.value && url.value.trim().length > 0);
 
 function validate(input: string): string | null {
   const trimmed = input.trim();
@@ -46,6 +48,12 @@ async function loadUrl(input?: string) {
     loading.value = false;
   }
 }
+
+function useRecentUrl() {
+  if (!recentUrl.value) return;
+  url.value = recentUrl.value;
+  void ElMessage.info("已填入最近使用的地址");
+}
 </script>
 
 <template>
@@ -55,44 +63,16 @@ async function loadUrl(input?: string) {
     <section class="entry-card">
       <div class="entry-brand">
         <div class="entry-icon">
-          <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
-            <path
-              d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <Icon icon="solar:server-square-update-bold" class="entry-icon-svg" />
         </div>
         <h1 class="entry-title">欢迎来到 CPMS Client</h1>
         <p class="entry-desc">请输入 hub-platform 业务入口地址，客户端将加载该页面。</p>
       </div>
 
       <div class="entry-form">
-        <div class="entry-input-wrap">
+        <div class="entry-input-wrap" :class="{ 'has-error': error }">
           <span class="entry-input-prefix" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <path
-                d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"
-                fill="currentColor"
-              />
-              <path
-                d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              />
-            </svg>
+            <Icon icon="solar:link-minimalistic-bold" />
           </span>
           <input
             v-model="url"
@@ -109,27 +89,16 @@ async function loadUrl(input?: string) {
             aria-label="清空"
             @click="url = ''"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14">
-              <path
-                d="M18 6 6 18M6 6l12 12"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <Icon icon="solar:close-circle-bold" />
           </button>
         </div>
 
-        <p v-if="error" class="entry-error" role="alert">{{ error }}</p>
+        <p v-if="error" class="entry-error" role="alert">
+          <Icon icon="solar:danger-triangle-bold" class="entry-error-icon" />
+          <span>{{ error }}</span>
+        </p>
 
-        <button
-          type="button"
-          class="entry-submit"
-          :disabled="loading || !url.trim()"
-          @click="loadUrl()"
-        >
+        <button type="button" class="entry-submit" :disabled="!isSubmittable" @click="loadUrl()">
           <span v-if="loading" class="entry-spinner" aria-hidden="true" />
           <span>{{ loading ? "正在加载…" : "加载业务页面" }}</span>
         </button>
@@ -143,6 +112,15 @@ async function loadUrl(input?: string) {
             @click="loadUrl(recentUrl)"
           >
             {{ recentUrl }}
+          </button>
+          <button
+            type="button"
+            class="entry-recent-action"
+            aria-label="填入最近地址"
+            title="填入"
+            @click="useRecentUrl"
+          >
+            <Icon icon="solar:pen-new-square-bold" />
           </button>
         </div>
 
@@ -159,9 +137,10 @@ async function loadUrl(input?: string) {
   position: relative;
   display: grid;
   place-items: center;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-  height: 100%;
-  padding: var(--cpms-space-xlarge);
+  padding: var(--cpms-space-5);
   background: var(--cpms-color-bg-app);
   overflow: hidden;
 }
@@ -171,45 +150,57 @@ async function loadUrl(input?: string) {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 35%),
-    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.06) 0%, transparent 35%);
+    radial-gradient(circle at 12% 18%, rgba(37, 99, 235, 0.06) 0%, transparent 38%),
+    radial-gradient(circle at 88% 82%, rgba(5, 150, 105, 0.04) 0%, transparent 38%);
 }
 
 .entry-card {
   position: relative;
   z-index: 1;
-  width: min(480px, 100%);
-  padding: 40px;
-  background: var(--cpms-color-bg-panel);
+  width: 100%;
+  max-width: 520px;
+  padding: var(--cpms-space-10) var(--cpms-space-8);
+  background: var(--cpms-color-surface);
   border: 1px solid var(--cpms-color-border);
-  border-radius: var(--cpms-radius-large);
+  border-radius: var(--cpms-radius-xl);
   box-shadow: var(--cpms-shadow-lg);
   text-align: center;
 }
 
 .entry-brand {
   display: grid;
-  gap: var(--cpms-space-base);
+  gap: var(--cpms-space-3);
   justify-items: center;
-  margin-bottom: 28px;
+  margin-bottom: var(--cpms-space-8);
 }
 
 .entry-icon {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
-  color: #fff;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  width: 60px;
+  height: 60px;
+  color: var(--cpms-color-text-on-primary);
+  background: linear-gradient(
+    135deg,
+    var(--cpms-color-primary) 0%,
+    var(--cpms-color-primary-hover) 100%
+  );
   border-radius: var(--cpms-radius-large);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+}
+
+.entry-icon-svg {
+  width: 28px;
+  height: 28px;
+  color: currentcolor;
+  fill: currentcolor;
 }
 
 .entry-title {
   margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.3;
+  font-size: var(--cpms-font-size-2xl);
+  font-weight: var(--cpms-font-weight-bold);
+  line-height: var(--cpms-line-height-tight);
   color: var(--cpms-color-text-primary);
 }
 
@@ -217,12 +208,12 @@ async function loadUrl(input?: string) {
   margin: 0;
   font-size: var(--cpms-font-size-base);
   color: var(--cpms-color-text-muted);
-  line-height: var(--cpms-line-height-base);
+  line-height: var(--cpms-line-height-relaxed);
 }
 
 .entry-form {
   display: grid;
-  gap: var(--cpms-space-base);
+  gap: var(--cpms-space-3);
 }
 
 .entry-input-wrap {
@@ -230,6 +221,16 @@ async function loadUrl(input?: string) {
   display: flex;
   align-items: center;
   width: 100%;
+  transition: box-shadow var(--cpms-duration-base) var(--cpms-easing-base);
+  border-radius: var(--cpms-radius-panel);
+}
+
+.entry-input-wrap:focus-within {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.entry-input-wrap.has-error:focus-within {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
 }
 
 .entry-input-prefix {
@@ -239,32 +240,41 @@ async function loadUrl(input?: string) {
   place-items: center;
   color: var(--cpms-color-text-muted);
   pointer-events: none;
+  font-size: 16px;
 }
 
 .entry-input {
   width: 100%;
-  height: 46px;
-  padding: 0 38px 0 40px;
+  height: 48px;
+  padding: 0 40px 0 42px;
   font-size: var(--cpms-font-size-base);
   color: var(--cpms-color-text-primary);
   background: var(--cpms-color-bg-panel);
   border: 1px solid var(--cpms-color-border);
-  border-radius: var(--cpms-radius-medium);
+  border-radius: var(--cpms-radius-panel);
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--cpms-duration-base) var(--cpms-easing-base);
 }
 
 .entry-input::placeholder {
-  color: #9ca3af;
+  color: var(--cpms-color-text-disabled);
 }
 
 .entry-input:hover {
-  border-color: #c4c9d0;
+  border-color: var(--cpms-color-border-strong);
 }
 
 .entry-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  border-color: var(--cpms-color-primary);
+}
+
+.entry-input-wrap.has-error .entry-input {
+  border-color: var(--cpms-color-danger-border);
+  background: var(--cpms-color-danger-bg);
+}
+
+.entry-input-wrap.has-error .entry-input:focus {
+  border-color: var(--cpms-color-danger);
 }
 
 .entry-input:disabled {
@@ -277,15 +287,18 @@ async function loadUrl(input?: string) {
   right: 12px;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   color: var(--cpms-color-text-muted);
   background: transparent;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--cpms-radius-full);
   cursor: pointer;
-  transition: color 0.2s ease, background 0.2s ease;
+  font-size: 14px;
+  transition:
+    color var(--cpms-duration-fast) var(--cpms-easing-base),
+    background-color var(--cpms-duration-fast) var(--cpms-easing-base);
 }
 
 .entry-input-clear:hover {
@@ -294,6 +307,9 @@ async function loadUrl(input?: string) {
 }
 
 .entry-error {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-1);
   margin: 0;
   text-align: left;
   font-size: var(--cpms-font-size-small);
@@ -301,28 +317,39 @@ async function loadUrl(input?: string) {
   line-height: var(--cpms-line-height-small);
 }
 
+.entry-error-icon {
+  font-size: 14px;
+}
+
 .entry-submit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--cpms-space-small);
+  gap: var(--cpms-space-2);
   width: 100%;
-  height: 46px;
-  padding: 0 var(--cpms-space-large);
+  height: 48px;
+  padding: 0 var(--cpms-space-4);
   font-size: var(--cpms-font-size-base);
-  font-weight: 500;
-  color: #fff;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  font-weight: var(--cpms-font-weight-medium);
+  color: var(--cpms-color-text-on-primary);
+  background: linear-gradient(
+    135deg,
+    var(--cpms-color-primary) 0%,
+    var(--cpms-color-primary-hover) 100%
+  );
   border: 0;
-  border-radius: var(--cpms-radius-medium);
+  border-radius: var(--cpms-radius-panel);
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
-  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.26);
+  transition:
+    transform var(--cpms-duration-base) var(--cpms-easing-out),
+    box-shadow var(--cpms-duration-base) var(--cpms-easing-base),
+    opacity var(--cpms-duration-base) var(--cpms-easing-base);
 }
 
 .entry-submit:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.3);
 }
 
 .entry-submit:active:not(:disabled) {
@@ -330,7 +357,7 @@ async function loadUrl(input?: string) {
 }
 
 .entry-submit:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
@@ -338,7 +365,7 @@ async function loadUrl(input?: string) {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border-top-color: var(--cpms-color-text-on-primary);
   border-radius: 50%;
   animation: entry-spin 0.8s linear infinite;
 }
@@ -351,55 +378,83 @@ async function loadUrl(input?: string) {
 
 .entry-recent {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--cpms-space-small);
-  margin-top: 4px;
+  gap: var(--cpms-space-2);
+  margin-top: var(--cpms-space-1);
 }
 
 .entry-recent-label {
   font-size: var(--cpms-font-size-small);
   color: var(--cpms-color-text-muted);
+  white-space: nowrap;
 }
 
 .entry-recent-chip {
   max-width: 260px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: var(--cpms-font-size-small);
   color: var(--cpms-color-text-secondary);
   background: var(--cpms-color-bg-hover);
   border: 1px solid var(--cpms-color-border);
-  border-radius: 9999px;
+  border-radius: var(--cpms-radius-full);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition:
+    color var(--cpms-duration-fast) var(--cpms-easing-base),
+    border-color var(--cpms-duration-fast) var(--cpms-easing-base),
+    background-color var(--cpms-duration-fast) var(--cpms-easing-base);
 }
 
 .entry-recent-chip:hover:not(:disabled) {
-  color: #2563eb;
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  color: var(--cpms-color-primary-text);
+  border-color: var(--cpms-color-primary-border);
+  background: var(--cpms-color-primary-bg);
 }
 
 .entry-recent-chip:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
+.entry-recent-action {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--cpms-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--cpms-radius-small);
+  cursor: pointer;
+  font-size: 14px;
+  transition:
+    color var(--cpms-duration-fast) var(--cpms-easing-base),
+    background-color var(--cpms-duration-fast) var(--cpms-easing-base);
+}
+
+.entry-recent-action:hover {
+  color: var(--cpms-color-primary-text);
+  background: var(--cpms-color-primary-bg);
+}
+
 .entry-tip {
-  margin: 8px 0 0;
+  margin: var(--cpms-space-2) 0 0;
   font-size: var(--cpms-font-size-small);
   color: var(--cpms-color-text-muted);
   line-height: var(--cpms-line-height-small);
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .entry-input-wrap,
   .entry-input,
   .entry-submit,
-  .entry-recent-chip {
+  .entry-recent-chip,
+  .entry-input-clear,
+  .entry-recent-action {
     transition: none;
   }
 

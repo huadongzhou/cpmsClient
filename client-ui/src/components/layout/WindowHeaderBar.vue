@@ -1,7 +1,10 @@
 <script setup lang="ts" name="WindowHeaderBar">
+import { computed } from "vue";
+import Icon from "@/components/common/Icon.vue";
+
 type WindowControl = "pin" | "collapse" | "fullscreen" | "close";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     title: string;
     icon?: string;
@@ -23,6 +26,11 @@ const emit = defineEmits<{
   fullscreen: [];
   close: [];
 }>();
+
+const pinLabel = computed(() => (props.pinned ? "取消固定窗口" : "固定窗口"));
+const pinTitle = computed(() => (props.pinned ? "取消固定" : "固定"));
+const fullscreenLabel = computed(() => (props.fullscreen ? "退出全屏" : "全屏窗口"));
+const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全屏"));
 </script>
 
 <template>
@@ -31,22 +39,17 @@ const emit = defineEmits<{
       <img v-if="icon" :src="icon" class="headerbar-logo" alt="应用图标" data-tauri-drag-region />
       <strong class="headerbar-text" data-tauri-drag-region>{{ title }}</strong>
     </div>
-    <nav class="headerbar-actions">
+    <nav class="headerbar-actions" aria-label="窗口控制">
       <button
         v-if="controls.includes('pin')"
         type="button"
         class="headerbar-button"
         :class="{ 'is-active': pinned }"
-        :aria-label="pinned ? '取消固定窗口' : '固定窗口'"
-        :title="pinned ? '取消固定' : '固定'"
+        :aria-label="pinLabel"
+        :title="pinTitle"
         @click="emit('pin')"
       >
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-          <path
-            d="M9.5 1.5 14.5 6.5 13 8l-.7-.2-2.6 2.6.3 2.6-1.5 1.5L5 11 2 14l-1-1 3-3-3.5-3.5L2 5l2.6.3L7.2 2.7 7 2z"
-            fill="currentColor"
-          />
-        </svg>
+        <Icon icon="solar:pin-bold" class="headerbar-icon" />
       </button>
       <button
         v-if="controls.includes('collapse')"
@@ -56,25 +59,21 @@ const emit = defineEmits<{
         title="收起"
         @click="emit('collapse')"
       >
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-          <rect x="3" y="7.25" width="10" height="1.5" fill="currentColor" />
-        </svg>
+        <Icon icon="solar:minimize-square-minimalistic-bold" class="headerbar-icon" />
       </button>
       <button
         v-if="controls.includes('fullscreen')"
         type="button"
         class="headerbar-button"
         :class="{ 'is-active': fullscreen }"
-        :aria-label="fullscreen ? '退出全屏' : '全屏窗口'"
-        :title="fullscreen ? '退出全屏' : '全屏'"
+        :aria-label="fullscreenLabel"
+        :title="fullscreenTitle"
         @click="emit('fullscreen')"
       >
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-          <path
-            d="M2 6V2h4v1.5H3.5V6zm8-4h4v4h-1.5V3.5H10zM2 10h1.5v2.5H6V14H2zm10.5 0H14v4h-4v-1.5h2.5z"
-            fill="currentColor"
-          />
-        </svg>
+        <Icon
+          :icon="fullscreen ? 'solar:quit-full-screen-square-bold' : 'solar:full-screen-square-bold'"
+          class="headerbar-icon"
+        />
       </button>
       <el-tooltip content="隐藏到托盘" placement="bottom">
         <button
@@ -85,12 +84,7 @@ const emit = defineEmits<{
           title="关闭"
           @click="emit('close')"
         >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <path
-              d="M4.1 3 8 6.9 11.9 3 13 4.1 9.1 8 13 11.9 11.9 13 8 9.1 4.1 13 3 11.9 6.9 8 3 4.1z"
-              fill="currentColor"
-            />
-          </svg>
+          <Icon icon="solar:close-square-bold" class="headerbar-icon" />
         </button>
       </el-tooltip>
     </nav>
@@ -103,6 +97,7 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
   gap: var(--cpms-space-base);
+  flex: none;
   height: var(--cpms-headerbar-height);
   padding: 0 var(--cpms-space-base);
   background: var(--cpms-color-bg-panel);
@@ -124,7 +119,8 @@ const emit = defineEmits<{
 }
 
 .headerbar-text {
-  font-size: var(--cpms-font-size-title);
+  font-size: var(--cpms-font-size-base);
+  font-weight: var(--cpms-font-weight-semibold);
   line-height: var(--cpms-line-height-small);
   color: var(--cpms-color-text-primary);
   white-space: nowrap;
@@ -142,13 +138,25 @@ const emit = defineEmits<{
 .headerbar-button {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: 0;
   border-radius: var(--cpms-radius-small);
   background: transparent;
-  color: var(--cpms-color-text-muted);
+  color: var(--cpms-color-text-secondary);
   cursor: pointer;
+  transition:
+    color var(--cpms-duration-fast) var(--cpms-easing-base),
+    background-color var(--cpms-duration-fast) var(--cpms-easing-base),
+    transform var(--cpms-duration-fast) var(--cpms-easing-base);
+}
+
+.headerbar-button .headerbar-icon {
+  width: 16px;
+  height: 16px;
+  color: currentcolor;
+  fill: currentcolor;
 }
 
 .headerbar-button:hover {
@@ -156,12 +164,27 @@ const emit = defineEmits<{
   color: var(--cpms-color-text-primary);
 }
 
+.headerbar-button:active {
+  transform: scale(0.96);
+}
+
 .headerbar-button.is-active {
-  color: var(--el-color-primary);
+  color: var(--cpms-color-primary);
+  background: var(--cpms-color-primary-bg);
 }
 
 .headerbar-button-close:hover {
   background: var(--cpms-color-danger-bg);
   color: var(--cpms-color-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headerbar-button {
+    transition: none;
+  }
+
+  .headerbar-button:active {
+    transform: none;
+  }
 }
 </style>

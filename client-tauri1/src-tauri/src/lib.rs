@@ -35,10 +35,7 @@ pub(crate) const DEFAULT_LOCAL_SOCKET_URL: &str = "ws://127.0.0.1:18101/ws/task"
 pub(crate) const DEFAULT_IFRAME_FALLBACK_URL: &str = "http://127.0.0.1:9528/#/";
 pub(crate) const DEFAULT_LOCAL_SOCKET_PATH: &str = "/ws/task";
 
-const TRAY_SHOW: &str = "tray.show";
-const TRAY_HIDE: &str = "tray.hide";
-const TRAY_AUTOSTART_ENABLE: &str = "tray.autostart.enable";
-const TRAY_AUTOSTART_DISABLE: &str = "tray.autostart.disable";
+const TRAY_AUTOSTART_TOGGLE: &str = "tray.autostart.toggle";
 const TRAY_QUIT: &str = "tray.quit";
 const AUTOSTART_INIT_MARKER: &str = ".autostart-initialized";
 
@@ -150,7 +147,10 @@ fn autostart_is_enabled(app: AppHandle) -> CommandResult<bool> {
 #[tauri::command]
 fn autostart_set_enabled(app: AppHandle, enabled: bool) -> CommandResult<bool> {
     match set_autostart_enabled(&app, enabled) {
-        Ok(_) => CommandResult::ok(enabled),
+        Ok(_) => {
+            refresh_tray_autostart_state(&app);
+            CommandResult::ok(enabled)
+        }
         Err(error) => CommandResult::fail("AUTOSTART_UPDATE_ERROR", &error.to_string()),
     }
 }
@@ -177,17 +177,33 @@ fn autostart_manager(_app: &AppHandle) -> Result<auto_launch::AutoLaunch, String
         .map_err(|error| error.to_string())
 }
 
+fn autostart_menu_label(enabled: bool) -> &'static str {
+    if enabled {
+        "✔ 开机自启动"
+    } else {
+        "开机自启动"
+    }
+}
+
+fn autostart_enabled_value(app: &AppHandle) -> bool {
+    autostart_manager(app)
+        .and_then(|manager| manager.is_enabled().map_err(|error| error.to_string()))
+        .unwrap_or(false)
+}
+
+fn refresh_tray_autostart_state(app: &AppHandle) {
+    let enabled = autostart_enabled_value(app);
+    let _ = app
+        .tray_handle()
+        .get_item(TRAY_AUTOSTART_TOGGLE)
+        .set_title(autostart_menu_label(enabled));
+}
+
 fn build_tray() -> SystemTray {
     let tray_menu = SystemTrayMenu::new()
-        .add_item(CustomMenuItem::new(TRAY_SHOW.to_string(), "显示主窗口"))
-        .add_item(CustomMenuItem::new(TRAY_HIDE.to_string(), "隐藏到托盘"))
         .add_item(CustomMenuItem::new(
-            TRAY_AUTOSTART_ENABLE.to_string(),
-            "开启开机自启动",
-        ))
-        .add_item(CustomMenuItem::new(
-            TRAY_AUTOSTART_DISABLE.to_string(),
-            "关闭开机自启动",
+            TRAY_AUTOSTART_TOGGLE.to_string(),
+            "开机自启动",
         ))
         .add_item(CustomMenuItem::new(TRAY_QUIT.to_string(), "退出"));
 
@@ -199,13 +215,10 @@ fn build_tray() -> SystemTray {
 fn handle_tray_event(app: &AppHandle, event: SystemTrayEvent) {
     match event {
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-            TRAY_SHOW => window::show_main_window(app),
-            TRAY_HIDE => window::hide_main_window(app),
-            TRAY_AUTOSTART_ENABLE => {
-                let _ = set_autostart_enabled(app, true);
-            }
-            TRAY_AUTOSTART_DISABLE => {
-                let _ = set_autostart_enabled(app, false);
+            TRAY_AUTOSTART_TOGGLE => {
+                let next_enabled = !autostart_enabled_value(app);
+                let _ = set_autostart_enabled(app, next_enabled);
+                refresh_tray_autostart_state(app);
             }
             TRAY_QUIT => {
                 let _ = services::system_destroy(app.clone());
@@ -295,6 +308,7 @@ pub fn run() {
             services::log_service::info(&app_handle, "startup", "视图端事件桥已注册");
 
             init_autostart_on_first_launch(&app_handle);
+            refresh_tray_autostart_state(&app_handle);
             services::log_service::info(&app_handle, "startup", "托盘图标已创建");
 
             let app_handle_for_socket = app_handle.clone();

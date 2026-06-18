@@ -27,11 +27,19 @@ if (isMainWindow.value) {
 </template>
 
 <style>
-:root {
+/**
+ * 统一容器：html/body 占满视口，不提供滚动；#app 占满容器，内部视图按需滚动。
+ * 统一滚动条：WebKit 定制细轨圆角样式，适配明暗主题。
+ */
+html {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+
   font-family: var(--cpms-font-family);
   font-size: var(--cpms-font-size-base);
   line-height: var(--cpms-line-height-base);
-  font-weight: 400;
+  font-weight: var(--cpms-font-weight-normal);
 
   color: var(--cpms-color-text-primary);
   background-color: var(--cpms-color-bg-app);
@@ -44,20 +52,53 @@ if (isMainWindow.value) {
 }
 
 body {
+  width: 100%;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
-html,
-body {
-  min-height: 100vh;
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 * {
   box-sizing: border-box;
 }
 
-#app {
-  min-height: 100vh;
+::selection {
+  color: var(--cpms-color-text-on-primary);
+  background-color: var(--cpms-color-primary);
+}
+
+/* WebKit 统一滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--cpms-scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cpms-scrollbar-thumb);
+  border-radius: var(--cpms-radius-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cpms-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
