@@ -34,7 +34,7 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 | C6 | 服务请求：CPMS 签名请求（access_sign + client/platform 公共头 + Authorization） | 已实现 | `hub/http_service.rs`、`hub/crypto_service.rs`（access_sign：AES-128-ECB + MD5） |
 | C7 | 客户端↔视图端事件通信（交互指令/客户端方法/请求代理），统一信封 `{id,type,payload,time}`（见 6.5） | 已实现 | `lib.rs setup_client_event_bridge/handle_view_event`；`client-ui/src/api/tauri/events.ts` |
 | C8 | 本地 socket 监听端：PrintClient 检测（按进程名）、WebsocketPort 端口发现、configure.ini 的 ServerAddr/CenterServerAddr 读取缓存、本地端口监听等待推送连接、任务接收与转发 | 已实现 | `printclient.rs`（进程/配置发现 + `DriverClient.ini WebsocketPort` 默认 18101 + `configure.ini ServerAddr`，10s 节流缓存）、`socket.rs start_local_socket_worker`（bind + accept，监听端） |
-| C9 | iframe 桥：`__HUB_CLIENT__` 注入 + token 查询/推送（postMessage 单一类型 `cpms:token`，统一出口长期监听；见 6.5） | 已实现 | `client-ui/src/utils/hubBridge.ts`、`composables/useIframePayloadBridge.ts`、`lib.rs client_*_iframe_payload` |
+| C9 | iframe 桥：跨源 postMessage 桥 + token 查询/推送（postMessage 单一类型 `cpms:token`，统一出口长期监听；见 6.5） | 已实现 | `client-ui/src/utils/hubBridge.ts` 提供 `startHubClientMessageBridge`（监听 `cpms:hub-client:*` 消息，调用 Tauri 能力并回传结果；同源场景仍保留 `__HUB_CLIENT__` 注入）、`composables/useIframePayloadBridge.ts`、`lib.rs client_*_iframe_payload` |
 | C10 | 国产 Linux legacy 适配（glibc 2.23 / GTK 3.18 / webkit 2.20 / 静态 OpenSSL） | 已实现 | `client-tauri1`（vendored tao/wry 补丁 + CI 符号硬门禁，详见 `.github/CI-TROUBLESHOOTING.md`） |
 | C11 | 调试抽屉：客户端能力状态 / 调试客户端能力 / 日志查看 | 已实现 | 抽屉双页签：能力状态与调试在 `client-ui/src/views/example/index.vue`；独立日志面板在 `views/logs/index.vue`（`stores/log.ts` 缓冲 500 条，`useClientLogBridge` 汇集客户端日志事件、客户端事件流与错误队列，支持复制/清空，展示日志文件路径） |
 | C12 | 客户端日志系统：文件落盘 + 接收前端推送 + 启动与业务流程埋点 | 已实现 | 两壳 `services/log_service.rs`（写 `app_log_dir/cpms-client.log`，5MB 单档轮转，UTC 时间戳，未引入 chrono 以保护 legacy 依赖锁；客户端日志同步 emit `cpms:client-log` 给视图端）；命令 `push_client_log`（前端/iframe 推送，仅落盘不回发）与 `get_client_log_state`。埋点按 source 分类：`startup/window/single-instance`（启动）、`iframe`、`socket`、`http`（请求/HTTP）、`token`、`business`（业务流程：登录/登出/令牌更新/作业列表/设备列表/选择机器，`services/commands.rs`）、`panic`/`error`。**全量请求日志**（`log_service::http_request/http_response/http_error`，source=`http`）：客户端所有向后端请求（iframe 配置、作业/设备/选机 CPMS 接口、打印上传、代理请求）统一记 请求方法/URL/**请求头**/请求体 + 响应状态码/响应体 + 错误；请求头与 token 均**全量明文记录、不做掩码、不截断**（便于排查 token/鉴权问题）。视图端日志面板 `views/logs/index.vue` **按类别下拉筛选 + 长文本展示**（非每条一块的日志块，全量不截断），支持刷新/复制/清空、展示日志文件路径与大小 |
@@ -49,8 +49,8 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 
 | # | 需求 | 状态 | 说明与位置 |
 | --- | --- | --- | --- |
-| S1 | 入口：客户端启动后请求服务端获取 iframe 容器地址并缓存 | 已实现 | `lib.rs refresh_iframe_container`（`/api/client/iframe-config`，host 白名单校验，失败回退默认地址，状态缓存于 `AppRuntimeState`） |
-| S2 | 入口：视图端向客户端取 iframe 地址并渲染业务页面 | 已实现 | `client_get_iframe_container_state` / `client_refresh_iframe_container` 命令 + `cpms:client-iframe` 事件；`views/home/index.vue` 渲染 |
+| S1 | 入口：启动后显示入口页，由用户输入/确认 hub-platform iframe 地址 | 已实现 | `views/entry/index.vue` 输入地址；`iframe::client_set_iframe_container_url` 校验（http/https + 可选 `CPMS_IFRAME_ALLOW_HOSTS` 白名单）并写入 `AppRuntimeState`；不再自动请求 CPMS iframe 配置接口 |
+| S2 | 入口：视图端向客户端取 iframe 地址并渲染业务页面 | 已实现 | `client_get_iframe_container_state` 取状态、`client_set_iframe_container_url` 设置地址、`cpms:client-iframe` 事件同步；`views/home/index.vue` 按状态渲染 iframe 或入口页 |
 | S3 | 常驻：检测 cpms 客户端（PrintClient）是否存在并读取配置取 websocket 端口 | 已实现 | `lib.rs print_client_candidate_dirs / socket_url_from_config_file`（解析 `DriverClient.ini` / `config.conf` / `config.ini`，支持 env 覆盖） |
 | S4 | 常驻：在本地端口监听 websocket 服务（监听端），等待连接接入并推送任务 | 已实现 | `socket.rs start_local_socket_worker`（`TcpListener::bind` + `accept_async`，每连接处理推送；监听失败 3s 重试，可手动重启监听） |
 | S5 | 常驻：解析任务消息拿到文件路径，携带 token 转发任务（转发前把所用 token 掩码记入 `socket` 日志类目；服务端域名优先取 `configure.ini` 的 `ServerAddr`） | 已实现 | `lib.rs is_print_task_message` → `services/print_service.rs forward_socket_task_message`（multipart 上传，`build_cpms_url` 优先用 `printclient::cpms_server_base()`） |
@@ -65,7 +65,7 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 
 | # | 需求 | 状态 | 说明 |
 | --- | --- | --- | --- |
-| B1 | 需求 1：渲染线上 iframe 容器地址（启动→请求→缓存→视图端渲染） | 已实现 | 见 S1/S2；加载中有 loading 态，失败回退默认地址并提示原因 |
+| B1 | 需求 1：渲染线上 iframe 容器地址（启动→入口页输入→校验→缓存→视图端渲染） | 已实现 | 见 S1/S2；`client-tauri{1,2}` 启动不再自动拉取 iframe 配置，改由用户在入口页输入 hub-platform URL；加载失败可重新输入地址或重载 iframe |
 | B2 | 需求 2：本地 socket 监听服务，等待连接推送任务并二次转发 | 已实现 | 见 S3–S5；客户端作为监听端 bind 本地端口、accept 推送连接；转发结果以 `client.socket_task.forwarded / forward_failed` 事件回推视图端 |
 | B3 | 需求 3：Token 机制——登录后视图端推送 token | 已实现 | `save_auth_token` 命令 + `client.auth.update-token` 事件，持久化于 `hub-preferences.json` |
 | B4 | 需求 3：Token 机制——客户端主动从 iframe 实例获取 token | 已实现 | C9 的 payload 查询链路（启动 2s 后及按需触发） |
@@ -93,7 +93,8 @@ client/
       App.vue                   # 按窗口 label 分发：main → home，notification → notification
       assets/styles/tokens.css  # 设计令牌：全窗口共用的颜色/字号/行高/圆角/间距/阴影变量
       views/
-        home/index.vue          # 主窗口：headerbar + iframe 容器 + 调试抽屉（能力检测/客户端日志双页签）
+        home/index.vue          # 主窗口：headerbar + iframe 容器/入口页 + 调试抽屉（能力检测/客户端日志双页签）
+        entry/index.vue         # 入口页：用户输入/确认 hub-platform iframe 地址
         notification/index.vue  # 通知子窗口：headerbar(标题+关闭) + 通知内容
         example/index.vue       # 调试抽屉：能力状态与各项检测
         logs/index.vue          # 调试抽屉：客户端日志面板（复制/清空/等级着色）
@@ -214,7 +215,7 @@ Rust 校验：在 `client-tauri{1,2}/src-tauri` 下 `cargo check`。CI（`.githu
 - **环境变量**：`CPMS_SERVER_ADDR`（覆盖 ServerAddr，最高优先）、`CPMS_BASE_URL`（ServerAddr 缺失时的 iframe 配置域名兜底）/`CPMS_IFRAME_CONFIG_PATH`/`CPMS_IFRAME_ALLOW_HOSTS`（iframe 路径与白名单）、`CPMS_PRINTCLIENT_*`（PrintClient socket 发现）、`CPMS_ALLOW_INSECURE_TLS=1`（放开 TLS 校验，默认校验）、`WEBKIT_DISABLE_COMPOSITING_MODE`（legacy 白屏规避，默认开）。
 - **tauri1 真机回归**：无头窗口、headerbar 拖拽区、400×400 通知窗口需在麒麟/统信真机复测（webkit 2.20 渲染行为与新版不同）。
 - **打印能力范围**：客户端只做「socket 推送任务 → 携带 token 转发到 xps/exec」这一条链路（DESIGN 需求 2）。已移除 USB 直连打印、系统级虚拟打印机相关命令（add/disable/fix_printer、init_usb_printer/get_usb_state）、Windows 端打印缓存扫描 worker、本地 TCP 文件接收服务（socket_server，start/stop_socket_server）。如需重新引入须同时补回 Rust 服务、命令注册、UI 封装与本说明。
-- **api/tauri 命令层**：现存 `client`(invoke 封装)、`desktop`、`events`、`log`、`notification`(通知子窗口)，均被视图端实际使用；iframe 侧统一经 `utils/hubBridge.ts`（透传 CommandResult 原始结构，不要改为 unwrap）。
+- **api/tauri 命令层**：现存 `client`(invoke 封装)、`desktop`、`events`、`log`、`notification`(通知子窗口)，均被视图端实际使用；iframe 侧统一经 `utils/hubBridge.ts` 的 postMessage 桥调用，`createHubClientBridge` 内部用 `unwrapCommand` 拆包，iframe 收到的是实际业务值。
 - **已清理的脚手架/死代码（2026-06-15）**：删除模板示例 `greet` 命令、`vue.svg`/`vite.svg`、未用的 `panel-title` uno 快捷类、根目录 `job-logs.txt`、死代码类型目录 `types/hub/`；删除未被任何 view 引用的浏览器侧 HTTP 客户端（`api/{http,cpms,localService}/client.ts`）与类型化命令镜像（`api/tauri/{hub-client,version,hub-crypto,external}.ts`）；删除 UI 完全未用的命令 `window_maximize`/`window_unmaximize`、`ping_server`、SM4 整条链路（`sm4_encrypt` 命令 + `crypto_service::sm4_encrypt_hex` + `sm4` 依赖）。保留但供 iframe 备用的工具命令：`get_app_version`、`open_external`、`close_window_with_confirm`、`sign_request`。
 - **结构整理（2026-06-15）**：Rust `hub/`→`services/`、根 `models.rs`→`result.rs`；UI `api/desktop/notification.ts`→`api/tauri/notification.ts`、`api/request/config.ts`→`api/config.ts`、`types/task/todoTask.ts`→`todo-task.ts`；`lib.rs`(1200+ 行) 拆为 `window/event_bridge/iframe/printclient/socket` 模块，lib.rs 仅留 app shell。
 

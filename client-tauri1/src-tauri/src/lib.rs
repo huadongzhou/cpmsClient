@@ -297,11 +297,6 @@ pub fn run() {
             init_autostart_on_first_launch(&app_handle);
             services::log_service::info(&app_handle, "startup", "托盘图标已创建");
 
-            let app_handle_for_iframe = app_handle.clone();
-            tauri::async_runtime::spawn(async move {
-                let _ = iframe::refresh_iframe_container(&app_handle_for_iframe).await;
-            });
-
             let app_handle_for_socket = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 socket::start_local_socket_worker(app_handle_for_socket).await;
@@ -338,6 +333,7 @@ pub fn run() {
             event_bridge::push_desktop_notification_event,
             iframe::client_get_iframe_container_state,
             iframe::client_refresh_iframe_container,
+            iframe::client_set_iframe_container_url,
             iframe::client_request_iframe_payload,
             iframe::client_submit_iframe_payload,
             client_http_request,

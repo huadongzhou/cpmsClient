@@ -26,6 +26,11 @@ export function refreshClientIframeContainer() {
   return unwrapCommand<ClientIframeStatePayload>("client_refresh_iframe_container");
 }
 
+/** 由视图端设置 iframe 容器地址（入口页手动输入）。 */
+export function setClientIframeUrl(url: string) {
+  return unwrapCommand<ClientIframeStatePayload>("client_set_iframe_container_url", { url });
+}
+
 /** 由客户端发起请求，触发视图端查询 iframe payload。 */
 export function requestClientIframePayload(reason?: string) {
   return unwrapCommand<string>("client_request_iframe_payload", { reason });

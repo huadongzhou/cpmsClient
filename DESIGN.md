@@ -191,7 +191,7 @@
 └─────────────────────────┘
 ```
 
-- 主内容区为全屏 iframe，加载 hub-platform。
+- 主内容区默认显示入口页（`EntryView`），用户输入/确认 hub-platform iframe URL 后切换为全屏 iframe。
 - 右下角固定“调试”按钮（`el-button type="primary"`），点击打开调试抽屉。
 - 抽屉宽度 80%，内部使用 `el-tabs` 分两页：能力检测 / 客户端日志。
 
@@ -265,6 +265,7 @@ App.vue
 ├── HomeView（主窗口）
 │   ├── WindowHeaderBar
 │   ├── main.iframe-root
+│   │   ├── EntryView（未设置 iframe URL 时显示）
 │   │   ├── iframe（hub-platform）
 │   │   └── el-button.debug-trigger
 │   └── el-drawer.debug-drawer
@@ -450,7 +451,7 @@ hub-platform 是运行在 client 主窗口 iframe 内的业务页面，两者视
 ### 9.1 主窗口（`HomeView`）
 
 - **标题栏**：左侧 Logo + “CPMS Client”，右侧窗口控制。
-- **内容区**：全屏 iframe，加载 hub-platform。
+- **内容区**：入口页（未设置 URL）或全屏 iframe（加载 hub-platform）。
 - **调试入口**：右下角悬浮按钮。
 - **建议**：调试按钮在 release 模式下应隐藏或缩小为图标按钮。
 
@@ -497,9 +498,9 @@ hub-platform 是运行在 client 主窗口 iframe 内的业务页面，两者视
 ### 低优先级
 
 11. 建立统一 SVG 图标库。
-12. 调试模块支持折叠/展开。
+12. ✅ 调试模块支持折叠/展开。
 13. ✅ 日志条目按级别着色（error/warn/info/debug）。
-14. 支持 `prefers-reduced-motion`。
+14. ✅ 支持 `prefers-reduced-motion`。
 
 ## 12. 设计原则速查
 

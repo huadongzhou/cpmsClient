@@ -5,6 +5,9 @@ import { emitViewEvent } from "@/api/tauri/events";
 import WindowHeaderBar from "@/components/layout/WindowHeaderBar.vue";
 import { useIframeContainer } from "@/composables/useIframeContainer";
 import { useIframePayloadBridge } from "@/composables/useIframePayloadBridge";
+import { useRuntimeStore } from "@/stores/runtime";
+import { startHubClientMessageBridge } from "@/utils/hubBridge";
+import EntryView from "@/views/entry/index.vue";
 import ExampleView from "@/views/example/index.vue";
 import LogView from "@/views/logs/index.vue";
 
@@ -13,24 +16,23 @@ const IFRAME_LOAD_TIMEOUT_MS = 15000;
 const iframeRef = ref<HTMLIFrameElement>();
 const iframeDomLoaded = ref(false);
 const iframeLoadError = ref(false);
+const iframeReloadKey = ref(0);
 const exampleDrawerVisible = ref(false);
 const drawerTab = ref("detect");
 const pinned = ref(false);
 const fullscreen = ref(false);
-const { iframe, loadIframeContainer, loading } = useIframeContainer();
+const { iframe } = useIframeContainer();
+const runtimeStore = useRuntimeStore();
 const { queryIframePayload } = useIframePayloadBridge(iframeRef);
+const stopHubClientBridge = startHubClientMessageBridge(iframeRef);
 const iframeSrc = computed(() => iframe.value.url || "about:blank");
+const showEntryPage = computed(() => iframe.value.state === "idle" || !iframe.value.url);
 const isIframeLoading = computed(() => {
-  if (iframeLoadError.value) {
+  if (iframeLoadError.value || showEntryPage.value) {
     return false;
   }
 
-  return (
-    loading.value ||
-    iframe.value.state === "idle" ||
-    iframe.value.state === "loading" ||
-    (iframe.value.state === "loaded" && Boolean(iframe.value.url) && !iframeDomLoaded.value)
-  );
+  return iframe.value.state === "loaded" && Boolean(iframe.value.url) && !iframeDomLoaded.value;
 });
 let iframeLoadTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -63,10 +65,6 @@ watch(iframeSrc, (url) => {
 });
 
 onMounted(() => {
-  if (iframe.value.state === "idle") {
-    void loadIframeContainer();
-  }
-
   if (iframeSrc.value && iframeSrc.value !== "about:blank" && !iframeDomLoaded.value) {
     startIframeLoadTimer();
   }
@@ -74,6 +72,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearIframeLoadTimer();
+  stopHubClientBridge?.();
 });
 
 function handleIframeLoad() {
@@ -82,10 +81,15 @@ function handleIframeLoad() {
   clearIframeLoadTimer();
 }
 
-async function retryIframeLoad() {
+function retryIframeLoad() {
   resetIframeLoadState();
+  iframeReloadKey.value += 1;
   startIframeLoadTimer();
-  await loadIframeContainer();
+}
+
+function backToEntry() {
+  resetIframeLoadState();
+  runtimeStore.setIframeState({ state: "idle", url: null, message: null, updatedAt: "" });
 }
 
 /** 固定按钮事件：固定/取消固定客户端窗口。 */
@@ -127,17 +131,31 @@ async function closeWindow() {
       @close="closeWindow"
     />
     <main v-loading="isIframeLoading" element-loading-text="正在加载业务页面" class="iframe-root">
-      <iframe ref="iframeRef" :src="iframeSrc" class="business-iframe" @load="handleIframeLoad" />
-      <div v-if="iframeLoadError" class="iframe-error">
-        <el-alert
-          type="error"
-          title="业务页面加载失败"
-          description="无法在预定时间内加载 iframe 业务页面，请检查网络或客户端配置后重试。"
-          show-icon
-          :closable="false"
+      <EntryView v-if="showEntryPage" />
+      <template v-else>
+        <iframe
+          :key="iframeReloadKey"
+          ref="iframeRef"
+          :src="iframeSrc"
+          class="business-iframe"
+          @load="handleIframeLoad"
         />
-        <el-button type="primary" class="retry-button" @click="retryIframeLoad">重新加载</el-button>
-      </div>
+        <div v-if="iframeLoadError" class="iframe-error">
+          <el-alert
+            type="error"
+            title="业务页面加载失败"
+            description="无法在预定时间内加载 iframe 业务页面，请检查网络或客户端配置后重试。"
+            show-icon
+            :closable="false"
+          />
+          <div class="iframe-error-actions">
+            <el-button type="primary" class="retry-button" @click="retryIframeLoad">
+              重新加载
+            </el-button>
+            <el-button @click="backToEntry">重新输入地址</el-button>
+          </div>
+        </div>
+      </template>
       <div
         v-if="exampleDrawerVisible"
         class="iframe-overlay"
@@ -210,6 +228,11 @@ async function closeWindow() {
 
 .retry-button {
   min-width: 120px;
+}
+
+.iframe-error-actions {
+  display: flex;
+  gap: var(--cpms-space-small);
 }
 
 .iframe-overlay {

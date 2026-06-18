@@ -35,6 +35,36 @@ pub async fn client_refresh_iframe_container(
     CommandResult::ok(refresh_iframe_container(&app).await)
 }
 
+/// 视图端手动设置 iframe 容器地址（入口页输入）。
+/// 仅校验格式与协议；域名白名单仅在显式配置 CPMS_IFRAME_ALLOW_HOSTS 时生效。
+#[tauri::command]
+pub fn client_set_iframe_container_url(
+    app: AppHandle,
+    url: String,
+) -> CommandResult<ClientIframeEventPayload> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return CommandResult::fail("INVALID_IFRAME_URL", "iframe 地址不能为空");
+    }
+
+    let parsed = match Url::parse(trimmed) {
+        Ok(value) => value,
+        Err(_) => return CommandResult::fail("INVALID_IFRAME_URL", "iframe 地址格式非法"),
+    };
+
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return CommandResult::fail("INVALID_IFRAME_URL", "iframe 仅支持 http/https 协议");
+    }
+
+    if let Err(message) = validate_iframe_url_host(&parsed) {
+        return CommandResult::fail("IFRAME_HOST_NOT_ALLOWED", &message);
+    }
+
+    services::log_service::info(&app, "iframe", &format!("视图端设置 iframe 地址：{}", parsed));
+
+    CommandResult::ok(update_iframe_state(&app, "loaded", Some(parsed.to_string()), None))
+}
+
 #[tauri::command]
 pub fn client_request_iframe_payload(
     app: AppHandle,
@@ -207,6 +237,27 @@ fn extract_iframe_url(value: &Value) -> Option<String> {
                 })
                 .map(str::to_string)
         })
+}
+
+/// 显式配置了 CPMS_IFRAME_ALLOW_HOSTS 时才校验域名；未配置则放行。
+fn validate_iframe_url_host(parsed: &Url) -> Result<(), String> {
+    let raw = std::env::var("CPMS_IFRAME_ALLOW_HOSTS").unwrap_or_default();
+    let allow_hosts: Vec<String> = raw
+        .split(',')
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty())
+        .collect();
+
+    if allow_hosts.is_empty() {
+        return Ok(());
+    }
+
+    let host = parsed.host_str().unwrap_or_default().to_lowercase();
+    if !allow_hosts.iter().any(|item| item == &host) {
+        return Err(format!("iframe 域名不在白名单: {host}"));
+    }
+
+    Ok(())
 }
 
 fn validate_iframe_url(url: &str) -> Result<String, String> {
