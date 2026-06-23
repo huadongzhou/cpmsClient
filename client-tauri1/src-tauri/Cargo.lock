@@ -406,6 +406,7 @@ dependencies = [
  "base64 0.22.1",
  "cipher",
  "ecb",
+ "flate2",
  "futures-util",
  "md5",
  "nusb",

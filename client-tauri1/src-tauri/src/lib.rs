@@ -135,6 +135,14 @@ async fn client_http_request(
 }
 
 #[tauri::command]
+fn client_ping_address(host: String) -> CommandResult<services::ping_service::ClientPingResult> {
+    match services::ping_service::ping_address(&host) {
+        Ok(value) => CommandResult::ok(value),
+        Err(error) => CommandResult::fail("PING_ERROR", &error),
+    }
+}
+
+#[tauri::command]
 fn autostart_is_enabled(app: AppHandle) -> CommandResult<bool> {
     match autostart_manager(&app)
         .and_then(|manager| manager.is_enabled().map_err(|error| error.to_string()))
@@ -351,6 +359,7 @@ pub fn run() {
             iframe::client_request_iframe_payload,
             iframe::client_submit_iframe_payload,
             client_http_request,
+            client_ping_address,
             autostart_is_enabled,
             autostart_set_enabled,
             window::window_minimize,
@@ -374,6 +383,9 @@ pub fn run() {
             services::set_session_direct_device_id,
             services::clear_session_direct_device_id,
             services::get_session_direct_device_id,
+            services::set_session_platform,
+            services::clear_session_platform,
+            services::get_session_platform,
             services::save_direct_device,
             services::get_job_list,
             services::get_available_devices,

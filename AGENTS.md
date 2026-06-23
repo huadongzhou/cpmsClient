@@ -1,243 +1,117 @@
 # CPMS Client Agent 说明
 
-设计需求源文档：[DESIGN.md](DESIGN.md)。产品与业务源文档：[PRODUCT.md](PRODUCT.md)。本文档列出系统能力 / 系统需求 / 业务需求三类清单及其实现状态，并描述当前真实的项目结构与工作约定。
+本文档面向 `client` 子项目。它是桌面客户端宿主，负责 Tauri 桌面壳、宿主 UI、iframe 容器和原生能力；完整业务页面与业务流程在同级项目 `hub-web` 中维护。
 
-## 0. 文档分工
+## 文档分工
 
-| 文档 | 作用 |
+| 文档 | 用途 |
 | --- | --- |
-| [PRODUCT.md](PRODUCT.md) | 产品/业务源文档：描述客户端要解决的业务问题、架构设计、核心流程、项目需求与接口契约。新增或调整业务需求时先同步这里。 |
-| [DESIGN.md](DESIGN.md) | 设计规范源文档：描述 client-ui 的视觉语言、设计令牌、Element Plus / UnoCSS 使用方式、组件规范与跨端一致性。新增或调整 UI 风格时先同步这里。 |
-| [AGENTS.md](AGENTS.md) | 代理协作说明：面向编码代理，汇总当前实现状态、项目结构、命令与工作约定。不要把它当作唯一需求来源；需求以 PRODUCT/DESIGN 为准。 |
+| `PRODUCT.md` | 桌面客户端产品、业务流程和接口契约。 |
+| `DESIGN.md` | 桌面客户端视觉系统、设计令牌和组件规范。 |
+| `AGENTS.md` | 编码代理协作说明；只记录结构、边界、命令和高风险约定。 |
 
-## 1. 项目定位
+## 项目定位
 
-CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和两个 Tauri 桌面壳：
+`client` 是一个 pnpm workspace，包含一套宿主 UI 和两个 Tauri 壳：
 
 | 工程 | 角色 |
 | --- | --- |
-| `client-ui` | Vue 3 + TypeScript + Vite(+) 视图端，两套壳共用同一份 UI 产物 |
-| `client-tauri2` | Tauri 2 壳：Windows / macOS / 新版 Linux（webkit2gtk-4.1） |
-| `client-tauri1` | Tauri 1 legacy 壳：麒麟 V10 / 统信等国产 Linux（webkit2gtk-4.0、GTK 3.18），带 vendored tao/wry 补丁 |
+| `client-ui` | Vue 3 + TypeScript 宿主 UI，提供入口页、iframe 容器、通知窗口、调试面板和 Tauri 桥接封装。 |
+| `client-tauri1` | Tauri 1 legacy 壳，面向麒麟、统信等国产 Linux；当前唯一维护的客户端原生壳。 |
+| `client-tauri2` | Tauri 2 桌面壳，历史版本保留；不再更新。 |
 
-架构基调（DESIGN.md）：以 Tauri 基座承载客户端专属能力（桌面通知、托盘、自启动、网络检测、服务请求、事件通信）；**主窗体为无头窗口**，headerbar 由视图端绘制；业务页面由 iframe 内的线上 hub-platform 提供，客户端不做登录、不镜像业务状态。
+边界原则：
 
-## 2. 系统能力列表（客户端基座能力）
+- 业务页面不在 `client-ui` 中重做，由 `hub-web` 以 iframe 形式提供。
+- 当 iframe 指向 `hub-web` 时，客户端服务端也应指向 `hub-server`，与 `hub-web` 使用同一后端；`hub-server` 仅作只读参考。
+- `client` 负责桌面能力：托盘、自启动、窗口控制、通知、本地 socket、打印任务转发、日志、网络检测、签名请求、会话 token、iframe 桥接。
+- 客户端原生能力只修改 `client-tauri1`；不要同步或补改 `client-tauri2`。
+- 修改跨业务契约时，同时检查 `hub-web` 的桥接/API 调用；`hub-server` 只读参考其服务端接口。
 
-| # | 能力 | 状态 | 实现位置 |
-| --- | --- | --- | --- |
-| C1 | 主窗体：无头窗口 + 视图端 headerbar（logo+标题+固定/收起/全屏/关闭） | 已实现 | 两壳 `tauri.conf.json`（`decorations:false`，label `main`）；`client-ui/src/components/layout/WindowHeaderBar.vue`；`client-ui/src/views/home/index.vue` |
-| C2 | 桌面通知子窗口：400×400、屏幕右下角、headerbar+通知内容、单实例、关闭即隐藏 | 已实现 | `client-ui/src/api/tauri/notification.ts`（启动预创建隐藏窗口 `prepareNotificationWindow`、定位、推送）；`client-ui/src/views/notification/index.vue`（渲染）。符合 DESIGN「默认加载但不显示，事件到来才显示」 |
-| C3 | 系统托盘：左键显隐主窗口；右键菜单 显示/隐藏/开关自启动/退出 | 已实现 | tauri2 `lib.rs setup_tray`；tauri1 `lib.rs build_tray/handle_tray_event` |
-| C4 | 开机自启动：首次启动默认开启，托盘与命令可切换 | 已实现 | `lib.rs init_autostart_on_first_launch`、`autostart_*` 命令（v1 用 auto-launch，v2 用 tauri-plugin-autostart） |
-| C5 | 网络检测：在线/离线监听，状态变化推送视图端 | 已实现 | 两壳 `hub/network_service.rs`（探测 8.8.8.8:53，变化 emit `cpms:hub-network-changed`） |
-| C6 | 服务请求：CPMS 签名请求（access_sign + client/platform 公共头 + Authorization） | 已实现 | `hub/http_service.rs`、`hub/crypto_service.rs`（access_sign：AES-128-ECB + MD5） |
-| C7 | 客户端↔视图端事件通信（交互指令/客户端方法/请求代理），统一信封 `{id,type,payload,time}`（见 6.5） | 已实现 | `lib.rs setup_client_event_bridge/handle_view_event`；`client-ui/src/api/tauri/events.ts` |
-| C8 | 本地 socket 监听端：PrintClient 检测（按进程名）、WebsocketPort 端口发现、configure.ini 的 ServerAddr/CenterServerAddr 读取缓存、本地端口监听等待推送连接、任务接收与转发 | 已实现 | `printclient.rs`（进程/配置发现 + `DriverClient.ini WebsocketPort` 默认 18101 + `configure.ini ServerAddr`，10s 节流缓存）、`socket.rs start_local_socket_worker`（bind + accept，监听端） |
-| C9 | iframe 桥：跨源 postMessage 桥 + token 查询/推送（postMessage 单一类型 `cpms:token`，统一出口长期监听；见 6.5） | 已实现 | `client-ui/src/utils/hubBridge.ts` 提供 `startHubClientMessageBridge`（监听 `cpms:hub-client:*` 消息，调用 Tauri 能力并回传结果；同源场景仍保留 `__HUB_CLIENT__` 注入）、`composables/useIframePayloadBridge.ts`、`lib.rs client_*_iframe_payload` |
-| C10 | 国产 Linux legacy 适配（glibc 2.23 / GTK 3.18 / webkit 2.20 / 静态 OpenSSL） | 已实现 | `client-tauri1`（vendored tao/wry 补丁 + CI 符号硬门禁，详见 `.github/CI-TROUBLESHOOTING.md`） |
-| C11 | 调试抽屉：客户端能力状态 / 调试客户端能力 / 日志查看 | 已实现 | 抽屉双页签：能力状态与调试在 `client-ui/src/views/example/index.vue`；独立日志面板在 `views/logs/index.vue`（`stores/log.ts` 缓冲 500 条，`useClientLogBridge` 汇集客户端日志事件、客户端事件流与错误队列，支持复制/清空，展示日志文件路径） |
-| C12 | 客户端日志系统：文件落盘 + 接收前端推送 + 启动与业务流程埋点 | 已实现 | 两壳 `services/log_service.rs`（写 `app_log_dir/cpms-client.log`，5MB 单档轮转，UTC 时间戳，未引入 chrono 以保护 legacy 依赖锁；客户端日志同步 emit `cpms:client-log` 给视图端）；命令 `push_client_log`（前端/iframe 推送，仅落盘不回发）与 `get_client_log_state`。埋点按 source 分类：`startup/window/single-instance`（启动）、`iframe`、`socket`、`http`（请求/HTTP）、`token`、`business`（业务流程：登录/登出/令牌更新/作业列表/设备列表/选择机器，`services/commands.rs`）、`panic`/`error`。**全量请求日志**（`log_service::http_request/http_response/http_error`，source=`http`）：客户端所有向后端请求（iframe 配置、作业/设备/选机 CPMS 接口、打印上传、代理请求）统一记 请求方法/URL/**请求头**/请求体 + 响应状态码/响应体 + 错误；请求头与 token 均**全量明文记录、不做掩码、不截断**（便于排查 token/鉴权问题）。视图端日志面板 `views/logs/index.vue` **按类别下拉筛选 + 长文本展示**（非每条一块的日志块，全量不截断），支持刷新/复制/清空、展示日志文件路径与大小 |
-| C13 | 单实例运行 | 已实现 | 两壳 `single_instance.rs`（回环端口 `127.0.0.1:51987` 作进程锁 + magic 握手，零插件依赖以兼顾 legacy 依赖链）；二次启动握手确认本应用后唤醒首实例显示窗口并退出，端口被异端占用则放行不保护 |
-| C14 | 打印任务持久化转发（收到即落盘 + 重试） | 已实现 | 两壳 `socket.rs`：打印任务**收到即落盘**到 `app_data_dir/pending-forwards/<uuid>.json`（attempts=0），再立即认领转发——即使首次转发未完成就崩溃，重启后也能重发（消除 in-flight 丢失窗口）。转发用**认领式**：原子 `rename` 到 `.processing`，在途任务对周期 worker 不可见（兼容上传最长 30min），成功出队、失败回写 `.json`（计数+1）；本轮最多尝试三次，达到上限后重置计数并保留任务，等待下次唤醒继续重试。崩溃残留的 `.processing`：**启动时全部回收**、运行期超 35min 回收（`reclaim_orphaned_processing`）。**注意**：队列存的是任务消息（含 `filePath`），非 PDF 字节；若引用的本地 PDF 被清理，任务也会保留等待后续唤醒重试 |
-| C15 | TLS 证书校验可配置 | 已实现 | 默认校验证书；仅 env `CPMS_ALLOW_INSECURE_TLS=1` 时放开（`services/http_service.rs::allow_insecure_tls`，覆盖代理/上传/CPMS 请求三处） |
-| C16 | token 会话内存存储 | 已实现 | token 由 iframe 主动推送到客户端，仅写入 `services/session_server.rs` 的会话内存；`hub-preferences.json` 保存前会清空 `user.token`，启动读取旧偏好时也会清掉遗留 token。客户端不再落盘 token。 |
-| C17 | Rust panic 入日志 | 已实现 | 两壳 run() 装 `panic::set_hook`，把 Rust panic 写入 `cpms-client.log` |
-| C18 | 主窗口几何持久化 | 部分实现 | tauri2 `window.rs`（关闭到托盘时存大小/位置，启动恢复，best-effort）；tauri1 暂跳过（无头固定窗 + webkit2.20 不可测，价值低，见第 8 节） |
-
-## 3. 系统需求列表（入口事件 / 常驻事件 / 通信 / 请求）
-
-| # | 需求 | 状态 | 说明与位置 |
-| --- | --- | --- | --- |
-| S1 | 入口：启动后显示入口页，由用户输入/确认 hub-platform iframe 地址 | 已实现 | `views/entry/index.vue` 输入地址；`iframe::client_set_iframe_container_url` 校验（http/https + 可选 `CPMS_IFRAME_ALLOW_HOSTS` 白名单）并写入 `AppRuntimeState`；不再自动请求 CPMS iframe 配置接口 |
-| S2 | 入口：视图端向客户端取 iframe 地址并渲染业务页面 | 已实现 | `client_get_iframe_container_state` 取状态、`client_set_iframe_container_url` 设置地址、`cpms:client-iframe` 事件同步；`views/home/index.vue` 按状态渲染 iframe 或入口页 |
-| S3 | 常驻：检测 cpms 客户端（PrintClient）是否存在并读取配置取 websocket 端口 | 已实现 | `lib.rs print_client_candidate_dirs / socket_url_from_config_file`（解析 `DriverClient.ini` / `config.conf` / `config.ini`，支持 env 覆盖） |
-| S4 | 常驻：在本地端口监听 websocket 服务（监听端），等待连接接入并推送任务 | 已实现 | `socket.rs start_local_socket_worker`（`TcpListener::bind` + `accept_async`，每连接处理推送；监听失败 3s 重试，可手动重启监听） |
-| S5 | 常驻：解析任务消息拿到文件路径，携带 token 转发任务（转发前把所用 token 掩码记入 `socket` 日志类目；服务端域名优先取 `configure.ini` 的 `ServerAddr`） | 已实现 | `lib.rs is_print_task_message` → `services/print_service.rs forward_socket_task_message`（multipart 上传，`build_cpms_url` 优先用 `printclient::cpms_server_base()`） |
-| S6 | 通信：视图端→客户端 固定/收起/全屏/关闭窗口事件 | 已实现 | `lib.rs handle_view_event`（`client.window.pin/unpin/minimize/fullscreen/exit-fullscreen/close`）；headerbar 按钮触发 |
-| S7 | 通信：视图端→客户端 作业列表/打印机列表/选择打印机/更新 token 事件 | 已实现 | `handle_view_event`（`client.jobs.list`、`client.devices.list`、`client.device.select`、`client.auth.update-token`），结果以 `*.result` 事件回推 |
-| S8 | 通信：客户端→视图端 查询 token 事件 + iframe 主动推送 token（postMessage 单一类型 `cpms:token`，统一出口长期监听；见 6.5） | 已实现 | `client.iframe_payload.request` → 视图端经 `cpms:token` 查询 iframe → `client_submit_iframe_payload` 回传；iframe 也可主动推 `cpms:token` |
-| S9 | 请求：视图端请求客户端（iframe 地址/作业列表/打印机列表/选择打印机） | 已实现 | 同名命令 + 事件双通道；`client-ui/src/api/tauri/` 为类型化命令层 |
-| S10 | 请求：客户端请求服务端（iframe 地址/作业列表/打印机列表/转发任务） | 已实现 | `hub/commands.rs`（`get_job_list`、`get_available_devices`、`select_direct_device`）、`hub/print_service.rs`（转发） |
-| S11 | 请求代理：视图端经客户端代理 HTTP 请求 | 已实现 | `client_http_request` → `hub/http_service.rs execute_client_http_request` |
-
-## 4. 业务需求列表（DESIGN.md 项目需求）
-
-| # | 需求 | 状态 | 说明 |
-| --- | --- | --- | --- |
-| B1 | 需求 1：渲染线上 iframe 容器地址（启动→入口页输入→校验→缓存→视图端渲染） | 已实现 | 见 S1/S2；`client-tauri{1,2}` 启动不再自动拉取 iframe 配置，改由用户在入口页输入 hub-platform URL；加载失败可重新输入地址或重载 iframe |
-| B2 | 需求 2：本地 socket 监听服务，等待连接推送任务并二次转发 | 已实现 | 见 S3–S5；客户端作为监听端 bind 本地端口、accept 推送连接；转发结果以 `client.socket_task.forwarded / forward_failed` 事件回推视图端 |
-| B3 | 需求 3：Token 机制——登录后视图端推送 token | 已实现 | `save_auth_token` 命令 + `client.auth.update-token` 事件写入会话内存，不写 `hub-preferences.json` |
-| B4 | 需求 3：Token 机制——客户端按需从 iframe 实例获取 token | 已实现 | C9 的 payload 查询链路（鉴权失败、调试页等明确场景触发） |
-| B5 | 需求 3：Token 机制——请求失败清理会话 token，重新获取，不一致则重试 | 已实现 | 两壳 `token_refresh.rs::with_token_retry` 通用包装：鉴权失败（401/403）→ 清会话 token → 向 iframe 重查（10s 超时）→ token 不一致则重发一次。**覆盖全部「客户端→服务端」通信**：socket 转发、作业列表、设备列表、选择机器 |
-| B6 | 接口：普通作业列表 `POST /cpms/api/jobs/list` | 已实现 | `hub/commands.rs get_job_list`，公共头齐全 |
-| B7 | 接口：设备列表 `GET /cpms/api/userManager/listAvailDevices` | 已实现 | `get_available_devices` |
-| B8 | 接口：选择机器 `POST /cpms/api/userManager/updateDirectDeviceId` + 会话 deviceId 更新 | 已实现 | `select_direct_device`（服务端更新 + 会话 deviceId 更新，并清空旧 preferences 设备缓存，返回约定的本地响应结构） |
-| B9 | 接口：转发任务 `POST /cpms/api/jobs/xps/exec`（multipart，含 printProperties.* Query） | 已实现 | `hub/print_service.rs upload_print_payload`；旧流程 `uploadJobByWebOrH5` 未启用（按当前主流程实现） |
-| B10 | socket 推送任务响应体解析（filePath + printProperties） | 已实现 | `parse_socket_task_payload` 兼容双层 JSON 字符串包装 |
-
-## 5. 项目目录结构（真实现状）
+## 目录结构
 
 ```text
 client/
-  AGENTS.md / DESIGN.md / README.md
-  package.json                  # workspace 脚本入口（dev/build/各平台打包）
+  package.json              # workspace 命令入口
   pnpm-workspace.yaml
+  PRODUCT.md
+  DESIGN.md
 
-  client-ui/                    # 视图端（两壳共用）
-    index.html
-    uno.config.ts / vite.config.ts
-    public/                     # 静态资源（tauri.svg 等）
+  client-ui/
     src/
-      main.ts                   # 挂载入口；注入 __HUB_CLIENT__ 桥
-      App.vue                   # 按窗口 label 分发：main → home，notification → notification
-      assets/styles/tokens.css  # 设计令牌：全窗口共用的颜色/字号/行高/圆角/间距/阴影变量
-      views/
-        home/index.vue          # 主窗口：headerbar + iframe 容器/入口页 + 调试抽屉（能力检测/客户端日志双页签）
-        entry/index.vue         # 入口页：用户输入/确认 hub-platform iframe 地址
-        notification/index.vue  # 通知子窗口：headerbar(标题+关闭) + 通知内容
-        example/index.vue       # 调试抽屉：能力状态与各项检测
-        logs/index.vue          # 调试抽屉：客户端日志面板（复制/清空/等级着色）
-      components/
-        layout/WindowHeaderBar.vue  # 共用窗口 headerbar（拖拽区 + 固定/收起/全屏/关闭）
-        common/ErrorNotice.vue
-      composables/              # 事件桥/通知桥/日志桥/iframe 容器与 payload 桥/错误与通知队列
-      stores/                   # app(配置/错误/通知)、runtime(iframe 态)、task(socket 任务)、log(日志缓冲)、user(本地 token 展示)、network
-      api/
-        tauri/                  # 命令层：client(invoke 封装)、desktop、events、log、notification(通知子窗口 400×400)
-        config.ts               # 客户端配置/token 读取（localStorage）
-      types/                    # app/common/task 分类类型
-      utils/hubBridge.ts        # 注入 iframe 的 __HUB_CLIENT__（统一走 api/tauri/client.invokeCommand）
+      main.ts               # Vue 启动入口
+      App.vue               # 按窗口 label 分发主窗口/通知窗口
+      views/                # home、entry、notification、debug/log 等宿主视图
+      components/           # WindowHeaderBar 等宿主组件
+      composables/          # iframe、事件、通知、日志桥接
+      stores/               # runtime、task、log、network、user 等宿主状态
+      api/tauri/            # Tauri invoke/event 类型化封装
+      utils/hubBridge.ts    # 注入 iframe 的 __HUB_CLIENT__ 桥
 
-  client-tauri2/                # Tauri 2 壳
-    package.json / scripts/build.js
-    src-tauri/
-      tauri.conf.json           # main 窗口 800×600、decorations:false；bundle 目标
-      capabilities/default.json # main + notification 窗口权限
-      src/
-        lib.rs                  # app shell：builder、托盘、自启动、panic 钩子、run()、共享 consts/结构体
-        single_instance.rs      # 单实例保护（端口锁 + 握手）
-        window.rs               # 主窗口控制命令 + 复用辅助函数 + 几何持久化(tauri2)
-        event_bridge.rs         # 视图端↔客户端事件桥（窗口/作业/设备/token 指令分发）
-        iframe.rs               # iframe 地址获取/校验/回退、状态缓存、payload(token) 查询
-        printclient.rs          # 本地 PrintClient 发现（按进程名定位 + DriverClient.ini 的 WebsocketPort）
-        socket.rs               # 本地 socket 监听端（bind+accept 等待推送）+ 任务转发 + 失败重试队列
-        token_refresh.rs        # token 失效重取通用包装（转发与 CPMS 请求共用，需求3）
-        result.rs               # CommandResult<T> 统一返回结构
-        services/               # 业务服务层（见下）
+  client-tauri2/
+    src-tauri/src/
+      lib.rs                # app shell、命令注册、托盘、自启动、panic hook
+      window.rs             # 窗口控制
+      event_bridge.rs       # client-ui ↔ Tauri 事件桥
+      iframe.rs             # iframe 地址、状态与 payload 查询
+      socket.rs             # 本地 socket 监听与任务转发
+      printclient.rs        # PrintClient 发现与配置读取
+      token_refresh.rs      # token 失效重取与重试
+      services/             # HTTP、签名、日志、会话、打印、网络等服务
 
-  client-tauri1/                # Tauri 1 legacy 壳（国产 Linux）
-    package.json / vite.config.ts
-    src-shims/tauri/            # 给 client-ui 模拟 @tauri-apps/api v2 接口的别名 shim
-    src-tauri/
-      tauri.conf.json           # 同上（v1 schema）+ allowlist + systemTray
-      tauri.linux(.legacy).conf.json  # productName cpmsClient-v1 等覆盖
-      vendor/tao-0.16.11/ wry-0.24.12/  # 麒麟 GTK3.18/webkit2.20 真机补丁，勿动
-      src/                      # 与 tauri2 同构（lib.rs/window/event_bridge 内 v1 API 差异）
-
-  # services/ 模块（两壳内容一致，仅 v1/v2 API 适配差异）：
-  #   commands.rs        tauri command（启动态/认证/作业/设备/系统能力/日志/工具）
-  #   http_service.rs    CPMS URL 拼接、签名请求头、HTTP 代理
-  #   log_service.rs     客户端日志：文件落盘(app_log_dir/cpms-client.log) + cpms:client-log 事件
-  #   session_server.rs  会话级 token / deviceId / serverAddress（不落盘）
-  #   crypto_service.rs  access_sign 签名（AES-128-ECB + MD5）
-  #   print_service.rs   socket 推送的打印任务转发上传（/cpms/api/jobs/xps/exec）
-  #   network_service.rs 网络在线监测（变化 emit cpms:hub-network-changed）
-  #   preferences.rs     hub-preferences.json 持久化（保存前清空旧 token/deviceId 缓存）
-  #   events.rs          cpms:hub-system-state / network-changed 事件 emit
-  #   models.rs          领域模型
-  #   mod.rs             导出 + token 缓存辅助（cached/clear/save_cached_auth_token）
+  client-tauri1/
+    src-tauri/              # legacy Tauri 1 壳；结构与 tauri2 相近，API 适配不同
 ```
 
-## 6. 窗口与样式约定
+## 关键契约
 
-- **统一容器**：`html`/`body` 占满视口（`width:100vw; height:100vh; overflow:hidden`），`#app` 占满容器且不滚动，各视图内部按需滚动。
-- **统一滚动条**：全局 WebKit 滚动条样式（`--cpms-scrollbar-thumb`/`--cpms-scrollbar-thumb-hover`），细轨圆角，跟随明暗主题切换。
-- 所有窗口内容统一引用 `client-ui/src/assets/styles/tokens.css` 中的 `--cpms-*` 设计令牌（颜色、字号、行高、圆角、间距、阴影、headerbar 高度、语义色板、动效、滚动条），组件内禁止写裸色值/裸字号。
-- `tokens.css` 已扩展为完整语义色板：`primary`/`success`/`warning`/`danger`/`info` 均提供 `*-bg`/`*-border`/`*-text` 变体；新增 `surface`/`surface-elevated`/`bg-overlay` 层级；`prefers-color-scheme: dark` 下自动切换暗色令牌。
-- `tokens.css` 用 `:root:root` 把 Element Plus 关键变量（`--el-text-color-*`/`--el-border-color*`/`--el-fill-color-*`/`--el-border-radius-base`/`--el-font-size-base`/`--el-color-*`）对齐到 `--cpms-*`，让 el-button/el-input/el-tag/el-drawer/el-tabs/el-alert 与自绘外壳同一套视觉语言。
-- 主窗口、通知子窗口、**调试抽屉**外壳统一使用 `WindowHeaderBar.vue`：主窗口 logo+标题+固定/收起/全屏/关闭，通知窗口/抽屉 标题+关闭（抽屉用 el-drawer `#header` 插槽嵌入）；headerbar 即拖拽区（`data-tauri-drag-region`）。
-- 主窗口关闭按钮与系统关闭请求一致：隐藏到托盘而非退出；退出从托盘菜单走 `system_destroy` 后 `exit(0)`。
-- 通知子窗口固定 400×400、右下角、置顶、不进任务栏，同一时刻只显示一条通知。
-- 图标统一使用 Element Plus Icons（`unplugin-icons` 的 `<i-ep-*>`），避免 Emoji 与位图图标，保持线宽与风格一致。
+- **iframe 地址**：用户在入口页配置 `hub-web` 地址；宿主保存并渲染 iframe。
+- **服务端地址**：当 iframe 为 `hub-web` 时，客户端服务端为 `hub-server`；签名请求、打印转发、serverAddress/deviceId 等后端契约按只读的 `hub-server` 参考。
+- **通信信封**：Tauri 事件桥使用 `{ id, type, payload, time }` 形式，新增事件时保持同一约定。
+- **iframe payload**：`hub-web` 通过 `postMessage` 推送或响应 `cpms:token`、`cpms:platform`、`cpms:serverAddress`、`cpms:deviceId`、`cpms:refresh`。
+- **token 模型**：token 只保存在 Tauri 会话内存中，不作为长期偏好落盘；鉴权失败时经 iframe 查询并重试。
+- **platform 契约**：iframe 推送的 platform 同时影响 CPMS 请求头和打印参数。
+- **打印链路**：本地 socket 收到任务后，由 Tauri 携带会话 token 转发到 CPMS；客户端不重新实现完整业务列表页面。
+- **壳维护策略**：当前只维护 `client-tauri1`；`client-tauri2` 作为历史版本保留，不做同步更新。
 
-## 6.5 通信协议（统一信封 + cpms:token）
+## 常用命令
 
-两条通信链路统一使用**一层对象信封**，额外字段补在同层：
+在 `client` 目录执行：
 
-```text
-{ id: string, type: string, payload: string|object|null, time: number, ...extra }
+```sh
+pnpm install
+pnpm dev                  # client-ui 开发服务
+pnpm build                # 构建宿主 UI
+pnpm lint
+pnpm fmt
+pnpm tauri:v1 dev
+pnpm build:linux:legacy
 ```
 
-`id`=uuid 或相关请求 id（用于 correlation），`type`=消息类型，`time`=epoch 毫秒。
+Rust 校验在当前维护壳目录执行：
 
-### 视图端 ↔ 客户端（Tauri 事件总线）
-
-- 出站（客户端→视图端，`cpms:client-to-view`）：`emit_client_event`、view→client 透传、`*.result` 指令结果、socket 转发事件、iframe payload 请求/上报，统一经 `ClientEventPayload::{new,with_id}`（`lib.rs`）。前端类型 `ClientEventPayload`（`types/app/ipc.ts`）。
-- 入站（视图端→客户端，`cpms:view-to-client`）：`emitViewEvent(type, payload)`（`events.ts`）发 `{ id, type, payload, time }`；Rust `ViewEventPayload` 读 `type`，`handle_view_event` 按 `type` 分发（窗口/作业/设备/token 指令）。
-- 领域推送通道（`cpms:client-iframe`/`-socket`/`-todo-task`/`-log`/`-desktop-notification`）payload 各为一层领域对象，走各自专用事件，不套该信封。
-
-### web ↔ iframe（postMessage，单一类型 `cpms:token`）
-
-父窗口（client-ui）对 iframe 的 `message` 监听**长期保持、作为统一出口**（`composables/useIframePayloadBridge.ts handleIframeMessage`，`onMounted` 注册一次、`onBeforeUnmount` 注销）。iframe 主动推送 `cpms:token` / `cpms:deviceId` / `cpms:serverAddress`，父窗口收到后转发给客户端并记录明文日志；`cpms:token` 仍保留按需手动查询能力，用于鉴权失败等明确场景：
-
-1. **手动取 token**：客户端 → iframe 发 `{ id, type:'cpms:token', payload:null, time, reason }`；iframe 回 `{ id, type:'cpms:token', payload:<token>, time }`（回显 id）。触发源：Rust `client.iframe_payload.request`（401 重取）和调试页按钮。
-2. **自动推送**：iframe 主动 → 父发 `{ type:'cpms:token', payload:<token>, time }`（可不带 id），统一出口收到即落库。
-
-统一出口收到带 token 的消息：调 `submitClientIframePayload`（命令 `client_submit_iframe_payload`）写入会话内存；命中待回的手动查询 `id` 则解析该查询。Rust `client_submit_iframe_payload` 把 `{ id, type:'client.iframe_payload.report', payload:<token>, time, ok, reason, error }` 存入 `iframe_payload` 并更新会话 token；`token_refresh.rs::refresh_token_via_iframe` 按 `id` 匹配、从 `payload` 取 token。
-
-**单一 token 模型**：客户端不维护多份 token——只经 iframe 获取，拿到即写入会话内存，之后等待 iframe 主动推送或按需查询更新；不存在 localStorage/pinia/本地文件等并行 token 存储。调试页「Token 检测」只展示这一个会话 token。
-
-**认证过期处理**：`token_refresh.rs::with_token_retry` 在「清缓存→向 iframe 重取→重试」后仍鉴权失败（取不到新 token / 新旧一致 / 重试仍 401）时，调 `event_bridge::notify_auth_expired`：① 弹通知窗口「当前认证已经过期，请重新登录！」（`cpms:desktop-notification`，type=error）；② 经视图端向 iframe 发 `cpms:refresh`（`client.iframe.refresh` → `useIframePayloadBridge` postMessage `{ id, type:'cpms:refresh', payload:null, time }`）。
-
-> web 端契约：iframe 须 ① 监听 `cpms:token` 请求并回 `{ id: msg.id, type:'cpms:token', payload: getToken()||'', time: Date.now() }`；② 登录/刷新后可主动 `postMessage({ type:'cpms:token', payload: getToken(), time: Date.now() })` 推送；③ 监听 `cpms:refresh`，触发重新登录/刷新会话（完成后再经 `cpms:token` 推送新 token）。
-
-## 7. 开发与构建命令
-
-workspace 根目录：
-
-```bash
-pnpm dev                  # client-ui 开发服务（端口 1420）
-pnpm build                # 仅构建共用前端（vue-tsc --noEmit && vp build）
-pnpm lint / pnpm fmt      # vp lint / vp fmt
-
-pnpm tauri:v2 dev         # Tauri 2 壳开发
-pnpm tauri:v1 dev         # Tauri 1 壳开发
-
-pnpm build:win            # Tauri 2 Windows: msi + nsis
-pnpm build:mac            # Tauri 2 macOS: app + dmg
-pnpm build:linux          # Tauri 2 Linux: deb + rpm
-pnpm build:linux:legacy   # Tauri 1 Linux: deb + rpm（国产环境）
+```sh
+cd client-tauri1/src-tauri
+cargo check
 ```
 
-Rust 校验：在 `client-tauri{1,2}/src-tauri` 下 `cargo check`。CI（`.github/workflows/build-release.yml`）按环境分组构建，legacy 链路含 glibc/GTK 符号硬门禁；排错见 `.github/CI-TROUBLESHOOTING.md`。
+## UI 约定
 
-## 8. 已知债务与注意事项
+- 视觉系统以 `client-ui/src/assets/styles/tokens.css` 的 `--cpms-*` 令牌为准。
+- 主窗口、通知窗口和调试抽屉复用 `WindowHeaderBar.vue` 的窗口语义。
+- 宿主 UI 保持工具型、紧凑、可扫描；不要把业务页面搬进宿主。
+- 新增图标优先使用项目现有 Element Plus Icons / unplugin-icons 风格。
 
-- **services/ 双壳复制**：`client-tauri1` 与 `client-tauri2` 的 `src/services/` 内容一致（仅 `path_resolver/emit_all/open` 等 v1 API 差异）；`lib.rs`/`window.rs`/`event_bridge.rs` 也按 v1/v2 分别维护（`get_window` vs `get_webview_window`、`listen_global` vs `listen_any`、SystemTray vs TrayIconBuilder、auto_launch vs autostart 插件、tauri2 独有窗口几何持久化）。`iframe.rs`/`socket.rs` 仅 import 行差一处（v1 走 `Manager` 无 `Emitter`），复制后需改回 `use tauri::{AppHandle, Manager};`；`printclient.rs`/`result.rs`/`single_instance.rs`/`token_refresh.rs`/`session_server.rs` 两壳逐字一致，可直接复制。改动必须双侧同步。后续可抽共享 crate，但受 tauri1 vendored 补丁与 CI 链路约束，暂未拆分。
-- **服务端域名统一为 ServerAddr**：客户端所有向后端的请求（iframe 地址获取、作业/设备列表、选择机器、打印任务上传）都以 `configure.ini` 的 `ServerAddr` 为域名——`iframe.rs::cpms_base_url`（iframe 配置接口）与 `http_service::build_cpms_url`（CPMS 接口）均优先取 `printclient::cpms_server_base()`。`ServerAddr` 仅含 scheme+host+port，路径仍由各接口常量/`CPMS_IFRAME_CONFIG_PATH` 决定。
-- **环境变量**：`CPMS_SERVER_ADDR`（覆盖 ServerAddr，最高优先）、`CPMS_BASE_URL`（ServerAddr 缺失时的 iframe 配置域名兜底）/`CPMS_IFRAME_CONFIG_PATH`/`CPMS_IFRAME_ALLOW_HOSTS`（iframe 路径与白名单）、`CPMS_PRINTCLIENT_*`（PrintClient socket 发现）、`CPMS_ALLOW_INSECURE_TLS=1`（放开 TLS 校验，默认校验）、`WEBKIT_DISABLE_COMPOSITING_MODE`（legacy 白屏规避，默认开）。
-- **tauri1 真机回归**：无头窗口、headerbar 拖拽区、400×400 通知窗口需在麒麟/统信真机复测（webkit 2.20 渲染行为与新版不同）。
-- **打印能力范围**：客户端只做「socket 推送任务 → 携带 token 转发到 xps/exec」这一条链路（DESIGN 需求 2）。已移除 USB 直连打印、系统级虚拟打印机相关命令（add/disable/fix_printer、init_usb_printer/get_usb_state）、Windows 端打印缓存扫描 worker、本地 TCP 文件接收服务（socket_server，start/stop_socket_server）。如需重新引入须同时补回 Rust 服务、命令注册、UI 封装与本说明。
-- **api/tauri 命令层**：现存 `client`(invoke 封装)、`desktop`、`events`、`log`、`notification`(通知子窗口)，均被视图端实际使用；iframe 侧统一经 `utils/hubBridge.ts` 的 postMessage 桥调用，`createHubClientBridge` 内部用 `unwrapCommand` 拆包，iframe 收到的是实际业务值。
-- **已清理的脚手架/死代码（2026-06-15）**：删除模板示例 `greet` 命令、`vue.svg`/`vite.svg`、未用的 `panel-title` uno 快捷类、根目录 `job-logs.txt`、死代码类型目录 `types/hub/`；删除未被任何 view 引用的浏览器侧 HTTP 客户端（`api/{http,cpms,localService}/client.ts`）与类型化命令镜像（`api/tauri/{hub-client,version,hub-crypto,external}.ts`）；删除 UI 完全未用的命令 `window_maximize`/`window_unmaximize`、`ping_server`、SM4 整条链路（`sm4_encrypt` 命令 + `crypto_service::sm4_encrypt_hex` + `sm4` 依赖）。保留但供 iframe 备用的工具命令：`get_app_version`、`open_external`、`close_window_with_confirm`、`sign_request`。
-- **结构整理（2026-06-15）**：Rust `hub/`→`services/`、根 `models.rs`→`result.rs`；UI `api/desktop/notification.ts`→`api/tauri/notification.ts`、`api/request/config.ts`→`api/config.ts`、`types/task/todoTask.ts`→`todo-task.ts`；`lib.rs`(1200+ 行) 拆为 `window/event_bridge/iframe/printclient/socket` 模块，lib.rs 仅留 app shell。
-- **UI/UX 全面重设计（2026-06-18）**：基于 `ui-ux-pro-max` skill 的 Enterprise Gateway / Trust & Authority / Minimalism & Swiss Style 方向，重设计 `tokens.css`（语义色板 + 暗色模式）、`WindowHeaderBar.vue`、`home`/`entry`/`notification`/`example`/`logs` 全部视图；统一容器与滚动条样式；图标统一为 Element Plus Icons（`<i-ep-*>`）。
+## 验证建议
 
-## 8.1 待补充能力（需外部资产或需真机验证，暂未启用）
+- UI、TypeScript、桥接封装变更：运行 `pnpm build`，必要时运行 `pnpm lint`。
+- Tauri v1 变更：运行 `client-tauri1/src-tauri` 下的 `cargo check`，并注意国产 Linux 真机差异。
+- Tauri v2：历史版本保留，不作为日常开发、验证或同步目标，除非用户明确单独要求。
+- 跨 iframe / token / 打印协议变更：同时检查 `hub-web` 发送端/接收端，并只读参考 `hub-server` 接口。
 
-| 能力 | 状态 | 需要你提供 / 注意 |
-| --- | --- | --- |
-| 自动更新（updater） | 未启用 | 需「更新服务器/静态托管的 latest.json 地址」+「`tauri signer generate` 生成的签名密钥对」（公钥进 `tauri.conf.json`，私钥签发布物、严禁入库）。建议仅 Windows/macOS 启用；国产 deb 走仓库源。提供后接 `tauri-plugin-updater` 即可。 |
-| 代码签名 / 公证 | 未启用 | Windows 代码签名证书、macOS Developer ID + notarize 凭据，属 CI/发布机密。提供后在 bundle 配置接入。 |
-| Webview CSP | 未启用（`csp: null`） | 收紧 CSP 需精确知道 iframe 内 hub-platform 的静态资源源，且 webkit2.20(legacy) 不可在本机验证、配错即白屏。建议值（待你按真实资源域确认后启用）：`default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: http:; frame-src https: http:`。 |
-| token OS keychain | 用 C16 本地加密代替 | 如需更强凭据保护，可换 Windows DPAPI / Linux Secret Service；但麒麟/统信 legacy 上 secret-service 未必可用，需真机确认。 |
+## 协作规则
 
-## 9. Agent 工作约定
-
-- 输出使用 UTF-8；中文注释。
-- 修改代码前先读取当前实现；hub/ 与 lib.rs 的改动同步到两个壳。
-- 文档只描述当前项目已经存在的结构、配置和命令。
-- 默认遵循 Vite+ 工作流，优先使用 `vp` 命令。
-- 不回滚用户已有变更；只做和当前任务相关的最小必要修改。
-- 视觉改动必须走 `tokens.css` 设计令牌，保持窗口风格统一。
+- 修改前先读取相关模块，不凭文件名猜行为。
+- 不改 `node_modules`、构建产物、日志、截图和无关 lockfile。
+- 不回滚用户已有未提交变更。
+- 文档保持当前事实和高价值约定，避免记录历史流水账、已删除代码清单或过细实现说明。

@@ -41,6 +41,10 @@ export async function showDesktopNotification(notification: AppNotification) {
 }
 
 async function ensureNotificationWindow() {
+  if (notificationWindowPromise) {
+    return notificationWindowPromise;
+  }
+
   const existingWindow = await WebviewWindow.getByLabel(DESKTOP_NOTIFICATION_WINDOW);
 
   if (existingWindow) {

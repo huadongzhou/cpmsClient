@@ -38,9 +38,17 @@ const SOCKET_POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// 手动重连标志：调试页按钮置位，worker 检测到后立即断开并重连。
 static RECONNECT_FLAG: AtomicBool = AtomicBool::new(false);
 
+/// 待重试队列唤醒标志：任意任务转发成功后置位，提示 worker 立即再处理一次积压任务。
+static WAKE_RETRY_FLAG: AtomicBool = AtomicBool::new(false);
+
 /// 请求 worker 立即重连本地 socket 服务。
 pub(crate) fn request_reconnect() {
     RECONNECT_FLAG.store(true, Ordering::SeqCst);
+}
+
+/// 任意任务转发成功后唤醒待重试队列，使此前达到重试上限的积压任务能立即再试。
+pub(crate) fn wake_forward_retry_worker() {
+    WAKE_RETRY_FLAG.store(true, Ordering::SeqCst);
 }
 
 #[tauri::command]
@@ -143,7 +151,10 @@ pub(crate) async fn start_local_socket_worker(app: AppHandle) {
                                 "socket",
                                 &format!("接受推送连接：{peer}"),
                             );
-                            tauri::async_runtime::spawn(handle_push_connection(app.clone(), stream));
+                            tauri::async_runtime::spawn(handle_push_connection(
+                                app.clone(),
+                                stream,
+                            ));
                         }
                         Ok(Err(error)) => {
                             services::log_service::warn(
@@ -230,7 +241,7 @@ fn process_push_message(app: &AppHandle, text: &str) {
         let app_handle = app.clone();
         thread::spawn(move || {
             // 立即认领并转发（与周期 worker 共用认领机制，避免重复转发）。
-            process_pending_forwards(&app_handle);
+            process_pending_forwards(&app_handle, false);
         });
     } else if let Some(task_payload) = parse_todo_payload(payload) {
         let _ = app.emit_to(MAIN_WINDOW_LABEL, CLIENT_TODO_TASK_EVENT, task_payload);
@@ -354,28 +365,46 @@ fn enqueue_pending_forward(app: &AppHandle, message: &str) {
     let Some(dir) = pending_dir(app) else {
         return;
     };
-    let record = json!({ "message": message, "attempts": 0, "at": now_iso_string() });
+    let record =
+        json!({ "message": message, "attempts": 0, "status": "active", "at": now_iso_string() });
     let file = dir.join(format!("{}.json", Uuid::new_v4()));
     if fs::write(&file, record.to_string()).is_ok() {
         services::log_service::info(app, "socket", "打印任务已落盘待转发队列");
     }
 }
 
-/// 启动待转发 worker：先回收上次崩溃残留的在途任务，再定期处理队列。
+/// 启动待转发 worker：先回收上次崩溃残留的在途任务，立即处理一次队列，
+/// 之后定期处理 active 任务；任意任务转发成功后会被唤醒，立即再处理一次待重试任务。
 pub(crate) fn start_forward_retry_worker(app: AppHandle) {
     thread::spawn(move || {
         // 启动即回收上次进程崩溃残留的在途任务（.processing → .json）。
         reclaim_orphaned_processing(&app, true);
+        // 启动后立即处理一次队列；pending-retry 也只在启动/成功唤醒时再试一次。
+        process_pending_forwards(&app, true);
         loop {
-            thread::sleep(FORWARD_RETRY_INTERVAL);
-            process_pending_forwards(&app);
+            let include_waiting = sleep_or_wake(FORWARD_RETRY_INTERVAL);
+            process_pending_forwards(&app, include_waiting);
         }
     });
 }
 
+/// 等待固定间隔，期间若收到唤醒标志则提前返回（并消费标志）。
+fn sleep_or_wake(total: Duration) -> bool {
+    let mut elapsed = Duration::ZERO;
+    let step = Duration::from_millis(250);
+    while elapsed < total {
+        if WAKE_RETRY_FLAG.swap(false, Ordering::SeqCst) {
+            return true;
+        }
+        thread::sleep(step);
+        elapsed += step;
+    }
+    false
+}
+
 /// 处理待转发队列：逐个认领（原子 rename → .processing）后转发，成功出队、失败回写计数。
 /// 认领机制保证「收到即转发」线程、周期 worker、以及多次扫描之间不会重复转发同一任务。
-fn process_pending_forwards(app: &AppHandle) {
+fn process_pending_forwards(app: &AppHandle, include_waiting: bool) {
     let Some(dir) = pending_dir(app) else {
         return;
     };
@@ -392,6 +421,10 @@ fn process_pending_forwards(app: &AppHandle) {
         if path.extension().and_then(|value| value.to_str()) != Some("json") {
             continue;
         }
+        let status = pending_record_status(&path);
+        if status == "pending-retry" && !include_waiting {
+            continue;
+        }
 
         // 认领：原子 rename 到 .processing；失败说明已被并发认领，跳过。
         let claimed = path.with_extension("processing");
@@ -399,16 +432,17 @@ fn process_pending_forwards(app: &AppHandle) {
             continue;
         }
 
-        process_claimed_forward(app, &claimed);
+        process_claimed_forward(app, &claimed, status == "pending-retry");
     }
 }
 
 /// 转发一个已认领（.processing）的任务：成功删文件出队；失败回写 .json（计数+1），达到单轮上限后等待下次唤醒。
-fn process_claimed_forward(app: &AppHandle, claimed: &Path) {
-    let Some((message, attempts, at)) = read_pending_record(claimed) else {
+fn process_claimed_forward(app: &AppHandle, claimed: &Path, was_waiting: bool) {
+    let Some((message, attempts, at, status)) = read_pending_record(claimed) else {
         let _ = fs::remove_file(claimed);
         return;
     };
+    let was_waiting = was_waiting || status == "pending-retry";
 
     let result = forward_socket_task_with_token_retry(app, &message);
     emit_socket_forward_result(app, result.clone());
@@ -417,12 +451,15 @@ fn process_claimed_forward(app: &AppHandle, claimed: &Path) {
         Ok(_) => {
             let _ = fs::remove_file(claimed);
             services::log_service::info(app, "socket", "打印任务转发成功，已出队");
+            // 任意任务成功后，立即唤醒待重试队列，让此前积压的待重试任务有机会再发。
+            wake_forward_retry_worker();
         }
         Err(error) => {
             let next = attempts + 1;
-            let exhausted = next >= MAX_FORWARD_ATTEMPTS;
+            let exhausted = was_waiting || next >= MAX_FORWARD_ATTEMPTS;
             let attempts_to_persist = if exhausted { 0 } else { next };
-            let record = json!({ "message": message, "attempts": attempts_to_persist, "at": at });
+            let status = if exhausted { "pending-retry" } else { "active" };
+            let record = json!({ "message": message, "attempts": attempts_to_persist, "status": status, "at": at });
             let _ = fs::write(claimed.with_extension("json"), record.to_string());
             let _ = fs::remove_file(claimed);
             if exhausted {
@@ -444,13 +481,31 @@ fn process_claimed_forward(app: &AppHandle, claimed: &Path) {
     }
 }
 
-fn read_pending_record(path: &Path) -> Option<(String, u64, Value)> {
+fn pending_record_status(path: &Path) -> String {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        .and_then(|record| {
+            record
+                .get("status")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "active".into())
+}
+
+fn read_pending_record(path: &Path) -> Option<(String, u64, Value, String)> {
     let raw = fs::read_to_string(path).ok()?;
     let record = serde_json::from_str::<Value>(&raw).ok()?;
     let message = record.get("message").and_then(Value::as_str)?.to_string();
     let attempts = record.get("attempts").and_then(Value::as_u64).unwrap_or(0);
     let at = record.get("at").cloned().unwrap_or(Value::Null);
-    Some((message, attempts, at))
+    let status = record
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("active")
+        .to_string();
+    Some((message, attempts, at, status))
 }
 
 /// 回收僵死的 .processing 文件（改回 .json 重新入队）。

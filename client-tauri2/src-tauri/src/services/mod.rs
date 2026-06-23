@@ -45,3 +45,8 @@ pub fn save_cached_auth_token(_app: &tauri::AppHandle, token: &str) -> Result<()
     }
     Ok(())
 }
+
+/// 读取当前会话平台标识。
+pub fn cached_platform(_app: &tauri::AppHandle) -> Option<String> {
+    session_server::session_platform()
+}

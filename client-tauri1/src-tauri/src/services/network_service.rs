@@ -42,7 +42,10 @@ pub fn start_network_monitor(app: AppHandle) -> Result<(), String> {
 
     let join = thread::spawn(move || monitor_loop(worker_app, worker_stop));
 
-    *guard = Some(NetworkMonitorHandle { stop, join: Some(join) });
+    *guard = Some(NetworkMonitorHandle {
+        stop,
+        join: Some(join),
+    });
     Ok(())
 }
 

@@ -8,6 +8,7 @@ import { unwrapCommand } from "@/api/tauri/client";
 type HubClientMethod = keyof HubClientBridge;
 
 interface HubClientBridge {
+  "cpms:ping": (server: ServerLike) => Promise<ClientPingResult>;
   getStartupState: () => Promise<unknown>;
   savePolicyAgreed: () => Promise<unknown>;
   saveAuthState: (state: unknown) => Promise<unknown>;
@@ -35,6 +36,18 @@ interface HubClientBridge {
   listen: (eventName: string, handler: (payload: unknown) => void) => Promise<() => void>;
 }
 
+interface ServerLike {
+  server?: string;
+  https?: boolean;
+}
+
+interface ClientPingResult {
+  ok: boolean;
+  status?: number;
+  elapsed?: number;
+  message?: string;
+}
+
 const HUB_CLIENT_REQUEST = "cpms:hub-client:request";
 const HUB_CLIENT_RESPONSE = "cpms:hub-client:response";
 const HUB_CLIENT_LISTEN = "cpms:hub-client:listen";
@@ -47,6 +60,7 @@ const HUB_CLIENT_UNSUBSCRIBE = "cpms:hub-client:unsubscribe";
  */
 export function createHubClientBridge(): HubClientBridge {
   return {
+    "cpms:ping": pingCpmsServer,
     getStartupState: () => unwrapCommand("get_startup_state"),
     savePolicyAgreed: () => unwrapCommand("save_policy_agreed"),
     saveAuthState: (state: unknown) => unwrapCommand("save_auth_state", { state }),
@@ -87,6 +101,33 @@ export function createHubClientBridge(): HubClientBridge {
       return unlisten;
     },
   };
+}
+
+async function pingCpmsServer(server: ServerLike): Promise<ClientPingResult> {
+  const host = normalizePingHost(server.server);
+  if (!host) {
+    throw new Error("服务地址不能为空");
+  }
+
+  const begin = Date.now();
+  const result = await unwrapCommand<ClientPingResult>("client_ping_address", { host });
+
+  return {
+    ok: true,
+    status: result.status,
+    elapsed: result.elapsed ?? Date.now() - begin,
+    message: result.message,
+  };
+}
+
+function normalizePingHost(server?: string) {
+  const value = server?.trim();
+  if (!value) {
+    return "";
+  }
+
+  const withoutProtocol = value.replace(/^https?:\/\//i, "");
+  return withoutProtocol.split("/")[0]?.split(":")[0]?.trim() ?? "";
 }
 
 /**

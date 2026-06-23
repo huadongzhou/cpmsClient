@@ -1,7 +1,9 @@
+use std::error::Error;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use reqwest::blocking::{multipart, Client};
+use reqwest::blocking::Client;
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
@@ -16,6 +18,7 @@ struct UploadContext {
     server: ServerData,
     user: UserData,
     product_type: i32,
+    platform: String,
 }
 
 /// 转发本地 PrintClient 经 websocket 推送的打印任务到线上服务。
@@ -29,7 +32,7 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
 
     let preferences = load_preferences(&app)?;
     let token = super::cached_auth_token(&app);
-    let Some(context) = build_upload_context(preferences, token) else {
+    let Some(context) = build_upload_context(&app, preferences, token) else {
         // 未登录（无会话 token）：此时签名头无法构建，只记错误（带任务参数）；
         // 该错误会被 with_token_retry 识别为鉴权失败 → 自动向 iframe 取 token 后重试。
         let reason = "未登录：无会话 token，无法转发打印任务";
@@ -55,8 +58,9 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
         &app,
         "socket",
         &format!(
-            "转发打印任务 → 使用 token {}，文件 {}",
+            "转发打印任务 → 使用 token {}，平台 {}，文件 {}",
             context.user.token.as_deref().unwrap_or_default(),
+            context.platform,
             file_path.to_string_lossy()
         ),
     );
@@ -73,6 +77,7 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
 }
 
 fn build_upload_context(
+    app: &AppHandle,
     preferences: HubPreferences,
     token: Option<String>,
 ) -> Option<UploadContext> {
@@ -84,11 +89,15 @@ fn build_upload_context(
     }
     user.token = Some(token.to_string());
 
+    // 平台标识优先使用 iframe 通过 cpms:platform 推送的会话缓存，未推送时默认 windows。
+    let platform = super::cached_platform(app).unwrap_or_else(|| "windows".to_string());
+
     Some(UploadContext {
         // 域名已由 configure.ini 的 ServerAddr 提供（build_cpms_url 优先用它），不强依赖 ServerData。
         server: preferences.server.unwrap_or_default(),
         user,
         product_type: preferences.product_type,
+        platform,
     })
 }
 
@@ -117,7 +126,22 @@ fn upload_print_payload(
         http_service::query_string(&params, true)
     );
     let token = context.user.token.as_deref().unwrap_or_default();
-    let headers = http_service::build_signed_headers(Some(token), UPLOAD_EXEC_PATH, &sign_query)?;
+    let headers = http_service::build_signed_headers(
+        Some(token),
+        Some(&context.platform),
+        UPLOAD_EXEC_PATH,
+        &sign_query,
+    )?;
+
+    let filename = file_path
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| "print.pdf".into());
+    let boundary = format!(
+        "----cpmsBoundary{}",
+        uuid::Uuid::new_v4().to_string().replace('-', "")
+    );
+    let multipart_body = build_multipart_body(file_path, &filename, &boundary)?;
 
     // 请求发起：记完整最终 URL（含 query）+ 完整请求头 + multipart 文件名。
     super::log_service::http_request(
@@ -126,26 +150,38 @@ fn upload_print_payload(
         "POST",
         &url,
         &super::log_service::format_headers_for_log(&headers),
-        &format!("multipart：file={}", file_path.to_string_lossy()),
+        &format!(
+            "multipart：file={}，filename={}，bodyBytes={}",
+            file_path.to_string_lossy(),
+            filename,
+            multipart_body.len()
+        ),
     );
 
-    let form = multipart::Form::new()
-        .file("file", file_path)
-        .map_err(|error| error.to_string())?;
     let client = Client::builder()
         .timeout(Duration::from_secs(30 * 60))
-        .danger_accept_invalid_certs(http_service::allow_insecure_tls())
+        .connect_timeout(Duration::from_secs(10))
+        .http1_only()
+        .danger_accept_invalid_certs(http_service::allow_insecure_tls_for_url(&url))
         .build()
-        .map_err(|error| error.to_string())?;
-    let mut request = client.post(url);
+        .map_err(|error| format_reqwest_error(&error))?;
+    let mut request = client
+        .post(url)
+        .header(
+            "Content-Type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .header("Content-Length", multipart_body.len().to_string())
+        .body(multipart_body);
     for (key, value) in headers {
         request = request.header(key, value);
     }
-    let response = match request.multipart(form).send() {
+    let response = match request.send() {
         Ok(response) => response,
         Err(error) => {
-            super::log_service::http_error(app, "打印上传", &error.to_string());
-            return Err(error.to_string());
+            let detail = format_reqwest_error(&error);
+            super::log_service::http_error(app, "打印上传", &detail);
+            return Err(detail);
         }
     };
 
@@ -192,7 +228,10 @@ fn build_print_query_params(param: &Value, context: &UploadContext) -> Vec<(Stri
         ),
         ("printProperties.driverName".into(), "PdfDriver".into()),
         ("printProperties.portShared".into(), "0".into()),
-        ("printProperties.terminalType".into(), "windows".into()),
+        (
+            "printProperties.terminalType".into(),
+            context.platform.clone(),
+        ),
         (
             "printProperties.pageCount".into(),
             text_field(print_properties, "pageCount", "1"),
@@ -244,4 +283,37 @@ fn normalized_document_name(value: String) -> String {
         next.push_str(".pdf");
     }
     next
+}
+
+fn format_reqwest_error(error: &reqwest::Error) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(err) = source {
+        message.push_str(&format!(" | {err}"));
+        source = err.source();
+    }
+    message
+}
+
+fn build_multipart_body(
+    file_path: &Path,
+    filename: &str,
+    boundary: &str,
+) -> Result<Vec<u8>, String> {
+    let mut file =
+        std::fs::File::open(file_path).map_err(|error| format!("打开上传文件失败: {error}"))?;
+    let mut file_bytes = Vec::new();
+    file.read_to_end(&mut file_bytes)
+        .map_err(|error| format!("读取上传文件失败: {error}"))?;
+
+    let mut body = Vec::new();
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(b"Content-Type: application/pdf\r\n\r\n");
+    body.extend_from_slice(&file_bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    Ok(body)
 }

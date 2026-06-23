@@ -127,18 +127,24 @@ pub fn build_cpms_url(server: &ServerData, path: &str) -> Result<String, String>
 }
 
 /// Builds standard CPMS headers with token, signature, client, and platform fields.
+/// `platform` 优先使用 iframe 推送的会话缓存；未推送时默认 `windows`。
 pub fn build_signed_headers(
     token: Option<&str>,
+    platform: Option<&str>,
     uri: &str,
     params: &str,
 ) -> Result<Vec<(String, String)>, String> {
+    let platform = platform
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("windows");
     let mut headers = vec![
         (
             "access_sign".into(),
             crypto_service::sign_request(uri, params)?,
         ),
         ("client".into(), "client".into()),
-        ("platform".into(), "windows".into()),
+        ("platform".into(), platform.into()),
     ];
 
     if let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) {

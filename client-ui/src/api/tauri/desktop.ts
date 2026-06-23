@@ -112,3 +112,18 @@ export function clearClientSessionDirectDeviceId() {
 export function getClientSessionDirectDeviceId() {
   return unwrapCommand<string | null>("get_session_direct_device_id");
 }
+
+/** 设置会话级平台标识（iframe 推送）。 */
+export function setClientSessionPlatform(platform: string) {
+  return unwrapCommand<boolean>("set_session_platform", { platform });
+}
+
+/** 清空会话级平台标识。 */
+export function clearClientSessionPlatform() {
+  return unwrapCommand<boolean>("clear_session_platform");
+}
+
+/** 获取当前会话级平台标识（调试用）。 */
+export function getClientSessionPlatform() {
+  return unwrapCommand<string | null>("get_session_platform");
+}

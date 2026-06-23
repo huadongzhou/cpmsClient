@@ -13,12 +13,29 @@ use crate::AppRuntimeState;
 const TOKEN_REFRESH_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// 对一次「客户端→服务端」请求套用 token 失效重取：
+/// 发起前先确保会话 token 非空（空则主动向 iframe 拉取一次）；
 /// 首次失败若为鉴权失败 → 清 token → 向 iframe 取新 token → 不一致则重试一次。
 /// `attempt` 每次调用都应重新读取会话 token 后再发请求。
 pub(crate) fn with_token_retry<F>(app: &AppHandle, mut attempt: F) -> Result<Value, String>
 where
     F: FnMut() -> Result<Value, String>,
 {
+    if services::cached_auth_token(app)
+        .map(|token| token.trim().is_empty())
+        .unwrap_or(true)
+    {
+        services::log_service::info(
+            app,
+            "cache",
+            "会话 token 为空，请求前主动向 iframe 拉取 token",
+        );
+        if ensure_token_available(app).is_none() {
+            let error = "未能从 iframe 获取有效 token，请求取消";
+            services::log_service::warn(app, "cache", error);
+            return Err(error.into());
+        }
+    }
+
     let result = attempt();
     let Err(error) = result else {
         return result;
@@ -73,6 +90,18 @@ pub(crate) fn is_auth_failure_error(error: &str) -> bool {
         // 当前会话没有 token：同样触发向 iframe 取 token 后重试（DESIGN 需求3：客户端主动取 token）。
         || error.contains("未登录")
         || error.contains("token 为空")
+}
+
+/// 主动确保会话 token 可用：若当前为空，则向 iframe 查询并写入会话内存。
+fn ensure_token_available(app: &AppHandle) -> Option<String> {
+    if let Some(token) = services::cached_auth_token(app).filter(|token| !token.trim().is_empty()) {
+        return Some(token);
+    }
+
+    let fresh = refresh_token_via_iframe(app, TOKEN_REFRESH_TIMEOUT)?;
+    let _ = services::save_cached_auth_token(app, &fresh);
+    services::log_service::info(app, "cache", "已主动从 iframe 拉取并写入会话 token");
+    Some(fresh)
 }
 
 /// 向视图端发起一次 iframe payload 查询，轮询等待回传并提取 token。

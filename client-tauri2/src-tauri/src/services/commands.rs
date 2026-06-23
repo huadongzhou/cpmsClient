@@ -170,6 +170,32 @@ pub fn get_session_direct_device_id(_app: AppHandle) -> CommandResult<Option<Str
     CommandResult::ok(super::session_server::session_direct_device_id())
 }
 
+#[tauri::command]
+/// 设置会话级平台标识（iframe 推送），不持久化，应用关闭即失效。
+pub fn set_session_platform(app: AppHandle, platform: String) -> CommandResult<bool> {
+    let platform = platform.trim().to_string();
+    if platform.is_empty() {
+        return CommandResult::fail("HUB_SESSION_PLATFORM_EMPTY", "platform 不能为空");
+    }
+    super::session_server::set_session_platform(Some(platform.clone()));
+    super::log_service::info(&app, "business", &format!("会话平台标识已更新: {platform}"));
+    CommandResult::ok(true)
+}
+
+#[tauri::command]
+/// 清空会话级平台标识。
+pub fn clear_session_platform(app: AppHandle) -> CommandResult<bool> {
+    super::session_server::set_session_platform(None);
+    super::log_service::info(&app, "business", "会话平台标识已清空");
+    CommandResult::ok(true)
+}
+
+#[tauri::command]
+/// 获取当前会话级平台标识（调试用）。
+pub fn get_session_platform(_app: AppHandle) -> CommandResult<Option<String>> {
+    CommandResult::ok(super::session_server::session_platform())
+}
+
 fn normalize_session_server_addr(addr: &str) -> Option<String> {
     let trimmed = addr.trim();
     if trimmed.is_empty() {
@@ -511,7 +537,8 @@ fn cpms_get_once(app: &AppHandle, path: &str) -> Result<Value, String> {
     let (server, user) = load_server_user(app)?;
     let url = http_service::build_cpms_url(&server, path)?;
     let token = user.token.as_deref().unwrap_or_default();
-    let headers = http_service::build_signed_headers(Some(token), path, "")?;
+    let platform = super::cached_platform(app);
+    let headers = http_service::build_signed_headers(Some(token), platform.as_deref(), path, "")?;
 
     super::log_service::http_request(
         app,
@@ -556,7 +583,9 @@ fn cpms_form_post_once(
     let url = http_service::build_cpms_url(&server, path)?;
     let sign_params = http_service::query_string(params, false);
     let token = user.token.as_deref().unwrap_or_default();
-    let headers = http_service::build_signed_headers(Some(token), path, &sign_params)?;
+    let platform = super::cached_platform(app);
+    let headers =
+        http_service::build_signed_headers(Some(token), platform.as_deref(), path, &sign_params)?;
     let body = http_service::query_string(params, true);
 
     super::log_service::http_request(

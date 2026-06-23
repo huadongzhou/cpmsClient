@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use tauri::AppHandle;
 
 use crate::result::CommandResult;
+use crate::socket;
 
 use super::crypto_service;
 use super::events::{emit_background_state, emit_hub_state};
@@ -72,6 +73,9 @@ pub fn save_auth_state(app: AppHandle, state: AuthPersistState) -> CommandResult
         "business",
         "用户登录态已保存（token 仅保存在会话内存）",
     );
+    if pushed_token.is_some() {
+        socket::process_pending_forwards_after_token_update(app.clone());
+    }
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
@@ -153,6 +157,7 @@ pub fn set_session_direct_device_id(app: AppHandle, device_id: String) -> Comman
         "business",
         &format!("会话直连设备 ID 已更新: {device_id}"),
     );
+    socket::process_pending_forwards_after_token_update(app.clone());
     CommandResult::ok(true)
 }
 
@@ -168,6 +173,32 @@ pub fn clear_session_direct_device_id(app: AppHandle) -> CommandResult<bool> {
 /// 获取当前会话级直连设备 ID（调试用）。
 pub fn get_session_direct_device_id(_app: AppHandle) -> CommandResult<Option<String>> {
     CommandResult::ok(super::session_server::session_direct_device_id())
+}
+
+#[tauri::command]
+/// 设置会话级平台标识（iframe 推送），不持久化，应用关闭即失效。
+pub fn set_session_platform(app: AppHandle, platform: String) -> CommandResult<bool> {
+    let platform = platform.trim().to_string();
+    if platform.is_empty() {
+        return CommandResult::fail("HUB_SESSION_PLATFORM_EMPTY", "platform 不能为空");
+    }
+    super::session_server::set_session_platform(Some(platform.clone()));
+    super::log_service::info(&app, "business", &format!("会话平台标识已更新: {platform}"));
+    CommandResult::ok(true)
+}
+
+#[tauri::command]
+/// 清空会话级平台标识。
+pub fn clear_session_platform(app: AppHandle) -> CommandResult<bool> {
+    super::session_server::set_session_platform(None);
+    super::log_service::info(&app, "business", "会话平台标识已清空");
+    CommandResult::ok(true)
+}
+
+#[tauri::command]
+/// 获取当前会话级平台标识（调试用）。
+pub fn get_session_platform(_app: AppHandle) -> CommandResult<Option<String>> {
+    CommandResult::ok(super::session_server::session_platform())
 }
 
 fn normalize_session_server_addr(addr: &str) -> Option<String> {
@@ -213,6 +244,9 @@ pub fn save_direct_device(app: AppHandle, device: Value) -> CommandResult<Value>
             device_id.as_deref().unwrap_or("")
         ),
     );
+    if device_id.is_some() {
+        socket::process_pending_forwards_after_token_update(app.clone());
+    }
     CommandResult::ok(device)
 }
 
@@ -240,6 +274,7 @@ pub fn save_auth_token(app: AppHandle, token: String) -> CommandResult<StartupSt
     }
 
     super::log_service::info(&app, "business", "登录 token 已更新（会话内存）");
+    socket::process_pending_forwards_after_token_update(app.clone());
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
@@ -319,14 +354,13 @@ pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Valu
         return CommandResult::fail("HUB_DIRECT_DEVICE_UPDATE_ERROR", &error);
     }
 
-    super::session_server::set_session_direct_device_id(
-        direct_device_id_from_value(&device).or_else(|| {
-            params
-                .first()
-                .map(|(_, value)| value.clone())
-                .filter(|value| !value.trim().is_empty())
-        }),
-    );
+    let updated_device_id = direct_device_id_from_value(&device).or_else(|| {
+        params
+            .first()
+            .map(|(_, value)| value.clone())
+            .filter(|value| !value.trim().is_empty())
+    });
+    super::session_server::set_session_direct_device_id(updated_device_id.clone());
 
     if let Err(error) = update_preferences(&app, |preferences| {
         preferences.auth_direct_device = None;
@@ -335,6 +369,9 @@ pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Valu
     }
 
     super::log_service::info(&app, "business", "设备选择成功，旧直连设备缓存已清空");
+    if updated_device_id.is_some() {
+        socket::process_pending_forwards_after_token_update(app.clone());
+    }
     CommandResult::ok(json!({
         "success": true,
         "code": "OK",
@@ -511,7 +548,8 @@ fn cpms_get_once(app: &AppHandle, path: &str) -> Result<Value, String> {
     let (server, user) = load_server_user(app)?;
     let url = http_service::build_cpms_url(&server, path)?;
     let token = user.token.as_deref().unwrap_or_default();
-    let headers = http_service::build_signed_headers(Some(token), path, "")?;
+    let platform = super::cached_platform(app);
+    let headers = http_service::build_signed_headers(Some(token), platform.as_deref(), path, "")?;
 
     super::log_service::http_request(
         app,
@@ -522,7 +560,7 @@ fn cpms_get_once(app: &AppHandle, path: &str) -> Result<Value, String> {
         "",
     );
 
-    let client = cpms_client()?;
+    let client = cpms_client(&url)?;
     let mut request = client.get(url);
 
     for (key, value) in headers {
@@ -556,7 +594,9 @@ fn cpms_form_post_once(
     let url = http_service::build_cpms_url(&server, path)?;
     let sign_params = http_service::query_string(params, false);
     let token = user.token.as_deref().unwrap_or_default();
-    let headers = http_service::build_signed_headers(Some(token), path, &sign_params)?;
+    let platform = super::cached_platform(app);
+    let headers =
+        http_service::build_signed_headers(Some(token), platform.as_deref(), path, &sign_params)?;
     let body = http_service::query_string(params, true);
 
     super::log_service::http_request(
@@ -568,7 +608,7 @@ fn cpms_form_post_once(
         &body,
     );
 
-    let client = cpms_client()?;
+    let client = cpms_client(&url)?;
     let mut request = client
         .post(url)
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -604,10 +644,10 @@ fn load_server_user(app: &AppHandle) -> Result<(ServerData, UserData), String> {
     Ok((server, user))
 }
 
-fn cpms_client() -> Result<Client, String> {
+fn cpms_client(url: &str) -> Result<Client, String> {
     Client::builder()
         .timeout(Duration::from_secs(15))
-        .danger_accept_invalid_certs(http_service::allow_insecure_tls())
+        .danger_accept_invalid_certs(http_service::allow_insecure_tls_for_url(url))
         .build()
         .map_err(|error| error.to_string())
 }

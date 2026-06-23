@@ -101,11 +101,14 @@ pub fn client_submit_iframe_payload(
         .filter(|value| !value.is_empty())
     {
         match services::save_cached_auth_token(&app, token) {
-            Ok(_) => services::log_service::info(
-                &app,
-                "cache",
-                &format!("已从 iframe 上报更新会话 token 明文：{token}"),
-            ),
+            Ok(_) => {
+                services::log_service::info(
+                    &app,
+                    "cache",
+                    &format!("已从 iframe 上报更新会话 token 明文：{token}"),
+                );
+                crate::socket::process_pending_forwards_after_token_update(app.clone());
+            }
             Err(err) => services::log_service::warn(
                 &app,
                 "cache",
@@ -313,7 +316,9 @@ pub(crate) async fn refresh_iframe_container(app: &AppHandle) -> ClientIframeEve
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_millis(8_000))
-        .danger_accept_invalid_certs(services::http_service::allow_insecure_tls())
+        .danger_accept_invalid_certs(services::http_service::allow_insecure_tls_for_url(
+            &endpoint,
+        ))
         .build()
     {
         Ok(value) => value,

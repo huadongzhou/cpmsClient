@@ -1,8 +1,10 @@
 import { createMessageId, listenClientEvent } from "@/api/tauri/events";
 import {
   clearClientSessionDirectDeviceId,
+  clearClientSessionPlatform,
   clearClientSessionServerAddress,
   setClientSessionDirectDeviceId,
+  setClientSessionPlatform,
   setClientSessionServerAddress,
   submitClientIframePayload,
 } from "@/api/tauri/desktop";
@@ -14,6 +16,8 @@ const IFRAME_TOKEN_EVENT = "cpms:token";
 const IFRAME_SERVER_ADDRESS_EVENT = "cpms:serverAddress";
 /** iframe 向客户端推送当前直连设备 ID。 */
 const IFRAME_DIRECT_DEVICE_EVENT = "cpms:deviceId";
+/** iframe 向客户端推送当前平台标识。 */
+const IFRAME_PLATFORM_EVENT = "cpms:platform";
 /** 认证过期时通知 iframe 重新登录/刷新会话。 */
 const IFRAME_REFRESH_EVENT = "cpms:refresh";
 
@@ -36,7 +40,13 @@ interface DirectDeviceMessage {
   payload?: string;
 }
 
-type IframeMessage = TokenMessage | ServerAddressMessage | DirectDeviceMessage;
+/** iframe 推送的平台标识消息。 */
+interface PlatformMessage {
+  type: "cpms:platform";
+  payload?: string;
+}
+
+type IframeMessage = TokenMessage | ServerAddressMessage | DirectDeviceMessage | PlatformMessage;
 
 export interface IframePayloadBridgeResult {
   id: string;
@@ -93,6 +103,20 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
       } else {
         void clearClientSessionDirectDeviceId().catch((error) => {
           console.warn("[iframe bridge] 清空会话直连设备 ID 失败", error);
+        });
+      }
+      return;
+    }
+
+    if (data.type === IFRAME_PLATFORM_EVENT) {
+      const platform = typeof data.payload === "string" ? data.payload.trim() : "";
+      if (platform) {
+        void setClientSessionPlatform(platform).catch((error) => {
+          console.warn("[iframe bridge] 设置会话平台标识失败", error);
+        });
+      } else {
+        void clearClientSessionPlatform().catch((error) => {
+          console.warn("[iframe bridge] 清空会话平台标识失败", error);
         });
       }
       return;
@@ -166,32 +190,45 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
     pending.clear();
   });
 
-  /** 机制1：向 iframe 发送 `cpms:token` 请求，等待统一出口里匹配 id 的响应（超时回失败）。 */
+  /** 机制1：向 iframe 发送 `cpms:token` 请求，等待统一出口里匹配 id 的响应（超时回失败）。
+   * 若 iframe 尚未加载完成，会轮询等待 contentWindow 最多 5 秒，避免启动初期立即失败。 */
   function queryIframeToken(id: string, reason: string): Promise<IframePayloadBridgeResult> {
-    const iframeWindow = iframeRef.value?.contentWindow;
-
-    if (!iframeWindow) {
-      const error = "iframe window unavailable";
-      void submitClientIframePayload({ id, ok: false, reason, error });
-      return Promise.resolve({ id, ok: false, reason, error });
-    }
-
     return new Promise((resolve) => {
-      const timer = window.setTimeout(() => {
-        if (!pending.has(id)) {
+      const startAt = Date.now();
+      const timeoutMs = 8_000;
+      const iframeWaitMs = 5_000;
+
+      function trySend() {
+        const iframeWindow = iframeRef.value?.contentWindow;
+        if (!iframeWindow) {
+          if (Date.now() - startAt < iframeWaitMs) {
+            window.setTimeout(trySend, 200);
+            return;
+          }
+          const error = "iframe window unavailable";
+          void submitClientIframePayload({ id, ok: false, reason, error });
+          resolve({ id, ok: false, reason, error });
           return;
         }
-        pending.delete(id);
-        const error = "query token timeout";
-        void submitClientIframePayload({ id, ok: false, reason, error });
-        resolve({ id, ok: false, reason, error });
-      }, 8_000);
 
-      pending.set(id, { reason, resolve, timer });
-      iframeWindow.postMessage(
-        { id, type: IFRAME_TOKEN_EVENT, payload: null, time: Date.now(), reason },
-        "*",
-      );
+        const timer = window.setTimeout(() => {
+          if (!pending.has(id)) {
+            return;
+          }
+          pending.delete(id);
+          const error = "query token timeout";
+          void submitClientIframePayload({ id, ok: false, reason, error });
+          resolve({ id, ok: false, reason, error });
+        }, timeoutMs - (Date.now() - startAt));
+
+        pending.set(id, { reason, resolve, timer });
+        iframeWindow.postMessage(
+          { id, type: IFRAME_TOKEN_EVENT, payload: null, time: Date.now(), reason },
+          "*",
+        );
+      }
+
+      trySend();
     });
   }
 

@@ -4,6 +4,7 @@
 //! - `cpms:serverAddress` → 服务端地址
 //! - `cpms:deviceId` → 直连设备 ID
 //! - `cpms:token` → 登录 token
+//! - `cpms:platform` → 平台标识（harmony/windows），用于 platform 头与 printProperties.terminalType
 //!
 //! 这些值仅存于应用进程内存，关闭即失效；回到首页时清空。
 
@@ -12,6 +13,7 @@ use std::sync::{Mutex, OnceLock};
 static SESSION_SERVER_ADDR: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 static SESSION_DIRECT_DEVICE_ID: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 static SESSION_AUTH_TOKEN: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+static SESSION_PLATFORM: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 fn get_or_init_mutex<T>(once: &OnceLock<Mutex<Option<T>>>) -> &Mutex<Option<T>> {
     once.get_or_init(|| Mutex::new(None))
@@ -61,4 +63,14 @@ pub(crate) fn session_auth_token() -> Option<String> {
 /// 设置或清空会话登录 token。
 pub(crate) fn set_session_auth_token(token: Option<String>) {
     write_session_string(&SESSION_AUTH_TOKEN, token);
+}
+
+/// 读取当前会话平台标识（由 iframe 通过 cpms:platform 推送）。
+pub(crate) fn session_platform() -> Option<String> {
+    read_session_string(&SESSION_PLATFORM)
+}
+
+/// 设置或清空会话平台标识。
+pub(crate) fn set_session_platform(platform: Option<String>) {
+    write_session_string(&SESSION_PLATFORM, platform);
 }

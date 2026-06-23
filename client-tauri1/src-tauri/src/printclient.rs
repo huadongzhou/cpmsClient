@@ -165,7 +165,9 @@ fn process_print_client_dir() -> Option<PathBuf> {
 
     let need_scan = match guard.as_ref() {
         // 已找到的结果稳定复用；未找到的每 10s 重扫一次（PrintClient 可能后启动）。
-        Some((scanned_at, result)) => result.is_none() && scanned_at.elapsed() >= PROCESS_RESCAN_INTERVAL,
+        Some((scanned_at, result)) => {
+            result.is_none() && scanned_at.elapsed() >= PROCESS_RESCAN_INTERVAL
+        }
         None => true,
     };
 

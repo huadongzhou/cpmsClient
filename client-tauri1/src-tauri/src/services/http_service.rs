@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -27,6 +28,50 @@ pub(crate) fn allow_insecure_tls() -> bool {
         .unwrap_or(false)
 }
 
+pub(crate) fn allow_insecure_tls_for_url(url: &str) -> bool {
+    if allow_insecure_tls() {
+        return true;
+    }
+
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+
+    if parsed.scheme() != "https" {
+        return false;
+    }
+
+    parsed.host_str().map(is_intranet_host).unwrap_or(false)
+}
+
+fn is_intranet_host(host: &str) -> bool {
+    let host = host
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_lowercase();
+
+    if host == "localhost" {
+        return true;
+    }
+
+    match host.parse::<IpAddr>() {
+        Ok(IpAddr::V4(addr)) => {
+            let [a, b, _, _] = addr.octets();
+            a == 10
+                || a == 127
+                || (a == 172 && (16..=31).contains(&b))
+                || (a == 192 && b == 168)
+                || (a == 169 && b == 254)
+        }
+        Ok(IpAddr::V6(addr)) => {
+            let first = addr.segments()[0];
+            addr.is_loopback() || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
+        }
+        Err(_) => false,
+    }
+}
+
 /// Executes the generic Web-to-client HTTP proxy request.
 pub async fn execute_client_http_request(
     app: &AppHandle,
@@ -40,7 +85,7 @@ pub async fn execute_client_http_request(
     let timeout = Duration::from_millis(request.timeout_ms.unwrap_or(15_000));
     let client = reqwest::Client::builder()
         .timeout(timeout)
-        .danger_accept_invalid_certs(allow_insecure_tls())
+        .danger_accept_invalid_certs(allow_insecure_tls_for_url(&url))
         .build()
         .map_err(|error| error.to_string())?;
     let mut builder = client.request(method, &url);
@@ -127,18 +172,24 @@ pub fn build_cpms_url(server: &ServerData, path: &str) -> Result<String, String>
 }
 
 /// Builds standard CPMS headers with token, signature, client, and platform fields.
+/// `platform` 优先使用 iframe 推送的会话缓存；未推送时默认 `windows`。
 pub fn build_signed_headers(
     token: Option<&str>,
+    platform: Option<&str>,
     uri: &str,
     params: &str,
 ) -> Result<Vec<(String, String)>, String> {
+    let platform = platform
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("windows");
     let mut headers = vec![
         (
             "access_sign".into(),
             crypto_service::sign_request(uri, params)?,
         ),
         ("client".into(), "client".into()),
-        ("platform".into(), "windows".into()),
+        ("platform".into(), platform.into()),
     ];
 
     if let Some(token) = token.map(str::trim).filter(|value| !value.is_empty()) {
