@@ -42,7 +42,7 @@ html {
   font-weight: var(--cpms-font-weight-normal);
 
   color: var(--cpms-color-text-primary);
-  background-color: var(--cpms-color-bg-app);
+  background-color: transparent;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -56,6 +56,7 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
+  background: transparent;
 }
 
 #app {
@@ -64,6 +65,8 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  border-radius: var(--cpms-radius-panel);
+  background: transparent;
 }
 
 * {
@@ -73,6 +76,13 @@ body {
 ::selection {
   color: var(--cpms-color-text-on-primary);
   background-color: var(--cpms-color-primary);
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 2px solid var(--cpms-color-primary);
+  outline-offset: 2px;
 }
 
 /* WebKit 统一滚动条 */

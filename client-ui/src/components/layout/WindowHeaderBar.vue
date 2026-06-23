@@ -1,36 +1,45 @@
 <script setup lang="ts" name="WindowHeaderBar">
-import { computed } from "vue";
-import Icon from "@/components/common/Icon.vue";
+import { computed } from 'vue'
+import {
+  Aim,
+  CloseBold,
+  FullScreen,
+  HomeFilled,
+  Minus,
+  MostlyCloudy,
+} from '@element-plus/icons-vue'
 
-type WindowControl = "pin" | "collapse" | "fullscreen" | "close";
+type WindowControl = 'entry' | 'pin' | 'collapse' | 'fullscreen' | 'close'
 
 const props = withDefaults(
   defineProps<{
-    title: string;
-    icon?: string;
-    pinned?: boolean;
-    fullscreen?: boolean;
-    controls?: WindowControl[];
+    title: string
+    icon?: string
+    pinned?: boolean
+    fullscreen?: boolean
+    controls?: WindowControl[]
   }>(),
   {
-    icon: "",
+    icon: '',
     pinned: false,
     fullscreen: false,
-    controls: () => ["pin", "collapse", "fullscreen", "close"],
-  },
-);
+    controls: () => ['pin', 'collapse', 'fullscreen', 'close']
+  }
+)
 
 const emit = defineEmits<{
-  pin: [];
-  collapse: [];
-  fullscreen: [];
-  close: [];
-}>();
+  entry: []
+  pin: []
+  collapse: []
+  fullscreen: []
+  close: []
+}>()
 
-const pinLabel = computed(() => (props.pinned ? "取消固定窗口" : "固定窗口"));
-const pinTitle = computed(() => (props.pinned ? "取消固定" : "固定"));
-const fullscreenLabel = computed(() => (props.fullscreen ? "退出全屏" : "全屏窗口"));
-const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全屏"));
+const pinLabel = computed(() => (props.pinned ? '取消固定窗口' : '固定窗口'))
+const pinTitle = computed(() => (props.pinned ? '取消固定' : '固定'))
+const fullscreenLabel = computed(() => (props.fullscreen ? '退出全屏' : '全屏窗口'))
+const fullscreenTitle = computed(() => (props.fullscreen ? '退出全屏' : '全屏'))
+const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
 </script>
 
 <template>
@@ -41,6 +50,16 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
     </div>
     <nav class="headerbar-actions" aria-label="窗口控制">
       <button
+        v-if="controls.includes('entry')"
+        type="button"
+        class="headerbar-button"
+        aria-label="回到入口页"
+        title="入口页"
+        @click="emit('entry')"
+      >
+        <el-icon class="headerbar-icon"><HomeFilled /></el-icon>
+      </button>
+      <button
         v-if="controls.includes('pin')"
         type="button"
         class="headerbar-button"
@@ -49,7 +68,7 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
         :title="pinTitle"
         @click="emit('pin')"
       >
-        <Icon icon="solar:pin-bold" class="headerbar-icon" />
+        <el-icon class="headerbar-icon"><MostlyCloudy /></el-icon>
       </button>
       <button
         v-if="controls.includes('collapse')"
@@ -59,7 +78,7 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
         title="收起"
         @click="emit('collapse')"
       >
-        <Icon icon="solar:minimize-square-minimalistic-bold" class="headerbar-icon" />
+        <el-icon class="headerbar-icon"><Minus /></el-icon>
       </button>
       <button
         v-if="controls.includes('fullscreen')"
@@ -70,10 +89,7 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
         :title="fullscreenTitle"
         @click="emit('fullscreen')"
       >
-        <Icon
-          :icon="fullscreen ? 'solar:quit-full-screen-square-bold' : 'solar:full-screen-square-bold'"
-          class="headerbar-icon"
-        />
+        <el-icon class="headerbar-icon"><component :is="fullscreenIcon" /></el-icon>
       </button>
       <el-tooltip content="隐藏到托盘" placement="bottom">
         <button
@@ -84,7 +100,7 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
           title="关闭"
           @click="emit('close')"
         >
-          <Icon icon="solar:close-square-bold" class="headerbar-icon" />
+          <el-icon class="headerbar-icon"><CloseBold /></el-icon>
         </button>
       </el-tooltip>
     </nav>
@@ -100,8 +116,10 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
   flex: none;
   height: var(--cpms-headerbar-height);
   padding: 0 var(--cpms-space-base);
-  background: var(--cpms-color-bg-panel);
-  border-bottom: 1px solid var(--cpms-color-border);
+  background: rgba(15, 23, 42, 1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--cpms-color-text-on-primary);
+  backdrop-filter: blur(12px);
   user-select: none;
 }
 
@@ -113,8 +131,8 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
 }
 
 .headerbar-logo {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   flex: none;
 }
 
@@ -122,7 +140,7 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
   font-size: var(--cpms-font-size-base);
   font-weight: var(--cpms-font-weight-semibold);
   line-height: var(--cpms-line-height-small);
-  color: var(--cpms-color-text-primary);
+  color: var(--cpms-color-text-on-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -131,20 +149,20 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
 .headerbar-actions {
   display: flex;
   align-items: center;
-  gap: var(--cpms-space-xs);
+  gap: var(--cpms-space-1);
   flex: none;
 }
 
 .headerbar-button {
   display: inline-grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: var(--cpms-radius-small);
   background: transparent;
-  color: var(--cpms-color-text-secondary);
+  color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
   transition:
     color var(--cpms-duration-fast) var(--cpms-easing-base),
@@ -153,15 +171,20 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
 }
 
 .headerbar-button .headerbar-icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: currentcolor;
   fill: currentcolor;
 }
 
 .headerbar-button:hover {
-  background: var(--cpms-color-bg-hover);
-  color: var(--cpms-color-text-primary);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--cpms-color-text-on-primary);
+}
+
+.headerbar-button:focus-visible {
+  outline: 2px solid var(--cpms-color-primary-border);
+  outline-offset: 2px;
 }
 
 .headerbar-button:active {
@@ -169,13 +192,13 @@ const fullscreenTitle = computed(() => (props.fullscreen ? "退出全屏" : "全
 }
 
 .headerbar-button.is-active {
-  color: var(--cpms-color-primary);
-  background: var(--cpms-color-primary-bg);
+  color: var(--cpms-color-primary-border);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .headerbar-button-close:hover {
-  background: var(--cpms-color-danger-bg);
-  color: var(--cpms-color-danger);
+  background: var(--cpms-color-danger);
+  color: var(--cpms-color-text-on-primary);
 }
 
 @media (prefers-reduced-motion: reduce) {

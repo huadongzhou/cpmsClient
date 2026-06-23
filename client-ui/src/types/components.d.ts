@@ -25,7 +25,7 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ErrorNotice: typeof import('./../components/common/ErrorNotice.vue')['default']
-    Icon: typeof import('./../components/common/Icon.vue')['default']
+    WindowFrame: typeof import('./../components/layout/WindowFrame.vue')['default']
     WindowHeaderBar: typeof import('./../components/layout/WindowHeaderBar.vue')['default']
   }
 }

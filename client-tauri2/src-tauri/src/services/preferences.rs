@@ -20,11 +20,17 @@ pub fn load_preferences(app: &AppHandle) -> Result<HubPreferences, String> {
     let mut preferences =
         serde_json::from_str::<HubPreferences>(&raw).map_err(|error| error.to_string())?;
 
-    // 落盘 token 是加密的（旧明文兼容），读取时透明解密。
-    if let (Some(dir), Some(user)) = (path.parent(), preferences.user.as_mut()) {
-        if let Some(token) = user.token.take() {
-            user.token = super::token_store::decrypt(dir, &token);
+    let mut cleared_legacy_cache = false;
+    if let Some(user) = preferences.user.as_mut() {
+        if user.token.take().is_some() {
+            cleared_legacy_cache = true;
         }
+    }
+    if preferences.auth_direct_device.take().is_some() {
+        cleared_legacy_cache = true;
+    }
+    if cleared_legacy_cache {
+        let _ = save_preferences(app, &preferences);
     }
 
     Ok(preferences)
@@ -36,13 +42,12 @@ pub fn save_preferences(app: &AppHandle, preferences: &HubPreferences) -> Result
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
 
-    // 写盘前加密 token，避免凭据明文落盘。
+    // token/deviceId 只允许作为 iframe 主动推送的会话态存在，写盘前统一剥离旧值。
     let mut to_persist = preferences.clone();
-    if let (Some(dir), Some(user)) = (path.parent(), to_persist.user.as_mut()) {
-        if let Some(token) = user.token.take().filter(|value| !value.is_empty()) {
-            user.token = Some(super::token_store::encrypt(dir, &token));
-        }
+    if let Some(user) = to_persist.user.as_mut() {
+        user.token = None;
     }
+    to_persist.auth_direct_device = None;
 
     let raw = serde_json::to_string_pretty(&to_persist).map_err(|error| error.to_string())?;
     fs::write(path, raw).map_err(|error| error.to_string())

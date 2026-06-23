@@ -11,7 +11,7 @@ export const useLogStore = defineStore("log", () => {
     [...logs.value]
       .reverse()
       .map((entry) => {
-        const head = `[${entry.at}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.title}`;
+        const head = `[${entry.at}] [${entry.level.toUpperCase()}] ${entry.title}`;
         return entry.detail ? `${head}\n${entry.detail}` : head;
       })
       .join("\n"),

@@ -6,8 +6,8 @@
 
 ---
 
-**Project:** CPMS Client
-**Generated:** 2026-06-18 10:50:09
+**Project:** CPMS Enterprise Gateway
+**Generated:** 2026-06-22 10:50:31
 **Category:** B2B Service
 
 ---
@@ -18,29 +18,29 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#2563EB` | `--color-primary` |
+| Primary | `#1E3A8A` | `--color-primary` |
 | On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#3B82F6` | `--color-secondary` |
-| Accent/CTA | `#059669` | `--color-accent` |
+| Secondary | `#1E40AF` | `--color-secondary` |
+| Accent/CTA | `#B45309` | `--color-accent` |
 | Background | `#F8FAFC` | `--color-background` |
 | Foreground | `#0F172A` | `--color-foreground` |
-| Muted | `#F1F5FD` | `--color-muted` |
-| Border | `#E4ECFC` | `--color-border` |
+| Muted | `#E9EEF5` | `--color-muted` |
+| Border | `#CBD5E1` | `--color-border` |
 | Destructive | `#DC2626` | `--color-destructive` |
-| Ring | `#2563EB` | `--color-ring` |
+| Ring | `#1E3A8A` | `--color-ring` |
 
-**Color Notes:** Professional blue + deal green
+**Color Notes:** Authority navy + trust gold
 
 ### Typography
 
-- **Heading Font:** Inter
-- **Body Font:** Inter
-- **Mood:** minimal, clean, swiss, functional, neutral, professional
-- **Google Fonts:** [Inter + Inter](https://fonts.google.com/share?selection.family=Inter:wght@300;400;500;600;700)
+- **Heading Font:** Lexend
+- **Body Font:** Source Sans 3
+- **Mood:** corporate, trustworthy, accessible, readable, professional, clean
+- **Google Fonts:** [Lexend + Source Sans 3](https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap)
 
 **CSS Import:**
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
 ```
 
 ### Spacing Variables
@@ -73,7 +73,7 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #059669;
+  background: #B45309;
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
@@ -90,8 +90,8 @@
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #2563EB;
-  border: 2px solid #2563EB;
+  color: #1E3A8A;
+  border: 2px solid #1E3A8A;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -130,9 +130,9 @@
 }
 
 .input:focus {
-  border-color: #2563EB;
+  border-color: #1E3A8A;
   outline: none;
-  box-shadow: 0 0 0 3px #2563EB20;
+  box-shadow: 0 0 0 3px #1E3A8A20;
 }
 ```
 

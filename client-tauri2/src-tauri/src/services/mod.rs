@@ -7,7 +7,7 @@ mod models;
 mod network_service;
 mod preferences;
 mod print_service;
-mod token_store;
+pub(crate) mod session_server;
 
 pub use commands::*;
 pub use http_service::ClientHttpRequest;
@@ -24,36 +24,24 @@ pub fn forward_socket_task_message(
     print_service::forward_socket_task_message(app, message)
 }
 
-/// 读取本地缓存的登录 token。
-pub fn cached_auth_token(app: &tauri::AppHandle) -> Option<String> {
-    preferences::load_preferences(app)
-        .ok()
-        .and_then(|preferences| preferences.user)
-        .and_then(|user| user.token)
-        .map(|token| token.trim().to_string())
-        .filter(|token| !token.is_empty())
+/// 读取当前会话 token。token 由 iframe 主动推送，仅保存在内存中。
+pub fn cached_auth_token(_app: &tauri::AppHandle) -> Option<String> {
+    session_server::session_auth_token()
 }
 
-/// 清理本地缓存的登录 token，token 失效重取流程的第一步。
-pub fn clear_cached_auth_token(app: &tauri::AppHandle) -> Result<(), String> {
-    preferences::update_preferences(app, |preferences| {
-        if let Some(user) = preferences.user.as_mut() {
-            user.token = None;
-        }
-    })
+/// 清理当前会话 token，token 失效重取流程的第一步。
+pub fn clear_cached_auth_token(_app: &tauri::AppHandle) -> Result<(), String> {
+    session_server::set_session_auth_token(None);
+    Ok(())
 }
 
-/// 写入重新获取到的登录 token。
-pub fn save_cached_auth_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
+/// 写入当前会话 token，不落盘缓存。
+pub fn save_cached_auth_token(_app: &tauri::AppHandle, token: &str) -> Result<(), String> {
     let token = token.trim().to_string();
-    preferences::update_preferences(app, move |preferences| {
-        if let Some(user) = preferences.user.as_mut() {
-            user.token = Some(token);
-        } else {
-            preferences.user = Some(models::UserData {
-                token: Some(token),
-                ..models::UserData::default()
-            });
-        }
-    })
+    if token.is_empty() {
+        session_server::set_session_auth_token(None);
+    } else {
+        session_server::set_session_auth_token(Some(token));
+    }
+    Ok(())
 }

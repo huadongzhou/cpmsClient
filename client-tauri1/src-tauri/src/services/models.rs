@@ -71,13 +71,18 @@ pub struct HubPreferences {
 }
 
 pub fn startup_state_from_preferences(preferences: HubPreferences) -> StartupState {
+    let mut user = preferences.user;
+    if let Some(user) = user.as_mut() {
+        user.token = None;
+    }
+
     StartupState {
         policy_agreed: preferences.policy_agreed,
-        user: preferences.user,
+        user,
         server: preferences.server,
         product_type: preferences.product_type,
         system_init_data: preferences.system_init_data,
         network_state: NetworkState::default(),
-        auth_direct_device: preferences.auth_direct_device,
+        auth_direct_device: None,
     }
 }

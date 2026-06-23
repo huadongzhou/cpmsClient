@@ -45,8 +45,19 @@ pub fn save_policy_agreed(app: AppHandle) -> CommandResult<bool> {
 #[tauri::command]
 /// Persists authenticated user, server, product type, and optional server init data.
 pub fn save_auth_state(app: AppHandle, state: AuthPersistState) -> CommandResult<StartupState> {
+    let mut user = state.user.clone();
+    let pushed_token = user
+        .token
+        .take()
+        .map(|token| token.trim().to_string())
+        .filter(|token| !token.is_empty());
+    let _ = match pushed_token.as_deref() {
+        Some(token) => super::save_cached_auth_token(&app, token),
+        None => super::clear_cached_auth_token(&app),
+    };
+
     let result = update_preferences(&app, |preferences| {
-        preferences.user = Some(state.user.clone());
+        preferences.user = Some(user);
         preferences.server = Some(state.server.clone());
         preferences.product_type = state.product_type;
         preferences.system_init_data = state.system_init_data.clone();
@@ -56,7 +67,11 @@ pub fn save_auth_state(app: AppHandle, state: AuthPersistState) -> CommandResult
         return CommandResult::fail("HUB_AUTH_SAVE_ERROR", &error);
     }
 
-    super::log_service::info(&app, "business", "用户登录态已保存");
+    super::log_service::info(
+        &app,
+        "business",
+        "用户登录态已保存（token 仅保存在会话内存）",
+    );
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
@@ -74,6 +89,7 @@ pub fn clear_auth_state(app: AppHandle) -> CommandResult<StartupState> {
         return CommandResult::fail("HUB_AUTH_CLEAR_ERROR", &error);
     }
 
+    let _ = super::clear_cached_auth_token(&app);
     super::log_service::info(&app, "business", "用户已登出，登录态已清理");
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
@@ -91,41 +107,139 @@ pub fn save_server_info(app: AppHandle, server: ServerData) -> CommandResult<Ser
 }
 
 #[tauri::command]
-/// Saves the direct-output printer selected by the user.
-pub fn save_direct_device(app: AppHandle, device: Value) -> CommandResult<Value> {
-    update_preferences(&app, |preferences| {
-        preferences.auth_direct_device = Some(device.clone());
-    })
-    .map_or_else(
-        |error| CommandResult::fail("HUB_DIRECT_DEVICE_SAVE_ERROR", &error),
-        |_| CommandResult::ok(device),
-    )
+/// 设置会话级服务端地址（iframe 推送），不持久化，应用关闭即失效。
+pub fn set_session_server_address(app: AppHandle, addr: String) -> CommandResult<bool> {
+    match normalize_session_server_addr(&addr) {
+        Some(normalized) => {
+            super::session_server::set_session_server_addr(Some(normalized.clone()));
+            super::log_service::info(
+                &app,
+                "business",
+                &format!("会话服务端地址已更新: {normalized}"),
+            );
+            CommandResult::ok(true)
+        }
+        None => CommandResult::fail(
+            "HUB_SESSION_SERVER_ADDR_INVALID",
+            "服务端地址必须是 http:// 或 https:// 开头的有效 URL",
+        ),
+    }
 }
 
 #[tauri::command]
-/// Updates only the cached auth token pushed by the iframe/Web side after login.
+/// 清空会话级服务端地址，客户端回退到 configure.ini / 缓存地址。
+pub fn clear_session_server_address(app: AppHandle) -> CommandResult<bool> {
+    super::session_server::set_session_server_addr(None);
+    super::log_service::info(&app, "business", "会话服务端地址已清空");
+    CommandResult::ok(true)
+}
+
+#[tauri::command]
+/// 获取当前会话级服务端地址（调试用）。
+pub fn get_session_server_address(_app: AppHandle) -> CommandResult<Option<String>> {
+    CommandResult::ok(super::session_server::session_server_addr())
+}
+
+#[tauri::command]
+/// 设置会话级直连设备 ID（iframe 推送），不持久化，应用关闭即失效。
+pub fn set_session_direct_device_id(app: AppHandle, device_id: String) -> CommandResult<bool> {
+    let device_id = device_id.trim().to_string();
+    if device_id.is_empty() {
+        return CommandResult::fail("HUB_SESSION_DEVICE_ID_EMPTY", "deviceId 不能为空");
+    }
+    super::session_server::set_session_direct_device_id(Some(device_id.clone()));
+    super::log_service::info(
+        &app,
+        "business",
+        &format!("会话直连设备 ID 已更新: {device_id}"),
+    );
+    CommandResult::ok(true)
+}
+
+#[tauri::command]
+/// 清空会话级直连设备 ID。
+pub fn clear_session_direct_device_id(app: AppHandle) -> CommandResult<bool> {
+    super::session_server::set_session_direct_device_id(None);
+    super::log_service::info(&app, "business", "会话直连设备 ID 已清空");
+    CommandResult::ok(true)
+}
+
+#[tauri::command]
+/// 获取当前会话级直连设备 ID（调试用）。
+pub fn get_session_direct_device_id(_app: AppHandle) -> CommandResult<Option<String>> {
+    CommandResult::ok(super::session_server::session_direct_device_id())
+}
+
+fn normalize_session_server_addr(addr: &str) -> Option<String> {
+    let trimmed = addr.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let without_trailing_slash = trimmed.trim_end_matches('/');
+    let (scheme, rest) = if let Some(rest) = without_trailing_slash.strip_prefix("https://") {
+        ("https", rest)
+    } else if let Some(rest) = without_trailing_slash.strip_prefix("http://") {
+        ("http", rest)
+    } else {
+        return None;
+    };
+    let host = rest.split('/').next().unwrap_or(rest).trim();
+    if host.is_empty() {
+        return None;
+    }
+    Some(format!("{}://{}", scheme, host))
+}
+
+#[tauri::command]
+/// 兼容旧桥接入口：不再缓存 deviceId，仅同步到会话并清掉旧持久缓存。
+pub fn save_direct_device(app: AppHandle, device: Value) -> CommandResult<Value> {
+    let device_id = direct_device_id_from_value(&device);
+    match device_id.as_deref() {
+        Some(value) => super::session_server::set_session_direct_device_id(Some(value.to_string())),
+        None => super::session_server::set_session_direct_device_id(None),
+    }
+
+    if let Err(error) = update_preferences(&app, |preferences| {
+        preferences.auth_direct_device = None;
+    }) {
+        return CommandResult::fail("HUB_DIRECT_DEVICE_SAVE_ERROR", &error);
+    }
+
+    super::log_service::info(
+        &app,
+        "business",
+        &format!(
+            "旧直连设备缓存已清空，会话 deviceId 明文：{}",
+            device_id.as_deref().unwrap_or("")
+        ),
+    );
+    CommandResult::ok(device)
+}
+
+fn direct_device_id_from_value(value: &Value) -> Option<String> {
+    value
+        .get("deviceId")
+        .or_else(|| value.get("did"))
+        .or_else(|| value.get("id"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|raw| !raw.is_empty())
+        .map(str::to_string)
+}
+
+#[tauri::command]
+/// Updates only the session auth token pushed by the iframe/Web side after login.
 pub fn save_auth_token(app: AppHandle, token: String) -> CommandResult<StartupState> {
     let token = token.trim().to_string();
     if token.is_empty() {
         return CommandResult::fail("HUB_AUTH_TOKEN_EMPTY", "token 不能为空");
     }
 
-    let result = update_preferences(&app, |preferences| {
-        if let Some(user) = preferences.user.as_mut() {
-            user.token = Some(token.clone());
-        } else {
-            preferences.user = Some(UserData {
-                token: Some(token.clone()),
-                ..UserData::default()
-            });
-        }
-    });
-
-    if let Err(error) = result {
+    if let Err(error) = super::save_cached_auth_token(&app, &token) {
         return CommandResult::fail("HUB_AUTH_TOKEN_SAVE_ERROR", &error);
     }
 
-    super::log_service::info(&app, "business", "登录 token 已更新");
+    super::log_service::info(&app, "business", "登录 token 已更新（会话内存）");
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
@@ -181,7 +295,7 @@ pub fn get_available_devices(app: AppHandle) -> CommandResult<Value> {
 }
 
 #[tauri::command]
-/// Updates the selected direct-output device on CPMS and persists it locally.
+/// Updates the selected direct-output device on CPMS and keeps it in session memory.
 pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Value> {
     let Some(device_id) = device
         .get("deviceId")
@@ -194,20 +308,33 @@ pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Valu
         return CommandResult::fail("HUB_DIRECT_DEVICE_ID_EMPTY", "deviceId 不能为空");
     };
 
-    super::log_service::info(&app, "business", &format!("选择直连设备 deviceId={device_id}"));
+    super::log_service::info(
+        &app,
+        "business",
+        &format!("选择直连设备 deviceId={device_id}"),
+    );
     let params = vec![("deviceId".into(), device_id)];
     if let Err(error) = cpms_form_post(&app, UPDATE_DIRECT_DEVICE_PATH, &params) {
         super::log_service::error(&app, "business", &format!("设备选择失败：{error}"));
         return CommandResult::fail("HUB_DIRECT_DEVICE_UPDATE_ERROR", &error);
     }
 
+    super::session_server::set_session_direct_device_id(
+        direct_device_id_from_value(&device).or_else(|| {
+            params
+                .first()
+                .map(|(_, value)| value.clone())
+                .filter(|value| !value.trim().is_empty())
+        }),
+    );
+
     if let Err(error) = update_preferences(&app, |preferences| {
-        preferences.auth_direct_device = Some(device.clone());
+        preferences.auth_direct_device = None;
     }) {
         return CommandResult::fail("HUB_DIRECT_DEVICE_SAVE_ERROR", &error);
     }
 
-    super::log_service::info(&app, "business", "设备选择成功并已本地持久化");
+    super::log_service::info(&app, "business", "设备选择成功，旧直连设备缓存已清空");
     CommandResult::ok(json!({
         "success": true,
         "code": "OK",
@@ -225,7 +352,7 @@ pub fn system_init(app: AppHandle) -> CommandResult<StartupState> {
         Err(error) => return CommandResult::fail("HUB_SYSTEM_INIT_ERROR", &error),
     };
 
-    let should_start = has_auth_token(&preferences.user);
+    let should_start = has_auth_token(&app);
     let startup_state = startup_state_from_preferences(preferences);
 
     if should_start {
@@ -369,9 +496,8 @@ fn load_and_emit_startup_state(app: &AppHandle, error_code: &str) -> CommandResu
     CommandResult::ok(startup_state)
 }
 
-fn has_auth_token(user: &Option<super::models::UserData>) -> bool {
-    user.as_ref()
-        .and_then(|user| user.token.as_deref())
+fn has_auth_token(app: &AppHandle) -> bool {
+    super::cached_auth_token(app)
         .map(|token| !token.trim().is_empty())
         .unwrap_or(false)
 }
@@ -466,12 +592,14 @@ fn load_server_user(app: &AppHandle) -> Result<(ServerData, UserData), String> {
     let preferences = load_preferences(app)?;
     // 域名已由 configure.ini 的 ServerAddr 提供（build_cpms_url 优先用它），不强依赖 ServerData。
     let server = preferences.server.unwrap_or_default();
-    let user = preferences.user.ok_or_else(|| "用户未登录".to_string())?;
-    let token = user.token.as_deref().unwrap_or_default().trim();
+    let mut user = preferences.user.ok_or_else(|| "用户未登录".to_string())?;
+    let token = super::cached_auth_token(app).unwrap_or_default();
+    let token = token.trim();
 
     if token.is_empty() {
         return Err("用户 token 为空".into());
     }
+    user.token = Some(token.to_string());
 
     Ok((server, user))
 }

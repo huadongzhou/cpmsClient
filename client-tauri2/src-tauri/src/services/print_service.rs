@@ -16,7 +16,6 @@ struct UploadContext {
     server: ServerData,
     user: UserData,
     product_type: i32,
-    auth_direct_device: Option<Value>,
 }
 
 /// 转发本地 PrintClient 经 websocket 推送的打印任务到线上服务。
@@ -29,10 +28,11 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
         .ok_or_else(|| "socket 任务缺少 filePath".to_string())?;
 
     let preferences = load_preferences(&app)?;
-    let Some(context) = build_upload_context(preferences) else {
-        // 未登录（无缓存 token）：此时签名头无法构建，只记错误（带任务参数）；
+    let token = super::cached_auth_token(&app);
+    let Some(context) = build_upload_context(preferences, token) else {
+        // 未登录（无会话 token）：此时签名头无法构建，只记错误（带任务参数）；
         // 该错误会被 with_token_retry 识别为鉴权失败 → 自动向 iframe 取 token 后重试。
-        let reason = "未登录：无缓存 token，无法转发打印任务";
+        let reason = "未登录：无会话 token，无法转发打印任务";
         super::log_service::http_error(
             &app,
             "打印上传",
@@ -72,19 +72,23 @@ pub fn forward_socket_task_message(app: AppHandle, message: &str) -> Result<Valu
     }))
 }
 
-fn build_upload_context(preferences: HubPreferences) -> Option<UploadContext> {
-    let user = preferences.user?;
-    let token = user.token.as_deref()?.trim();
+fn build_upload_context(
+    preferences: HubPreferences,
+    token: Option<String>,
+) -> Option<UploadContext> {
+    let mut user = preferences.user.unwrap_or_default();
+    let token = token?;
+    let token = token.trim();
     if token.is_empty() {
         return None;
     }
+    user.token = Some(token.to_string());
 
     Some(UploadContext {
         // 域名已由 configure.ini 的 ServerAddr 提供（build_cpms_url 优先用它），不强依赖 ServerData。
         server: preferences.server.unwrap_or_default(),
         user,
         product_type: preferences.product_type,
-        auth_direct_device: preferences.auth_direct_device,
     })
 }
 
@@ -216,7 +220,7 @@ fn build_print_query_params(param: &Value, context: &UploadContext) -> Vec<(Stri
         ("printProperties.documentName".into(), document_name),
     ];
 
-    if let Some(device_id) = direct_device_id(context.auth_direct_device.as_ref()) {
+    if let Some(device_id) = super::session_server::session_direct_device_id() {
         params.push(("directDeviceId".into(), device_id));
     }
     params.push(("productType".into(), context.product_type.to_string()));
@@ -240,17 +244,4 @@ fn normalized_document_name(value: String) -> String {
         next.push_str(".pdf");
     }
     next
-}
-
-fn direct_device_id(value: Option<&Value>) -> Option<String> {
-    value
-        .and_then(|raw| {
-            raw.get("did")
-                .or_else(|| raw.get("deviceId"))
-                .or_else(|| raw.get("id"))
-                .and_then(Value::as_str)
-        })
-        .map(str::trim)
-        .filter(|raw| !raw.is_empty())
-        .map(str::to_string)
 }

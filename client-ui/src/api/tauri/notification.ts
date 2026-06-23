@@ -72,7 +72,8 @@ async function createNotificationWindow() {
     skipTaskbar: true,
     focus: false,
     visible: false,
-    shadow: true,
+    shadow: false,
+    transparent: true,
   });
 
   await waitForWindowCreated(notificationWindow);

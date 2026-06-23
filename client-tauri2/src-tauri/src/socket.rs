@@ -29,7 +29,7 @@ use crate::{
 
 const FORWARD_RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const PENDING_FORWARD_DIR: &str = "pending-forwards";
-const MAX_FORWARD_ATTEMPTS: u64 = 10;
+const MAX_FORWARD_ATTEMPTS: u64 = 3;
 // 在途任务（.processing）运行期回收阈值：须大于上传最长耗时（30 分钟），避免误回收正在上传的任务。
 const PROCESSING_RECLAIM_AFTER: Duration = Duration::from_secs(35 * 60);
 const SOCKET_RETRY_INTERVAL: Duration = Duration::from_secs(3);
@@ -373,7 +373,7 @@ pub(crate) fn start_forward_retry_worker(app: AppHandle) {
     });
 }
 
-/// 处理待转发队列：逐个认领（原子 rename → .processing）后转发，成功出队、失败回写计数、超次丢弃。
+/// 处理待转发队列：逐个认领（原子 rename → .processing）后转发，成功出队、失败回写计数。
 /// 认领机制保证「收到即转发」线程、周期 worker、以及多次扫描之间不会重复转发同一任务。
 fn process_pending_forwards(app: &AppHandle) {
     let Some(dir) = pending_dir(app) else {
@@ -403,7 +403,7 @@ fn process_pending_forwards(app: &AppHandle) {
     }
 }
 
-/// 转发一个已认领（.processing）的任务：成功删文件出队；失败回写 .json（计数+1）或超次丢弃。
+/// 转发一个已认领（.processing）的任务：成功删文件出队；失败回写 .json（计数+1），达到单轮上限后等待下次唤醒。
 fn process_claimed_forward(app: &AppHandle, claimed: &Path) {
     let Some((message, attempts, at)) = read_pending_record(claimed) else {
         let _ = fs::remove_file(claimed);
@@ -420,17 +420,20 @@ fn process_claimed_forward(app: &AppHandle, claimed: &Path) {
         }
         Err(error) => {
             let next = attempts + 1;
-            if next >= MAX_FORWARD_ATTEMPTS {
-                let _ = fs::remove_file(claimed);
-                services::log_service::error(
+            let exhausted = next >= MAX_FORWARD_ATTEMPTS;
+            let attempts_to_persist = if exhausted { 0 } else { next };
+            let record = json!({ "message": message, "attempts": attempts_to_persist, "at": at });
+            let _ = fs::write(claimed.with_extension("json"), record.to_string());
+            let _ = fs::remove_file(claimed);
+            if exhausted {
+                services::log_service::warn(
                     app,
                     "socket",
-                    &format!("打印任务转发超过最大次数已丢弃：{error}"),
+                    &format!(
+                        "打印任务转发已达本轮最大次数（{MAX_FORWARD_ATTEMPTS} 次），已保留等待下次唤醒重试：{error}"
+                    ),
                 );
             } else {
-                let record = json!({ "message": message, "attempts": next, "at": at });
-                let _ = fs::write(claimed.with_extension("json"), record.to_string());
-                let _ = fs::remove_file(claimed);
                 services::log_service::warn(
                     app,
                     "socket",

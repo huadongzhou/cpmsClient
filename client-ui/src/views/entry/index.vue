@@ -1,7 +1,13 @@
 <script setup lang="ts" name="EntryView">
 import { ElMessage } from "element-plus";
+import {
+  CircleCloseFilled,
+  EditPen,
+  Link,
+  Platform,
+  WarningFilled,
+} from "@element-plus/icons-vue";
 import { setClientIframeUrl } from "@/api/tauri/desktop";
-import Icon from "@/components/common/Icon.vue";
 
 const LAST_IFRAME_URL_KEY = "cpms-last-iframe-url";
 
@@ -15,7 +21,7 @@ const isSubmittable = computed(() => !loading.value && url.value.trim().length >
 
 function validate(input: string): string | null {
   const trimmed = input.trim();
-  if (!trimmed) return "请输入业务入口地址";
+  if (!trimmed) return "请输入入口地址";
   try {
     const parsed = new URL(trimmed);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -63,22 +69,21 @@ function useRecentUrl() {
     <section class="entry-card">
       <div class="entry-brand">
         <div class="entry-icon">
-          <Icon icon="solar:server-square-update-bold" class="entry-icon-svg" />
+          <el-icon class="entry-icon-svg"><Platform /></el-icon>
         </div>
-        <h1 class="entry-title">欢迎来到 CPMS Client</h1>
-        <p class="entry-desc">请输入 hub-platform 业务入口地址，客户端将加载该页面。</p>
+        <h1 class="entry-title">CPMS Client</h1>
       </div>
 
       <div class="entry-form">
         <div class="entry-input-wrap" :class="{ 'has-error': error }">
           <span class="entry-input-prefix" aria-hidden="true">
-            <Icon icon="solar:link-minimalistic-bold" />
+            <el-icon><Link /></el-icon>
           </span>
           <input
             v-model="url"
             class="entry-input"
             type="text"
-            placeholder="例如：http://192.168.1.10:8085"
+            placeholder="请输入地址"
             :disabled="loading"
             @keyup.enter="loadUrl()"
           />
@@ -89,18 +94,18 @@ function useRecentUrl() {
             aria-label="清空"
             @click="url = ''"
           >
-            <Icon icon="solar:close-circle-bold" />
+            <el-icon><CircleCloseFilled /></el-icon>
           </button>
         </div>
 
         <p v-if="error" class="entry-error" role="alert">
-          <Icon icon="solar:danger-triangle-bold" class="entry-error-icon" />
+          <el-icon><WarningFilled /></el-icon>
           <span>{{ error }}</span>
         </p>
 
         <button type="button" class="entry-submit" :disabled="!isSubmittable" @click="loadUrl()">
           <span v-if="loading" class="entry-spinner" aria-hidden="true" />
-          <span>{{ loading ? "正在加载…" : "加载业务页面" }}</span>
+          <span>{{ loading ? "正在加载…" : "加载页面" }}</span>
         </button>
 
         <div v-if="hasRecentUrl" class="entry-recent">
@@ -120,13 +125,11 @@ function useRecentUrl() {
             title="填入"
             @click="useRecentUrl"
           >
-            <Icon icon="solar:pen-new-square-bold" />
+            <el-icon><EditPen /></el-icon>
           </button>
         </div>
 
-        <p class="entry-tip">
-          地址将经客户端校验，仅允许 http/https 协议；显式配置白名单时还会校验域名。
-        </p>
+        <p class="entry-tip">仅支持 http/https 协议。</p>
       </div>
     </section>
   </main>
@@ -141,7 +144,7 @@ function useRecentUrl() {
   min-height: 0;
   width: 100%;
   padding: var(--cpms-space-5);
-  background: var(--cpms-color-bg-app);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -150,8 +153,8 @@ function useRecentUrl() {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 12% 18%, rgba(37, 99, 235, 0.06) 0%, transparent 38%),
-    radial-gradient(circle at 88% 82%, rgba(5, 150, 105, 0.04) 0%, transparent 38%);
+    radial-gradient(circle at 12% 18%, var(--cpms-color-primary-bg) 0%, transparent 38%),
+    radial-gradient(circle at 88% 82%, var(--cpms-color-success-bg) 0%, transparent 38%);
 }
 
 .entry-card {
@@ -177,16 +180,12 @@ function useRecentUrl() {
 .entry-icon {
   display: grid;
   place-items: center;
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   color: var(--cpms-color-text-on-primary);
-  background: linear-gradient(
-    135deg,
-    var(--cpms-color-primary) 0%,
-    var(--cpms-color-primary-hover) 100%
-  );
+  background: var(--cpms-color-primary);
   border-radius: var(--cpms-radius-large);
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+  box-shadow: var(--cpms-shadow-sm);
 }
 
 .entry-icon-svg {
@@ -226,11 +225,11 @@ function useRecentUrl() {
 }
 
 .entry-input-wrap:focus-within {
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 3px var(--cpms-color-primary-bg);
 }
 
 .entry-input-wrap.has-error:focus-within {
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  box-shadow: 0 0 0 3px var(--cpms-color-danger-bg);
 }
 
 .entry-input-prefix {
@@ -246,7 +245,7 @@ function useRecentUrl() {
 .entry-input {
   width: 100%;
   height: 48px;
-  padding: 0 40px 0 42px;
+  padding: 0 44px 0 42px;
   font-size: var(--cpms-font-size-base);
   color: var(--cpms-color-text-primary);
   background: var(--cpms-color-bg-panel);
@@ -284,11 +283,11 @@ function useRecentUrl() {
 
 .entry-input-clear {
   position: absolute;
-  right: 12px;
+  right: 8px;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   color: var(--cpms-color-text-muted);
   background: transparent;
@@ -304,6 +303,11 @@ function useRecentUrl() {
 .entry-input-clear:hover {
   color: var(--cpms-color-text-primary);
   background: var(--cpms-color-bg-hover);
+}
+
+.entry-input-clear:focus-visible {
+  outline: 2px solid var(--cpms-color-primary);
+  outline-offset: 2px;
 }
 
 .entry-error {
@@ -327,33 +331,33 @@ function useRecentUrl() {
   justify-content: center;
   gap: var(--cpms-space-2);
   width: 100%;
-  height: 48px;
+  min-height: 48px;
   padding: 0 var(--cpms-space-4);
   font-size: var(--cpms-font-size-base);
   font-weight: var(--cpms-font-weight-medium);
   color: var(--cpms-color-text-on-primary);
-  background: linear-gradient(
-    135deg,
-    var(--cpms-color-primary) 0%,
-    var(--cpms-color-primary-hover) 100%
-  );
+  background: var(--cpms-color-primary);
   border: 0;
   border-radius: var(--cpms-radius-panel);
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.26);
   transition:
-    transform var(--cpms-duration-base) var(--cpms-easing-out),
+    background-color var(--cpms-duration-base) var(--cpms-easing-base),
     box-shadow var(--cpms-duration-base) var(--cpms-easing-base),
     opacity var(--cpms-duration-base) var(--cpms-easing-base);
 }
 
 .entry-submit:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.3);
+  background: var(--cpms-color-primary-hover);
+  box-shadow: var(--cpms-shadow-md);
 }
 
 .entry-submit:active:not(:disabled) {
-  transform: translateY(0);
+  background: var(--cpms-color-primary-active);
+}
+
+.entry-submit:focus-visible {
+  outline: 2px solid var(--cpms-color-primary);
+  outline-offset: 2px;
 }
 
 .entry-submit:disabled {
@@ -422,8 +426,8 @@ function useRecentUrl() {
 .entry-recent-action {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   color: var(--cpms-color-text-muted);
   background: transparent;
@@ -439,6 +443,11 @@ function useRecentUrl() {
 .entry-recent-action:hover {
   color: var(--cpms-color-primary-text);
   background: var(--cpms-color-primary-bg);
+}
+
+.entry-recent-action:focus-visible {
+  outline: 2px solid var(--cpms-color-primary);
+  outline-offset: 2px;
 }
 
 .entry-tip {

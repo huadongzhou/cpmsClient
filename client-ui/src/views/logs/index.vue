@@ -1,8 +1,8 @@
 <script setup lang="ts" name="LogView">
 import { storeToRefs } from "pinia";
 import { ElMessage, ElMessageBox } from "element-plus";
+import { CopyDocument, Delete, Document, RefreshRight } from "@element-plus/icons-vue";
 import { getClientLogState } from "@/api/tauri/log";
-import Icon from "@/components/common/Icon.vue";
 import { useLogStore } from "@/stores/log";
 import type { ClientLogEntry, ClientLogFileState } from "@/types/app/log";
 
@@ -59,7 +59,7 @@ const filteredEntries = computed(() =>
 /** 选中类别的日志条目（时间正序），用于按级别着色展示。 */
 const formattedLogEntries = computed(() =>
   [...filteredEntries.value].reverse().map((entry) => {
-    const head = `[${formatTime(entry)}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.title}`;
+    const head = `[${formatTime(entry)}] [${entry.level.toUpperCase()}] ${entry.title}`;
     return {
       id: `${entry.at}-${entry.source}-${entry.title}`,
       level: entry.level,
@@ -165,19 +165,19 @@ function levelClass(level: string) {
       <div class="actions">
         <el-button plain :loading="fileStateLoading" @click="refreshFileState">
           <template #icon>
-            <Icon icon="solar:refresh-square-bold" />
+            <RefreshRight />
           </template>
           刷新
         </el-button>
         <el-button plain @click="copyLogs">
           <template #icon>
-            <Icon icon="solar:copy-bold" />
+            <CopyDocument />
           </template>
           复制
         </el-button>
         <el-button plain type="danger" @click="confirmClearLogs">
           <template #icon>
-            <Icon icon="solar:trash-bin-minimalistic-bold" />
+            <Delete />
           </template>
           清空
         </el-button>
@@ -186,7 +186,7 @@ function levelClass(level: string) {
 
     <section v-if="fileState" class="file-state">
       <div class="file-state-main">
-        <Icon icon="solar:document-text-bold" class="file-state-icon" />
+        <el-icon class="file-state-icon"><Document /></el-icon>
         <span class="file-path" :title="fileState.path">{{ fileState.path }}</span>
       </div>
       <span class="file-size">{{ formatFileSize(fileState.sizeBytes) }}</span>

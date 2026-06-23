@@ -39,9 +39,9 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 | C11 | 调试抽屉：客户端能力状态 / 调试客户端能力 / 日志查看 | 已实现 | 抽屉双页签：能力状态与调试在 `client-ui/src/views/example/index.vue`；独立日志面板在 `views/logs/index.vue`（`stores/log.ts` 缓冲 500 条，`useClientLogBridge` 汇集客户端日志事件、客户端事件流与错误队列，支持复制/清空，展示日志文件路径） |
 | C12 | 客户端日志系统：文件落盘 + 接收前端推送 + 启动与业务流程埋点 | 已实现 | 两壳 `services/log_service.rs`（写 `app_log_dir/cpms-client.log`，5MB 单档轮转，UTC 时间戳，未引入 chrono 以保护 legacy 依赖锁；客户端日志同步 emit `cpms:client-log` 给视图端）；命令 `push_client_log`（前端/iframe 推送，仅落盘不回发）与 `get_client_log_state`。埋点按 source 分类：`startup/window/single-instance`（启动）、`iframe`、`socket`、`http`（请求/HTTP）、`token`、`business`（业务流程：登录/登出/令牌更新/作业列表/设备列表/选择机器，`services/commands.rs`）、`panic`/`error`。**全量请求日志**（`log_service::http_request/http_response/http_error`，source=`http`）：客户端所有向后端请求（iframe 配置、作业/设备/选机 CPMS 接口、打印上传、代理请求）统一记 请求方法/URL/**请求头**/请求体 + 响应状态码/响应体 + 错误；请求头与 token 均**全量明文记录、不做掩码、不截断**（便于排查 token/鉴权问题）。视图端日志面板 `views/logs/index.vue` **按类别下拉筛选 + 长文本展示**（非每条一块的日志块，全量不截断），支持刷新/复制/清空、展示日志文件路径与大小 |
 | C13 | 单实例运行 | 已实现 | 两壳 `single_instance.rs`（回环端口 `127.0.0.1:51987` 作进程锁 + magic 握手，零插件依赖以兼顾 legacy 依赖链）；二次启动握手确认本应用后唤醒首实例显示窗口并退出，端口被异端占用则放行不保护 |
-| C14 | 打印任务持久化转发（收到即落盘 + 重试） | 已实现 | 两壳 `socket.rs`：打印任务**收到即落盘**到 `app_data_dir/pending-forwards/<uuid>.json`（attempts=0），再立即认领转发——即使首次转发未完成就崩溃，重启后也能重发（消除 in-flight 丢失窗口）。转发用**认领式**：原子 `rename` 到 `.processing`，在途任务对周期 worker 不可见（兼容上传最长 30min），成功出队、失败回写 `.json`（计数+1）、超 10 次丢弃并记日志。崩溃残留的 `.processing`：**启动时全部回收**、运行期超 35min 回收（`reclaim_orphaned_processing`）。**注意**：队列存的是任务消息（含 `filePath`），非 PDF 字节；若引用的本地 PDF 被清理，重试会因「文件不存在」失败、超次丢弃 |
+| C14 | 打印任务持久化转发（收到即落盘 + 重试） | 已实现 | 两壳 `socket.rs`：打印任务**收到即落盘**到 `app_data_dir/pending-forwards/<uuid>.json`（attempts=0），再立即认领转发——即使首次转发未完成就崩溃，重启后也能重发（消除 in-flight 丢失窗口）。转发用**认领式**：原子 `rename` 到 `.processing`，在途任务对周期 worker 不可见（兼容上传最长 30min），成功出队、失败回写 `.json`（计数+1）；本轮最多尝试三次，达到上限后重置计数并保留任务，等待下次唤醒继续重试。崩溃残留的 `.processing`：**启动时全部回收**、运行期超 35min 回收（`reclaim_orphaned_processing`）。**注意**：队列存的是任务消息（含 `filePath`），非 PDF 字节；若引用的本地 PDF 被清理，任务也会保留等待后续唤醒重试 |
 | C15 | TLS 证书校验可配置 | 已实现 | 默认校验证书；仅 env `CPMS_ALLOW_INSECURE_TLS=1` 时放开（`services/http_service.rs::allow_insecure_tls`，覆盖代理/上传/CPMS 请求三处） |
-| C16 | token 落盘加密 | 已实现 | `services/token_store.rs`：每安装随机本地密钥（受限权限文件）AES 加密 token 字段，`preferences` 读写透明加解密，旧明文兼容、解密失败 fail-open。**限制**：本地密钥静态加密（防误读/误同步），强度不及 OS keychain |
+| C16 | token 会话内存存储 | 已实现 | token 由 iframe 主动推送到客户端，仅写入 `services/session_server.rs` 的会话内存；`hub-preferences.json` 保存前会清空 `user.token`，启动读取旧偏好时也会清掉遗留 token。客户端不再落盘 token。 |
 | C17 | Rust panic 入日志 | 已实现 | 两壳 run() 装 `panic::set_hook`，把 Rust panic 写入 `cpms-client.log` |
 | C18 | 主窗口几何持久化 | 部分实现 | tauri2 `window.rs`（关闭到托盘时存大小/位置，启动恢复，best-effort）；tauri1 暂跳过（无头固定窗 + webkit2.20 不可测，价值低，见第 8 节） |
 
@@ -67,12 +67,12 @@ CPMS Client 是一个 pnpm workspace，包含一套共用的 Vue 3 视图端和�
 | --- | --- | --- | --- |
 | B1 | 需求 1：渲染线上 iframe 容器地址（启动→入口页输入→校验→缓存→视图端渲染） | 已实现 | 见 S1/S2；`client-tauri{1,2}` 启动不再自动拉取 iframe 配置，改由用户在入口页输入 hub-platform URL；加载失败可重新输入地址或重载 iframe |
 | B2 | 需求 2：本地 socket 监听服务，等待连接推送任务并二次转发 | 已实现 | 见 S3–S5；客户端作为监听端 bind 本地端口、accept 推送连接；转发结果以 `client.socket_task.forwarded / forward_failed` 事件回推视图端 |
-| B3 | 需求 3：Token 机制——登录后视图端推送 token | 已实现 | `save_auth_token` 命令 + `client.auth.update-token` 事件，持久化于 `hub-preferences.json` |
-| B4 | 需求 3：Token 机制——客户端主动从 iframe 实例获取 token | 已实现 | C9 的 payload 查询链路（启动 2s 后及按需触发） |
-| B5 | 需求 3：Token 机制——请求失败清理缓存 token，重新获取，不一致则重试 | 已实现 | 两壳 `token_refresh.rs::with_token_retry` 通用包装：鉴权失败（401/403）→ 清缓存 token → 向 iframe 重查（10s 超时）→ token 不一致则重发一次。**覆盖全部「客户端→服务端」通信**：socket 转发、作业列表、设备列表、选择机器 |
+| B3 | 需求 3：Token 机制——登录后视图端推送 token | 已实现 | `save_auth_token` 命令 + `client.auth.update-token` 事件写入会话内存，不写 `hub-preferences.json` |
+| B4 | 需求 3：Token 机制——客户端按需从 iframe 实例获取 token | 已实现 | C9 的 payload 查询链路（鉴权失败、调试页等明确场景触发） |
+| B5 | 需求 3：Token 机制——请求失败清理会话 token，重新获取，不一致则重试 | 已实现 | 两壳 `token_refresh.rs::with_token_retry` 通用包装：鉴权失败（401/403）→ 清会话 token → 向 iframe 重查（10s 超时）→ token 不一致则重发一次。**覆盖全部「客户端→服务端」通信**：socket 转发、作业列表、设备列表、选择机器 |
 | B6 | 接口：普通作业列表 `POST /cpms/api/jobs/list` | 已实现 | `hub/commands.rs get_job_list`，公共头齐全 |
 | B7 | 接口：设备列表 `GET /cpms/api/userManager/listAvailDevices` | 已实现 | `get_available_devices` |
-| B8 | 接口：选择机器 `POST /cpms/api/userManager/updateDirectDeviceId` + 本地持久化 | 已实现 | `select_direct_device`（服务端更新 + preferences 持久化，返回约定的本地响应结构） |
+| B8 | 接口：选择机器 `POST /cpms/api/userManager/updateDirectDeviceId` + 会话 deviceId 更新 | 已实现 | `select_direct_device`（服务端更新 + 会话 deviceId 更新，并清空旧 preferences 设备缓存，返回约定的本地响应结构） |
 | B9 | 接口：转发任务 `POST /cpms/api/jobs/xps/exec`（multipart，含 printProperties.* Query） | 已实现 | `hub/print_service.rs upload_print_payload`；旧流程 `uploadJobByWebOrH5` 未启用（按当前主流程实现） |
 | B10 | socket 推送任务响应体解析（filePath + printProperties） | 已实现 | `parse_socket_task_payload` 兼容双层 JSON 字符串包装 |
 
@@ -139,11 +139,11 @@ client/
   #   commands.rs        tauri command（启动态/认证/作业/设备/系统能力/日志/工具）
   #   http_service.rs    CPMS URL 拼接、签名请求头、HTTP 代理
   #   log_service.rs     客户端日志：文件落盘(app_log_dir/cpms-client.log) + cpms:client-log 事件
-  #   token_store.rs     token 落盘 AES 加密（本地随机密钥）
+  #   session_server.rs  会话级 token / deviceId / serverAddress（不落盘）
   #   crypto_service.rs  access_sign 签名（AES-128-ECB + MD5）
   #   print_service.rs   socket 推送的打印任务转发上传（/cpms/api/jobs/xps/exec）
   #   network_service.rs 网络在线监测（变化 emit cpms:hub-network-changed）
-  #   preferences.rs     hub-preferences.json 持久化（token/服务器/设备等）
+  #   preferences.rs     hub-preferences.json 持久化（保存前清空旧 token/deviceId 缓存）
   #   events.rs          cpms:hub-system-state / network-changed 事件 emit
   #   models.rs          领域模型
   #   mod.rs             导出 + token 缓存辅助（cached/clear/save_cached_auth_token）
@@ -179,14 +179,14 @@ client/
 
 ### web ↔ iframe（postMessage，单一类型 `cpms:token`）
 
-父窗口（client-ui）对 iframe 的 `message` 监听**长期保持、作为统一出口**（`composables/useIframePayloadBridge.ts handleIframeMessage`，`onMounted` 注册一次、`onBeforeUnmount` 注销）。单一消息类型 `cpms:token`，两种 token 更新机制都经监听 `cpms:token`：
+父窗口（client-ui）对 iframe 的 `message` 监听**长期保持、作为统一出口**（`composables/useIframePayloadBridge.ts handleIframeMessage`，`onMounted` 注册一次、`onBeforeUnmount` 注销）。iframe 主动推送 `cpms:token` / `cpms:deviceId` / `cpms:serverAddress`，父窗口收到后转发给客户端并记录明文日志；`cpms:token` 仍保留按需手动查询能力，用于鉴权失败等明确场景：
 
-1. **手动取 token**：客户端 → iframe 发 `{ id, type:'cpms:token', payload:null, time, reason }`；iframe 回 `{ id, type:'cpms:token', payload:<token>, time }`（回显 id）。触发源：Rust `client.iframe_payload.request`（401 重取/启动）、调试页按钮、加载后 10s 自动。
+1. **手动取 token**：客户端 → iframe 发 `{ id, type:'cpms:token', payload:null, time, reason }`；iframe 回 `{ id, type:'cpms:token', payload:<token>, time }`（回显 id）。触发源：Rust `client.iframe_payload.request`（401 重取）和调试页按钮。
 2. **自动推送**：iframe 主动 → 父发 `{ type:'cpms:token', payload:<token>, time }`（可不带 id），统一出口收到即落库。
 
-统一出口收到带 token 的消息：调 `submitClientIframePayload`（命令 `client_submit_iframe_payload`）落库；命中待回的手动查询 `id` 则解析该查询。Rust `client_submit_iframe_payload` 把 `{ id, type:'client.iframe_payload.report', payload:<token>, time, ok, reason, error }` 存入 `iframe_payload` 并加密缓存 token；`token_refresh.rs::refresh_token_via_iframe` 按 `id` 匹配、从 `payload` 取 token。
+统一出口收到带 token 的消息：调 `submitClientIframePayload`（命令 `client_submit_iframe_payload`）写入会话内存；命中待回的手动查询 `id` 则解析该查询。Rust `client_submit_iframe_payload` 把 `{ id, type:'client.iframe_payload.report', payload:<token>, time, ok, reason, error }` 存入 `iframe_payload` 并更新会话 token；`token_refresh.rs::refresh_token_via_iframe` 按 `id` 匹配、从 `payload` 取 token。
 
-**单一 token 模型**：客户端不维护多份 token——只经 iframe 获取，拿到即写入本地加密缓存（`token_store`），之后等待拉取/推送更新；不存在 localStorage/pinia 等并行 token 存储。调试页「Token 检测」只展示这一个 token（来源 iframe、本地缓存）。
+**单一 token 模型**：客户端不维护多份 token——只经 iframe 获取，拿到即写入会话内存，之后等待 iframe 主动推送或按需查询更新；不存在 localStorage/pinia/本地文件等并行 token 存储。调试页「Token 检测」只展示这一个会话 token。
 
 **认证过期处理**：`token_refresh.rs::with_token_retry` 在「清缓存→向 iframe 重取→重试」后仍鉴权失败（取不到新 token / 新旧一致 / 重试仍 401）时，调 `event_bridge::notify_auth_expired`：① 弹通知窗口「当前认证已经过期，请重新登录！」（`cpms:desktop-notification`，type=error）；② 经视图端向 iframe 发 `cpms:refresh`（`client.iframe.refresh` → `useIframePayloadBridge` postMessage `{ id, type:'cpms:refresh', payload:null, time }`）。
 
@@ -214,7 +214,7 @@ Rust 校验：在 `client-tauri{1,2}/src-tauri` 下 `cargo check`。CI（`.githu
 
 ## 8. 已知债务与注意事项
 
-- **services/ 双壳复制**：`client-tauri1` 与 `client-tauri2` 的 `src/services/` 内容一致（仅 `path_resolver/emit_all/open` 等 v1 API 差异）；`lib.rs`/`window.rs`/`event_bridge.rs` 也按 v1/v2 分别维护（`get_window` vs `get_webview_window`、`listen_global` vs `listen_any`、SystemTray vs TrayIconBuilder、auto_launch vs autostart 插件、tauri2 独有窗口几何持久化）。`iframe.rs`/`socket.rs` 仅 import 行差一处（v1 走 `Manager` 无 `Emitter`），复制后需改回 `use tauri::{AppHandle, Manager};`；`printclient.rs`/`result.rs`/`single_instance.rs`/`token_refresh.rs`/`token_store.rs` 两壳逐字一致，可直接复制。改动必须双侧同步。后续可抽共享 crate，但受 tauri1 vendored 补丁与 CI 链路约束，暂未拆分。
+- **services/ 双壳复制**：`client-tauri1` 与 `client-tauri2` 的 `src/services/` 内容一致（仅 `path_resolver/emit_all/open` 等 v1 API 差异）；`lib.rs`/`window.rs`/`event_bridge.rs` 也按 v1/v2 分别维护（`get_window` vs `get_webview_window`、`listen_global` vs `listen_any`、SystemTray vs TrayIconBuilder、auto_launch vs autostart 插件、tauri2 独有窗口几何持久化）。`iframe.rs`/`socket.rs` 仅 import 行差一处（v1 走 `Manager` 无 `Emitter`），复制后需改回 `use tauri::{AppHandle, Manager};`；`printclient.rs`/`result.rs`/`single_instance.rs`/`token_refresh.rs`/`session_server.rs` 两壳逐字一致，可直接复制。改动必须双侧同步。后续可抽共享 crate，但受 tauri1 vendored 补丁与 CI 链路约束，暂未拆分。
 - **服务端域名统一为 ServerAddr**：客户端所有向后端的请求（iframe 地址获取、作业/设备列表、选择机器、打印任务上传）都以 `configure.ini` 的 `ServerAddr` 为域名——`iframe.rs::cpms_base_url`（iframe 配置接口）与 `http_service::build_cpms_url`（CPMS 接口）均优先取 `printclient::cpms_server_base()`。`ServerAddr` 仅含 scheme+host+port，路径仍由各接口常量/`CPMS_IFRAME_CONFIG_PATH` 决定。
 - **环境变量**：`CPMS_SERVER_ADDR`（覆盖 ServerAddr，最高优先）、`CPMS_BASE_URL`（ServerAddr 缺失时的 iframe 配置域名兜底）/`CPMS_IFRAME_CONFIG_PATH`/`CPMS_IFRAME_ALLOW_HOSTS`（iframe 路径与白名单）、`CPMS_PRINTCLIENT_*`（PrintClient socket 发现）、`CPMS_ALLOW_INSECURE_TLS=1`（放开 TLS 校验，默认校验）、`WEBKIT_DISABLE_COMPOSITING_MODE`（legacy 白屏规避，默认开）。
 - **tauri1 真机回归**：无头窗口、headerbar 拖拽区、400×400 通知窗口需在麒麟/统信真机复测（webkit 2.20 渲染行为与新版不同）。

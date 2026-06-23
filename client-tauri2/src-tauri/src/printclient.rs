@@ -278,10 +278,13 @@ struct ConfigureData {
     center_server_addr: Option<String>,
 }
 
-/// 所有服务端请求使用的域名：env(CPMS_SERVER_ADDR) → configure.ini 的 ServerAddr → None。
+/// 所有服务端请求使用的域名：
+/// env(CPMS_SERVER_ADDR) → 会话 serverAddress（iframe 推送） → configure.ini 的 ServerAddr → None。
 /// 形如 `https://127.0.0.1:8085`（已去尾部 `/`）。
 pub(crate) fn cpms_server_base() -> Option<String> {
-    env_base("CPMS_SERVER_ADDR").or_else(|| configure_data().server_addr)
+    env_base("CPMS_SERVER_ADDR")
+        .or_else(crate::services::session_server::session_server_addr)
+        .or_else(|| configure_data().server_addr)
 }
 
 fn env_base(key: &str) -> Option<String> {

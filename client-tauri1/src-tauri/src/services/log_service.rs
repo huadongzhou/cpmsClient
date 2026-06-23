@@ -30,12 +30,15 @@ pub fn init(app: &AppHandle) -> Result<PathBuf, String> {
         *locked = Some(path.clone());
     }
 
-    write_line(&format_line(
-        "INFO",
+    let title = title_with_prefix(
+        "client",
         "startup",
-        &format!("==== cpmsClient v{} 进程启动 ====", env!("CARGO_PKG_VERSION")),
-        None,
-    ));
+        &format!(
+            "==== cpmsClient v{} 进程启动 ====",
+            env!("CARGO_PKG_VERSION")
+        ),
+    );
+    write_line(&format_line("INFO", &title, None));
     Ok(path)
 }
 
@@ -61,7 +64,14 @@ pub fn error(app: &AppHandle, source: &str, message: &str) {
 }
 
 /// 统一请求日志：请求发出前记录 方法/URL，请求头与请求体入 detail（全量、不截断）。
-pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, headers: &str, body: &str) {
+pub fn http_request(
+    app: &AppHandle,
+    label: &str,
+    method: &str,
+    url: &str,
+    headers: &str,
+    body: &str,
+) {
     let mut parts: Vec<String> = Vec::new();
     if !headers.trim().is_empty() {
         parts.push(format!("headers: {headers}"));
@@ -70,7 +80,11 @@ pub fn http_request(app: &AppHandle, label: &str, method: &str, url: &str, heade
         parts.push(format!("body: {body}"));
     }
     let detail = parts.join("\n");
-    let detail = if detail.is_empty() { None } else { Some(detail) };
+    let detail = if detail.is_empty() {
+        None
+    } else {
+        Some(detail)
+    };
     log(
         app,
         "INFO",
@@ -91,7 +105,11 @@ pub fn format_headers_for_log(headers: &[(String, String)]) -> String {
 
 /// 统一响应日志：2xx/3xx 记 INFO，4xx/5xx 记 WARN；状态码入标题，响应体入 detail（全量、不截断）。
 pub fn http_response(app: &AppHandle, label: &str, status: u16, body: &str) {
-    let level = if (200..400).contains(&status) { "INFO" } else { "WARN" };
+    let level = if (200..400).contains(&status) {
+        "INFO"
+    } else {
+        "WARN"
+    };
     log(
         app,
         level,
@@ -114,7 +132,8 @@ pub fn http_error(app: &AppHandle, label: &str, error: &str) {
 
 /// 记录一条客户端日志：写入日志文件，并推送给视图端日志面板。
 pub fn log(app: &AppHandle, level: &str, source: &str, message: &str, detail: Option<&str>) {
-    write_line(&format_line(level, source, message, detail));
+    let title = title_with_prefix("client", source, message);
+    write_line(&format_line(level, &title, detail));
 
     let _ = app.emit_to(
         MAIN_WINDOW_LABEL,
@@ -123,7 +142,7 @@ pub fn log(app: &AppHandle, level: &str, source: &str, message: &str, detail: Op
             "at": timestamp(),
             "level": level.to_lowercase(),
             "source": source,
-            "title": message,
+            "title": title,
             "detail": detail,
         }),
     );
@@ -131,11 +150,43 @@ pub fn log(app: &AppHandle, level: &str, source: &str, message: &str, detail: Op
 
 /// 记录前端推送的日志：仅写入文件，不回发事件（前端已自行展示）。
 pub fn log_from_frontend(level: &str, source: &str, message: &str, detail: Option<&str>) {
-    write_line(&format_line(level, source, message, detail));
+    let title = title_with_prefix(surface_from_source(source), source, message);
+    write_line(&format_line(level, &title, detail));
 }
 
-fn format_line(level: &str, source: &str, message: &str, detail: Option<&str>) -> String {
-    let head = format!("[{}] [{level}] [{source}] {message}", timestamp());
+fn title_with_prefix(surface: &str, source: &str, message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.starts_with('[') {
+        return trimmed.to_string();
+    }
+
+    format!("[{surface}/{}] {trimmed}", category_from_source(source))
+}
+
+fn surface_from_source(source: &str) -> &'static str {
+    let normalized = source.trim().to_lowercase();
+    if normalized.starts_with("iframe") || normalized.starts_with("hub-platform") {
+        "iframe"
+    } else if normalized.starts_with("client") {
+        "client"
+    } else {
+        "web"
+    }
+}
+
+fn category_from_source(source: &str) -> &'static str {
+    let normalized = source.trim().to_lowercase();
+    if normalized.contains("request") || normalized.contains("http") {
+        "request"
+    } else if normalized.contains("cache") || normalized.contains("token") {
+        "cache"
+    } else {
+        "business"
+    }
+}
+
+fn format_line(level: &str, message: &str, detail: Option<&str>) -> String {
+    let head = format!("[{}] [{level}] {message}", timestamp());
     match detail {
         Some(detail) if !detail.trim().is_empty() => {
             format!("{head} | {}", detail.replace('\n', "\\n"))

@@ -1,9 +1,17 @@
 <script setup lang="ts" name="HomeView">
-import { vLoading } from "element-plus";
-import "element-plus/es/components/loading/style/css";
 import { emitViewEvent } from "@/api/tauri/events";
-import Icon from "@/components/common/Icon.vue";
+import {
+  EditPen,
+  RefreshRight,
+  Tools,
+  WarningFilled,
+} from "@element-plus/icons-vue";
+import WindowFrame from "@/components/layout/WindowFrame.vue";
 import WindowHeaderBar from "@/components/layout/WindowHeaderBar.vue";
+import {
+  clearClientSessionDirectDeviceId,
+  clearClientSessionServerAddress,
+} from "@/api/tauri/desktop";
 import { useIframeContainer } from "@/composables/useIframeContainer";
 import { useIframePayloadBridge } from "@/composables/useIframePayloadBridge";
 import { useRuntimeStore } from "@/stores/runtime";
@@ -88,9 +96,15 @@ function retryIframeLoad() {
   startIframeLoadTimer();
 }
 
-function backToEntry() {
+async function backToEntry() {
   resetIframeLoadState();
   runtimeStore.setIframeState({ state: "idle", url: null, message: null, updatedAt: "" });
+  try {
+    await clearClientSessionServerAddress();
+    await clearClientSessionDirectDeviceId();
+  } catch (error) {
+    console.warn("[home] 清空会话地址/设备 ID 失败", error);
+  }
 }
 
 /** 固定按钮事件：固定/取消固定客户端窗口。 */
@@ -120,18 +134,19 @@ async function closeWindow() {
 </script>
 
 <template>
-  <div class="app-window">
-    <WindowHeaderBar
-      title="CPMS Client"
-      icon="/tauri.svg"
-      :pinned="pinned"
-      :fullscreen="fullscreen"
-      @pin="toggleWindowPin"
-      @collapse="collapseWindow"
-      @fullscreen="toggleWindowFullscreen"
-      @close="closeWindow"
-    />
-    <main v-loading="isIframeLoading" element-loading-text="正在加载业务页面…" class="iframe-root">
+  <WindowFrame
+    title="CPMS Client"
+    icon="/tauri.svg"
+    :pinned="pinned"
+    :fullscreen="fullscreen"
+    :loading="isIframeLoading"
+    loading-text="正在加载页面…"
+    :controls="showEntryPage ? ['pin', 'collapse', 'fullscreen', 'close'] : ['entry', 'pin', 'collapse', 'fullscreen', 'close']"
+    @entry="backToEntry"
+    @collapse="collapseWindow"
+    @fullscreen="toggleWindowFullscreen"
+    @close="closeWindow"
+  >
       <EntryView v-if="showEntryPage" />
       <template v-else>
         <iframe
@@ -144,22 +159,22 @@ async function closeWindow() {
         <div v-if="iframeLoadError" class="iframe-error">
           <div class="error-card">
             <div class="error-icon">
-              <Icon icon="solar:danger-triangle-bold" />
+              <el-icon><WarningFilled /></el-icon>
             </div>
-            <h2 class="error-title">业务页面加载失败</h2>
+            <h2 class="error-title">页面加载失败</h2>
             <p class="error-desc">
-              无法在预定时间内加载 iframe 业务页面，请检查网络或客户端配置后重试。
+              无法在预定时间内加载 iframe 页面，请检查网络或客户端配置后重试。
             </p>
             <div class="error-actions">
               <el-button type="primary" class="retry-button" @click="retryIframeLoad">
                 <template #icon>
-                  <Icon icon="solar:refresh-square-bold" />
+                  <RefreshRight />
                 </template>
                 重新加载
               </el-button>
               <el-button @click="backToEntry">
                 <template #icon>
-                  <Icon icon="solar:pen-new-square-bold" />
+                  <EditPen />
                 </template>
                 重新输入地址
               </el-button>
@@ -175,8 +190,14 @@ async function closeWindow() {
         @click="exampleDrawerVisible = false"
       />
 
-      <el-button class="example-trigger" type="primary" circle @click="exampleDrawerVisible = true">
-        <Icon icon="solar:bug-minimalistic-bold" class="example-trigger-icon" />
+      <el-button
+        class="example-trigger"
+        type="primary"
+        circle
+        aria-label="打开调试抽屉"
+        @click="exampleDrawerVisible = true"
+      >
+        <el-icon class="example-trigger-icon"><Tools /></el-icon>
       </el-button>
 
       <el-drawer
@@ -202,31 +223,10 @@ async function closeWindow() {
           </el-tab-pane>
         </el-tabs>
       </el-drawer>
-    </main>
-  </div>
+  </WindowFrame>
 </template>
 
 <style scoped>
-.app-window {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  background: var(--cpms-color-bg-app);
-  overflow: hidden;
-}
-
-.iframe-root {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
-  background: var(--cpms-color-bg-app);
-  overflow: hidden;
-}
-
 .business-iframe {
   flex: 1 1 auto;
   min-height: 0;
@@ -309,21 +309,28 @@ async function closeWindow() {
   width: 48px;
   height: 48px;
   font-size: 20px;
-  box-shadow: var(--cpms-shadow-md);
+  color: var(--cpms-color-primary) !important;
+  background: var(--cpms-color-surface) !important;
+  border: 1px solid var(--cpms-color-border) !important;
+  box-shadow: var(--cpms-shadow-sm);
   transition:
-    transform var(--cpms-duration-base) var(--cpms-easing-base),
+    color var(--cpms-duration-base) var(--cpms-easing-base),
+    background-color var(--cpms-duration-base) var(--cpms-easing-base),
+    border-color var(--cpms-duration-base) var(--cpms-easing-base),
     box-shadow var(--cpms-duration-base) var(--cpms-easing-base);
 }
 
 .example-trigger:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--cpms-shadow-lg);
+  color: var(--cpms-color-text-on-primary) !important;
+  background: var(--cpms-color-primary) !important;
+  border-color: var(--cpms-color-primary) !important;
+  box-shadow: var(--cpms-shadow-md);
 }
 
 .example-trigger-icon {
   width: 20px;
   height: 20px;
-  color: var(--cpms-color-text-on-primary);
+  color: currentcolor;
   fill: currentcolor;
 }
 

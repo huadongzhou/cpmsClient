@@ -1,9 +1,19 @@
 import { createMessageId, listenClientEvent } from "@/api/tauri/events";
-import { submitClientIframePayload } from "@/api/tauri/desktop";
+import {
+  clearClientSessionDirectDeviceId,
+  clearClientSessionServerAddress,
+  setClientSessionDirectDeviceId,
+  setClientSessionServerAddress,
+  submitClientIframePayload,
+} from "@/api/tauri/desktop";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 /** 与 iframe 之间统一使用的消息类型（取 token / 推送 token 同名）。 */
 const IFRAME_TOKEN_EVENT = "cpms:token";
+/** iframe 向客户端推送当前登录使用的服务端地址。 */
+const IFRAME_SERVER_ADDRESS_EVENT = "cpms:serverAddress";
+/** iframe 向客户端推送当前直连设备 ID。 */
+const IFRAME_DIRECT_DEVICE_EVENT = "cpms:deviceId";
 /** 认证过期时通知 iframe 重新登录/刷新会话。 */
 const IFRAME_REFRESH_EVENT = "cpms:refresh";
 
@@ -13,6 +23,20 @@ interface TokenMessage {
   id?: string;
   payload?: string;
 }
+
+/** iframe 推送的服务端地址消息。 */
+interface ServerAddressMessage {
+  type: "cpms:serverAddress";
+  payload?: string;
+}
+
+/** iframe 推送的直连设备 ID 消息。 */
+interface DirectDeviceMessage {
+  type: "cpms:deviceId";
+  payload?: string;
+}
+
+type IframeMessage = TokenMessage | ServerAddressMessage | DirectDeviceMessage;
 
 export interface IframePayloadBridgeResult {
   id: string;
@@ -32,19 +56,49 @@ interface PendingQuery {
  * iframe token 桥：
  * - 统一出口：对 iframe 的 `message` 监听长期保持，单一类型 `cpms:token`，同时处理
  *   ①手动取 token 的响应、②iframe 主动推送的 token。
- * - 两种更新机制都经由监听 `cpms:token`：1) 客户端向 iframe 发 `cpms:token` 手动取；
- *   2) iframe 主动推送 token。
+ * - 常规登录/水合由 iframe 主动推送 token；客户端仅在鉴权失败等明确场景下手动请求。
  */
 export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefined>) {
   let unlistenClientEvent: UnlistenFn | undefined;
-  let autoQueryTimer: number | undefined;
   // 待回的手动查询：id → 解析器（统一出口收到对应 id 的响应时解析）。
   const pending = new Map<string, PendingQuery>();
 
-  /** 统一出口：处理所有来自 iframe 的 `cpms:token` 消息（手动响应 + 自动推送）。 */
+  /** 统一出口：处理所有来自 iframe 的消息。 */
   function handleIframeMessage(event: MessageEvent<unknown>) {
-    const data = event.data as TokenMessage | undefined;
-    if (data?.type !== IFRAME_TOKEN_EVENT) {
+    const data = event.data as IframeMessage | undefined;
+    if (!data) {
+      return;
+    }
+
+    if (data.type === IFRAME_SERVER_ADDRESS_EVENT) {
+      const addr = typeof data.payload === "string" ? data.payload.trim() : "";
+      if (addr) {
+        void setClientSessionServerAddress(addr).catch((error) => {
+          console.warn("[iframe bridge] 设置会话服务端地址失败", error);
+        });
+      } else {
+        void clearClientSessionServerAddress().catch((error) => {
+          console.warn("[iframe bridge] 清空会话服务端地址失败", error);
+        });
+      }
+      return;
+    }
+
+    if (data.type === IFRAME_DIRECT_DEVICE_EVENT) {
+      const deviceId = typeof data.payload === "string" ? data.payload.trim() : "";
+      if (deviceId) {
+        void setClientSessionDirectDeviceId(deviceId).catch((error) => {
+          console.warn("[iframe bridge] 设置会话直连设备 ID 失败", error);
+        });
+      } else {
+        void clearClientSessionDirectDeviceId().catch((error) => {
+          console.warn("[iframe bridge] 清空会话直连设备 ID 失败", error);
+        });
+      }
+      return;
+    }
+
+    if (data.type !== IFRAME_TOKEN_EVENT) {
       return;
     }
 
@@ -73,7 +127,7 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
       return;
     }
 
-    // 机制2：iframe 主动推送，有 token 才落库。
+    // 机制2：iframe 主动推送，有 token 才更新会话态。
     if (token) {
       void submitClientIframePayload({
         id: data.id || createMessageId(),
@@ -99,20 +153,11 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
       }
     });
 
-    // 路由加载后自动取一次。
-    autoQueryTimer = window.setTimeout(() => {
-      void queryIframeToken(createMessageId(), "route-loaded-10s");
-    }, 10_000);
   });
 
   onBeforeUnmount(() => {
     window.removeEventListener("message", handleIframeMessage);
     unlistenClientEvent?.();
-
-    if (autoQueryTimer) {
-      window.clearTimeout(autoQueryTimer);
-      autoQueryTimer = undefined;
-    }
 
     for (const [id, entry] of pending) {
       window.clearTimeout(entry.timer);

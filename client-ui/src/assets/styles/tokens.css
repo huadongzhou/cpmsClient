@@ -1,29 +1,62 @@
 /**
  * CPMS 客户端设计令牌。
- * 主窗口、桌面通知子窗口、调试抽屉等所有窗口内容共用同一套视觉变量，
+ * 基于 ui-ux-pro-max 技能制定的 Enterprise Gateway / Trust & Authority 统一设计系统。
+ * 所有窗口（主窗口、通知子窗口、调试抽屉）共用同一套视觉变量，
  * 颜色、字号、圆角、间距一律从这里取值，禁止在组件里写裸色值。
- *
- * 设计方向：Minimalism & Swiss Style + Trust & Authority（Enterprise Gateway）。
  */
+
+/* Plus Jakarta Sans 本地字体（支持 Tauri 离线环境） */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/PlusJakartaSans-400.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/PlusJakartaSans-500.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/PlusJakartaSans-600.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/PlusJakartaSans-700.ttf') format('truetype');
+}
+
 :root {
   /* 字体 */
-  --cpms-font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  --cpms-font-family: 'Plus Jakarta Sans', Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
   --cpms-font-family-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
 
-  /* 字号体系 */
+  /* 字号体系：基础 16px，符合 WCAG 可读性 */
   --cpms-font-size-xs: 12px;
   --cpms-font-size-small: 13px;
-  --cpms-font-size-base: 14px;
-  --cpms-font-size-medium: 15px;
-  --cpms-font-size-large: 16px;
-  --cpms-font-size-xl: 18px;
-  --cpms-font-size-2xl: 20px;
-  --cpms-font-size-3xl: 24px;
+  --cpms-font-size-base: 16px;
+  --cpms-font-size-medium: 17px;
+  --cpms-font-size-large: 18px;
+  --cpms-font-size-xl: 20px;
+  --cpms-font-size-2xl: 24px;
+  --cpms-font-size-3xl: 32px;
 
   /* 行高体系 */
   --cpms-line-height-tight: 1.25;
-  --cpms-line-height-small: 20px;
-  --cpms-line-height-base: 22px;
+  --cpms-line-height-small: 1.4;
+  --cpms-line-height-base: 1.5;
   --cpms-line-height-relaxed: 1.625;
 
   /* 字重 */
@@ -33,10 +66,11 @@
   --cpms-font-weight-bold: 700;
 
   /* 文字颜色 */
-  --cpms-color-text-primary: #0f172a;
+  --cpms-color-text-primary: #020617;
   --cpms-color-text-secondary: #334155;
   --cpms-color-text-muted: #64748b;
   --cpms-color-text-disabled: #94a3b8;
+  --cpms-color-text-placeholder: #94a3b8;
   --cpms-color-text-on-primary: #ffffff;
   --cpms-color-text-on-danger: #ffffff;
 
@@ -48,33 +82,44 @@
   --cpms-color-bg-hover: #f1f5f9;
   --cpms-color-bg-active: #e2e8f0;
   --cpms-color-bg-code: #f1f5f9;
-  --cpms-color-bg-overlay: rgba(15, 23, 42, 0.28);
+  --cpms-color-bg-overlay: rgba(2, 6, 23, 0.28);
 
   /* 边框与分隔 */
   --cpms-color-border: #e2e8f0;
   --cpms-color-border-strong: #cbd5e1;
   --cpms-color-divider: #e2e8f0;
 
-  /* 主色（专业蓝） */
-  --cpms-color-primary: #2563eb;
-  --cpms-color-primary-hover: #1d4ed8;
-  --cpms-color-primary-active: #1e40af;
+  /* 前景/品牌色（用于标题栏、重点表面） */
+  --cpms-color-foreground: #0f172a;
+
+  /* 主色（权威海军蓝） */
+  --cpms-color-primary: #1e3a8a;
+  --cpms-color-primary-hover: #1e40af;
+  --cpms-color-primary-active: #172554;
   --cpms-color-primary-bg: #eff6ff;
   --cpms-color-primary-bg-subtle: #dbeafe;
   --cpms-color-primary-border: #bfdbfe;
-  --cpms-color-primary-text: #2563eb;
+  --cpms-color-primary-text: #1e3a8a;
+
+  /* 强调色/CTA（专业青蓝） */
+  --cpms-color-accent: #0369a1;
+  --cpms-color-accent-hover: #075985;
+  --cpms-color-accent-bg: #f0f9ff;
+  --cpms-color-accent-bg-subtle: #e0f2fe;
+  --cpms-color-accent-border: #bae6fd;
+  --cpms-color-accent-text: #0369a1;
 
   /* 成功/强调（交易绿） */
-  --cpms-color-success: #059669;
-  --cpms-color-success-bg: #ecfdf5;
+  --cpms-color-success: #047857;
+  --cpms-color-success-bg: #d1fae5;
   --cpms-color-success-border: #a7f3d0;
-  --cpms-color-success-text: #047857;
+  --cpms-color-success-text: #065f46;
 
   /* 警告 */
-  --cpms-color-warning: #d97706;
-  --cpms-color-warning-bg: #fffbeb;
+  --cpms-color-warning: #b45309;
+  --cpms-color-warning-bg: #fef3c7;
   --cpms-color-warning-border: #fde68a;
-  --cpms-color-warning-text: #b45309;
+  --cpms-color-warning-text: #92400e;
 
   /* 危险 */
   --cpms-color-danger: #dc2626;
@@ -119,17 +164,17 @@
   --cpms-space-large: var(--cpms-space-4);
   --cpms-space-xlarge: var(--cpms-space-5);
 
-  /* 阴影 */
-  --cpms-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
-  --cpms-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
-  --cpms-shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.12);
-  --cpms-shadow-xl: 0 12px 32px rgba(15, 23, 42, 0.16);
+  /* 阴影：基于前景色 #020617，权威、克制的投影 */
+  --cpms-shadow-xs: 0 1px 2px rgba(2, 6, 23, 0.04);
+  --cpms-shadow-sm: 0 2px 8px rgba(2, 6, 23, 0.05);
+  --cpms-shadow-md: 0 4px 16px rgba(2, 6, 23, 0.08);
+  --cpms-shadow-lg: 0 8px 24px rgba(2, 6, 23, 0.12);
+  --cpms-shadow-xl: 0 12px 32px rgba(2, 6, 23, 0.16);
 
-  /* 动效 */
-  --cpms-duration-fast: 120ms;
-  --cpms-duration-base: 180ms;
-  --cpms-duration-slow: 260ms;
+  /* 动效：150-300ms，优先 transform/opacity */
+  --cpms-duration-fast: 150ms;
+  --cpms-duration-base: 200ms;
+  --cpms-duration-slow: 300ms;
   --cpms-easing-base: cubic-bezier(0.4, 0, 0.2, 1);
   --cpms-easing-out: cubic-bezier(0, 0, 0.2, 1);
   --cpms-easing-in: cubic-bezier(0.4, 0, 1, 1);
@@ -150,6 +195,7 @@
     --cpms-color-text-secondary: #cbd5e1;
     --cpms-color-text-muted: #94a3b8;
     --cpms-color-text-disabled: #64748b;
+    --cpms-color-text-placeholder: #64748b;
 
     --cpms-color-bg-app: #0f172a;
     --cpms-color-bg-panel: #1e293b;
@@ -164,10 +210,23 @@
     --cpms-color-border-strong: #475569;
     --cpms-color-divider: #334155;
 
-    --cpms-color-primary-bg: #1e3a8a;
-    --cpms-color-primary-bg-subtle: #1e40af;
-    --cpms-color-primary-border: #3b82f6;
-    --cpms-color-primary-text: #60a5fa;
+    --cpms-color-foreground: #f8fafc;
+
+    /* 暗色下主色切换为更亮的青蓝，保证在深色背景上的可视性 */
+    --cpms-color-primary: #38bdf8;
+    --cpms-color-primary-hover: #7dd3fc;
+    --cpms-color-primary-active: #0ea5e9;
+    --cpms-color-primary-bg: #0c4a6e;
+    --cpms-color-primary-bg-subtle: #1e3a8a;
+    --cpms-color-primary-border: #38bdf8;
+    --cpms-color-primary-text: #38bdf8;
+
+    --cpms-color-accent: #38bdf8;
+    --cpms-color-accent-hover: #7dd3fc;
+    --cpms-color-accent-bg: #0c4a6e;
+    --cpms-color-accent-bg-subtle: #1e3a8a;
+    --cpms-color-accent-border: #38bdf8;
+    --cpms-color-accent-text: #38bdf8;
 
     --cpms-color-success-bg: #064e3b;
     --cpms-color-success-border: #10b981;
@@ -225,7 +284,7 @@
   --el-color-success: var(--cpms-color-success);
   --el-color-warning: var(--cpms-color-warning);
   --el-color-danger: var(--cpms-color-danger);
-  --el-color-info: var(--cpms-color-info);
+  --el-color-info: var(--cpms-color-accent);
 
   --el-border-radius-base: var(--cpms-radius-small);
   --el-border-radius-small: var(--cpms-radius-xs);
@@ -257,5 +316,8 @@
     --el-bg-color: var(--cpms-color-bg-app);
     --el-bg-color-page: var(--cpms-color-bg-app);
     --el-bg-color-overlay: var(--cpms-color-surface-elevated);
+
+    --el-color-primary: var(--cpms-color-primary);
+    --el-color-info: var(--cpms-color-accent);
   }
 }

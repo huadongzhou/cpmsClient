@@ -60,9 +60,18 @@ pub fn client_set_iframe_container_url(
         return CommandResult::fail("IFRAME_HOST_NOT_ALLOWED", &message);
     }
 
-    services::log_service::info(&app, "iframe", &format!("视图端设置 iframe 地址：{}", parsed));
+    services::log_service::info(
+        &app,
+        "iframe",
+        &format!("视图端设置 iframe 地址：{}", parsed),
+    );
 
-    CommandResult::ok(update_iframe_state(&app, "loaded", Some(parsed.to_string()), None))
+    CommandResult::ok(update_iframe_state(
+        &app,
+        "loaded",
+        Some(parsed.to_string()),
+        None,
+    ))
 }
 
 #[tauri::command]
@@ -84,8 +93,7 @@ pub fn client_submit_iframe_payload(
     reason: Option<String>,
     error: Option<String>,
 ) -> CommandResult<bool> {
-    // 上报即落库：payload 为非空字符串（token）时写入加密缓存（供 socket 转发/CPMS 请求直接
-    // 使用，无需等到首次请求 401 才重取）。
+    // 上报即更新会话 token：仅保存到内存，供 socket 转发/CPMS 请求直接使用，不落盘缓存。
     if let Some(token) = payload
         .as_ref()
         .and_then(Value::as_str)
@@ -93,11 +101,15 @@ pub fn client_submit_iframe_payload(
         .filter(|value| !value.is_empty())
     {
         match services::save_cached_auth_token(&app, token) {
-            Ok(_) => services::log_service::info(&app, "token", "已从 iframe 上报读取并缓存 token"),
+            Ok(_) => services::log_service::info(
+                &app,
+                "cache",
+                &format!("已从 iframe 上报更新会话 token 明文：{token}"),
+            ),
             Err(err) => services::log_service::warn(
                 &app,
-                "token",
-                &format!("缓存 iframe 上报的 token 失败：{err}"),
+                "cache",
+                &format!("更新 iframe 上报的会话 token 失败：{err}"),
             ),
         }
     }

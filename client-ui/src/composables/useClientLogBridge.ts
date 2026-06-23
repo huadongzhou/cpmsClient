@@ -23,7 +23,7 @@ export function useClientLogBridge() {
       logStore.appendLog({
         level: /fail|error/i.test(payload.type) ? "error" : "info",
         source: "client-event",
-        title: payload.type,
+        title: `[client/business] ${payload.type}`,
         detail:
           payload.payload === undefined || payload.payload === null
             ? undefined
@@ -54,12 +54,12 @@ export function useClientLogBridge() {
         logStore.appendLog({
           level,
           source: `error/${error.source}`,
-          title: `${error.code}: ${error.message}`,
+          title: `[web/business] ${error.code}: ${error.message}`,
         });
         void pushClientLog({
           level,
           source: `ui/${error.source}`,
-          message: `${error.code}: ${error.message}`,
+          message: `[web/business] ${error.code}: ${error.message}`,
         }).catch(() => undefined);
       }
     },

@@ -82,3 +82,33 @@ export function getSocketState() {
 export function getPrintClientInfo() {
   return unwrapCommand<PrintClientInfo>("get_print_client_info");
 }
+
+/** 设置会话级服务端地址（iframe 推送）。 */
+export function setClientSessionServerAddress(addr: string) {
+  return unwrapCommand<boolean>("set_session_server_address", { addr });
+}
+
+/** 清空会话级服务端地址。 */
+export function clearClientSessionServerAddress() {
+  return unwrapCommand<boolean>("clear_session_server_address");
+}
+
+/** 获取当前会话级服务端地址（调试用）。 */
+export function getClientSessionServerAddress() {
+  return unwrapCommand<string | null>("get_session_server_address");
+}
+
+/** 设置会话级直连设备 ID（iframe 推送）。 */
+export function setClientSessionDirectDeviceId(deviceId: string) {
+  return unwrapCommand<boolean>("set_session_direct_device_id", { deviceId });
+}
+
+/** 清空会话级直连设备 ID。 */
+export function clearClientSessionDirectDeviceId() {
+  return unwrapCommand<boolean>("clear_session_direct_device_id");
+}
+
+/** 获取当前会话级直连设备 ID（调试用）。 */
+export function getClientSessionDirectDeviceId() {
+  return unwrapCommand<string | null>("get_session_direct_device_id");
+}

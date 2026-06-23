@@ -1,6 +1,6 @@
 <script setup lang="ts" name="ExampleView">
-import { storeToRefs } from "pinia";
-import { emitViewEvent, listenClientEvent, listenClientSocketEvent } from "@/api/tauri/events";
+import { storeToRefs } from 'pinia'
+import { emitViewEvent, listenClientEvent, listenClientSocketEvent } from '@/api/tauri/events'
 import {
   clientHttpRequest,
   getAutostartEnabled,
@@ -8,239 +8,252 @@ import {
   getSocketState,
   pushClientNotificationEvent,
   reconnectSocket,
-  setAutostartEnabled,
-} from "@/api/tauri/desktop";
-import type { ClientSocketStatePayload, PrintClientInfo } from "@/types/app/runtime";
-import ErrorNotice from "@/components/common/ErrorNotice.vue";
-import Icon from "@/components/common/Icon.vue";
-import { useIframeContainer } from "@/composables/useIframeContainer";
-import { useAppNotification } from "@/composables/useAppNotification";
-import { useAppStore } from "@/stores/app";
-import { useNetworkStore } from "@/stores/network";
-import { useRuntimeStore } from "@/stores/runtime";
-import { useTaskStore } from "@/stores/task";
-import type { IframePayloadBridgeResult } from "@/composables/useIframePayloadBridge";
-import type { UnlistenFn } from "@tauri-apps/api/event";
-import { ElMessage } from "element-plus";
+  setAutostartEnabled
+} from '@/api/tauri/desktop'
+import type { ClientSocketStatePayload, PrintClientInfo } from '@/types/app/runtime'
+import ErrorNotice from '@/components/common/ErrorNotice.vue'
+import {
+  Aim,
+  ArrowDownBold,
+  ArrowRightBold,
+  Bell,
+  ChatDotRound,
+  CircleCheckFilled,
+  CircleCloseFilled,
+  CopyDocument,
+  Cpu,
+  Key,
+  Link,
+  Monitor,
+  Printer,
+  Promotion,
+  RefreshRight,
+  Setting
+} from '@element-plus/icons-vue'
+import { useIframeContainer } from '@/composables/useIframeContainer'
+import { useAppNotification } from '@/composables/useAppNotification'
+import { useAppStore } from '@/stores/app'
+import { useNetworkStore } from '@/stores/network'
+import { useRuntimeStore } from '@/stores/runtime'
+import { useTaskStore } from '@/stores/task'
+import type { IframePayloadBridgeResult } from '@/composables/useIframePayloadBridge'
+import type { UnlistenFn } from '@tauri-apps/api/event'
+import { ElIcon, ElMessage } from 'element-plus'
 
 const props = defineProps<{
-  queryIframePayload?: (reason?: string) => Promise<IframePayloadBridgeResult>;
-}>();
+  queryIframePayload?: (reason?: string) => Promise<IframePayloadBridgeResult>
+}>()
 
-const appStore = useAppStore();
-const networkStore = useNetworkStore();
-const runtimeStore = useRuntimeStore();
-const taskStore = useTaskStore();
-const { notify } = useAppNotification();
-const { isOnline } = storeToRefs(networkStore);
-const { iframe, loadIframeContainer, loading } = useIframeContainer();
-const autostartEnabled = ref(false);
-const autostartLoading = ref(false);
-const notifyResult = ref("");
-const communicationInput = ref("view -> client: hello cpms");
-const communicationSendText = ref("");
-const communicationReceiveText = ref("");
-const tokenResult = ref("");
-const tokenLoading = ref(false);
-const httpResult = ref("");
-const httpLoading = ref(false);
-const socketResult = ref("");
-const socketReconnectLoading = ref(false);
+const appStore = useAppStore()
+const networkStore = useNetworkStore()
+const runtimeStore = useRuntimeStore()
+const taskStore = useTaskStore()
+const { notify } = useAppNotification()
+const { isOnline } = storeToRefs(networkStore)
+const { iframe, loadIframeContainer, loading } = useIframeContainer()
+const autostartEnabled = ref(false)
+const autostartLoading = ref(false)
+const notifyResult = ref('')
+const communicationInput = ref('view -> client: hello cpms')
+const communicationSendText = ref('')
+const communicationReceiveText = ref('')
+const tokenResult = ref('')
+const tokenLoading = ref(false)
+const httpResult = ref('')
+const httpLoading = ref(false)
+const socketResult = ref('')
+const socketReconnectLoading = ref(false)
 const socketLink = ref<ClientSocketStatePayload>({
-  url: "",
+  url: '',
   port: null,
-  status: "",
-  updatedAt: "",
-});
-const printClient = ref<PrintClientInfo>();
-const printClientLoading = ref(false);
-let unlistenClientEvent: UnlistenFn | undefined;
-let unlistenClientSocket: UnlistenFn | undefined;
+  status: '',
+  updatedAt: ''
+})
+const printClient = ref<PrintClientInfo>()
+const printClientLoading = ref(false)
+let unlistenClientEvent: UnlistenFn | undefined
+let unlistenClientSocket: UnlistenFn | undefined
 
 const SOCKET_STATUS_TEXT: Record<string, string> = {
-  "": "未初始化",
-  binding: "绑定中",
-  listening: "监听中（等待推送连接）",
-  failed: "监听失败",
-};
-const socketStatusText = computed(
-  () => SOCKET_STATUS_TEXT[socketLink.value.status] ?? socketLink.value.status,
-);
-const socketLinkUrl = computed(() => socketLink.value.url || socketEndpoint.value);
-const socketLinkPort = computed(() => socketLink.value.port ?? "未知");
+  '': '未初始化',
+  binding: '绑定中',
+  listening: '监听中（等待推送连接）',
+  failed: '监听失败'
+}
+const socketStatusText = computed(() => SOCKET_STATUS_TEXT[socketLink.value.status] ?? socketLink.value.status)
+const socketLinkUrl = computed(() => socketLink.value.url || socketEndpoint.value)
+const socketLinkPort = computed(() => socketLink.value.port ?? '未知')
 
-const pageAddress = computed(() => window.location.href);
-const iframeAddress = computed(() => iframe.value.url || "about:blank");
-const collapsedCards = ref<Set<string>>(new Set());
+const pageAddress = computed(() => window.location.href)
+const iframeAddress = computed(() => iframe.value.url || 'about:blank')
+const collapsedCards = ref<Set<string>>(new Set())
 
 function isCollapsed(key: string) {
-  return collapsedCards.value.has(key);
+  return collapsedCards.value.has(key)
 }
 
 function toggleCard(key: string) {
-  const next = new Set(collapsedCards.value);
+  const next = new Set(collapsedCards.value)
   if (next.has(key)) {
-    next.delete(key);
+    next.delete(key)
   } else {
-    next.add(key);
+    next.add(key)
   }
-  collapsedCards.value = next;
+  collapsedCards.value = next
 }
 
 async function copyResult(text: string) {
   if (!text) {
-    ElMessage.info("暂无可复制内容");
-    return;
+    ElMessage.info('暂无可复制内容')
+    return
   }
 
-  await navigator.clipboard.writeText(text);
-  ElMessage.success("结果已复制");
+  await navigator.clipboard.writeText(text)
+  ElMessage.success('结果已复制')
 }
 
 // 客户端只有一个 token：经 iframe 获取后本地缓存，等待拉取/推送更新。
-const iframeTokenStatus = computed(() => (runtimeStore.iframeToken ? "存在" : "不存在"));
-const socketEndpoint = computed(() => toSocketEndpoint(appStore.config.localServiceUrl));
-const latestSocketTask = computed(() => taskStore.todoTasks[0]);
+const iframeTokenStatus = computed(() => (runtimeStore.iframeToken ? '存在' : '不存在'))
+const socketEndpoint = computed(() => toSocketEndpoint(appStore.config.localServiceUrl))
+const latestSocketTask = computed(() => taskStore.todoTasks[0])
 
 onMounted(async () => {
   try {
-    autostartEnabled.value = await getAutostartEnabled();
+    autostartEnabled.value = await getAutostartEnabled()
   } catch {
-    autostartEnabled.value = false;
+    autostartEnabled.value = false
   }
 
   unlistenClientEvent = await listenClientEvent((payload) => {
-    communicationReceiveText.value = ["[Client -> View]", JSON.stringify(payload, null, 2)].join(
-      "\n",
-    );
-  });
+    communicationReceiveText.value = ['[Client -> View]', JSON.stringify(payload, null, 2)].join('\n')
+  })
 
   try {
-    socketLink.value = await getSocketState();
+    socketLink.value = await getSocketState()
   } catch {
     // 非 Tauri 环境或尚未初始化时忽略。
   }
   unlistenClientSocket = await listenClientSocketEvent((payload) => {
-    socketLink.value = payload;
-  });
+    socketLink.value = payload
+  })
 
-  await refreshPrintClientInfo();
-});
+  await refreshPrintClientInfo()
+})
 
 async function refreshPrintClientInfo() {
-  printClientLoading.value = true;
+  printClientLoading.value = true
   try {
-    printClient.value = await getPrintClientInfo();
+    printClient.value = await getPrintClientInfo()
   } catch {
-    printClient.value = undefined;
+    printClient.value = undefined
   } finally {
-    printClientLoading.value = false;
+    printClientLoading.value = false
   }
 }
 
 onBeforeUnmount(() => {
-  unlistenClientEvent?.();
-  unlistenClientSocket?.();
-});
+  unlistenClientEvent?.()
+  unlistenClientSocket?.()
+})
 
 async function runNotificationDetect() {
   const payload = {
-    type: "info" as const,
-    title: "通知检测",
-    message: "desktop notification body message",
-    durationMs: 5000,
-  };
+    type: 'info' as const,
+    title: '通知检测',
+    message: 'desktop notification body message',
+    durationMs: 5000
+  }
 
-  notify(payload);
-  await pushClientNotificationEvent(payload);
-  notifyResult.value = ["[Notify Payload]", JSON.stringify(payload, null, 2)].join("\n");
+  notify(payload)
+  await pushClientNotificationEvent(payload)
+  notifyResult.value = ['[Notify Payload]', JSON.stringify(payload, null, 2)].join('\n')
 }
 
 async function runCommunicationDetect() {
   const payload = {
     text: communicationInput.value,
-    channel: "cpms:view-to-client",
-    at: new Date().toISOString(),
-  };
+    channel: 'cpms:view-to-client',
+    at: new Date().toISOString()
+  }
 
-  await emitViewEvent("example.communication.detect", payload);
+  await emitViewEvent('example.communication.detect', payload)
   communicationSendText.value = [
-    "[View -> Client]",
+    '[View -> Client]',
     JSON.stringify(
       {
-        event: "example.communication.detect",
-        payload,
+        event: 'example.communication.detect',
+        payload
       },
       null,
-      2,
-    ),
-  ].join("\n");
+      2
+    )
+  ].join('\n')
 }
 
 async function runTokenDetect() {
-  tokenLoading.value = true;
-  tokenResult.value = "";
+  tokenLoading.value = true
+  tokenResult.value = ''
 
   try {
-    const bridgeResult = await props.queryIframePayload?.("token-detect");
-    const iframePayloadToken = bridgeResult?.token;
+    const bridgeResult = await props.queryIframePayload?.('token-detect')
+    const iframePayloadToken = bridgeResult?.token
 
-    runtimeStore.setIframeToken(iframePayloadToken || "");
+    runtimeStore.setIframeToken(iframePayloadToken || '')
 
     // 客户端只有一个 token：来自 iframe，获取后即本地缓存（不存在 localStorage/store 等多份存储）。
     tokenResult.value = [
-      "[Token Detect]",
+      '[Token Detect]',
       JSON.stringify(
         {
           token: {
             exists: Boolean(iframePayloadToken),
-            value: iframePayloadToken || "",
-            source: "iframe（获取后本地缓存）",
+            value: iframePayloadToken || '',
+            source: 'iframe（获取后本地缓存）'
           },
           iframePayloadBridge: normalizeBridgeResult(bridgeResult),
           iframeUrl: iframeAddress.value,
-          checkedAt: new Date().toISOString(),
+          checkedAt: new Date().toISOString()
         },
         null,
-        2,
-      ),
-    ].join("\n");
+        2
+      )
+    ].join('\n')
   } finally {
-    tokenLoading.value = false;
+    tokenLoading.value = false
   }
 }
 
 async function toggleAutostart() {
-  autostartLoading.value = true;
+  autostartLoading.value = true
   try {
-    autostartEnabled.value = await setAutostartEnabled(!autostartEnabled.value);
+    autostartEnabled.value = await setAutostartEnabled(!autostartEnabled.value)
   } finally {
-    autostartLoading.value = false;
+    autostartLoading.value = false
   }
 }
 
 async function runHttpDetect() {
-  httpLoading.value = true;
-  httpResult.value = "";
+  httpLoading.value = true
+  httpResult.value = ''
   try {
     const result = await clientHttpRequest({
-      method: "GET",
+      method: 'GET',
       url: appStore.config.cpmsBaseUrl,
-      timeoutMs: 4000,
-    });
+      timeoutMs: 4000
+    })
     httpResult.value = [
       `[HTTP Request] GET ${appStore.config.cpmsBaseUrl}`,
-      "[HTTP Response]",
-      JSON.stringify(result, null, 2),
-    ].join("\n");
+      '[HTTP Response]',
+      JSON.stringify(result, null, 2)
+    ].join('\n')
   } catch (error) {
     httpResult.value = [
       `[HTTP Request] GET ${appStore.config.cpmsBaseUrl}`,
-      "[HTTP Error]",
-      error instanceof Error ? error.message : "代理请求失败",
-    ].join("\n");
+      '[HTTP Error]',
+      error instanceof Error ? error.message : '代理请求失败'
+    ].join('\n')
   } finally {
-    httpLoading.value = false;
+    httpLoading.value = false
   }
 }
 
@@ -248,70 +261,69 @@ function runSocketDetect() {
   if (latestSocketTask.value) {
     socketResult.value = [
       `[Socket Connected] ${socketEndpoint.value}`,
-      "[Socket -> Client -> View Payload]",
-      JSON.stringify(latestSocketTask.value, null, 2),
-    ].join("\n");
-    return;
+      '[Socket -> Client -> View Payload]',
+      JSON.stringify(latestSocketTask.value, null, 2)
+    ].join('\n')
+    return
   }
 
   socketResult.value = [
     `[Socket Connected] ${socketEndpoint.value}`,
-    "[Socket Simulated Payload]",
+    '[Socket Simulated Payload]',
     JSON.stringify(
       {
-        taskId: "mock-task-001",
-        title: "mock socket task",
-        status: "running",
-        at: new Date().toISOString(),
+        taskId: 'mock-task-001',
+        title: 'mock socket task',
+        status: 'running',
+        at: new Date().toISOString()
       },
       null,
-      2,
-    ),
-  ].join("\n");
+      2
+    )
+  ].join('\n')
 }
 
 async function runSocketReconnect() {
-  socketReconnectLoading.value = true;
+  socketReconnectLoading.value = true
   try {
-    await reconnectSocket();
+    await reconnectSocket()
     socketResult.value = [
       `[Socket Restart] ${socketLinkUrl.value}`,
-      "已请求客户端重启本地 socket 监听服务，可在「客户端日志」的「任务 / Socket」类别查看结果。",
-    ].join("\n");
+      '已请求客户端重启本地 socket 监听服务，可在「客户端日志」的「任务 / Socket」类别查看结果。'
+    ].join('\n')
   } catch (error) {
-    socketResult.value = [
-      "[Socket Reconnect Error]",
-      error instanceof Error ? error.message : "重连请求失败",
-    ].join("\n");
+    socketResult.value = ['[Socket Reconnect Error]', error instanceof Error ? error.message : '重连请求失败'].join(
+      '\n'
+    )
   } finally {
-    socketReconnectLoading.value = false;
+    socketReconnectLoading.value = false
   }
 }
 
 function toSocketEndpoint(baseUrl: string) {
-  const normalized = baseUrl.replace(/\/$/, "");
+  const normalized = baseUrl.replace(/\/$/, '')
 
-  if (normalized.endsWith("/ws/task")) {
-    return normalized;
+  if (normalized.endsWith('/ws/task')) {
+    return normalized
   }
 
-  if (normalized.startsWith("ws://") || normalized.startsWith("wss://")) {
-    return `${normalized}/ws/task`;
+  if (normalized.startsWith('ws://') || normalized.startsWith('wss://')) {
+    return `${normalized}/ws/task`
   }
 
-  if (normalized.startsWith("https://")) {
-    return `${normalized.replace("https://", "wss://")}/ws/task`;
+  if (normalized.startsWith('https://')) {
+    return `${normalized.replace('https://', 'wss://')}/ws/task`
   }
 
-  return `${normalized.replace("http://", "ws://")}/ws/task`;
+  return `${normalized.replace('http://', 'ws://')}/ws/task`
 }
 
 function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
   if (!result) {
     return {
       ok: false,
-      error: "useIframePayloadBridge unavailable",
-    };
+      error: 'useIframePayloadBridge unavailable'
+    }
   }
 
   return {
@@ -319,34 +331,34 @@ function normalizeBridgeResult(result?: IframePayloadBridgeResult) {
     ok: result.ok,
     reason: result.reason,
     error: result.error,
-    token: result.token,
-  };
+    token: result.token
+  }
 }
 
 // 内联结果块子组件，避免额外文件依赖。
 const ResultBlock = defineComponent({
   props: {
     text: { type: String, required: true },
-    title: { type: String, default: "" },
+    title: { type: String, default: '' }
   },
-  emits: ["copy"],
+  emits: ['copy'],
   setup(props, { emit }) {
     return () =>
-      h("div", { class: "result-block" }, [
-        props.title ? h("h4", { class: "result-title" }, props.title) : null,
+      h('div', { class: 'result-block' }, [
+        props.title ? h('h4', { class: 'result-title' }, props.title) : null,
         h(
-          "button",
+          'button',
           {
-            class: "result-copy",
-            type: "button",
-            onClick: () => emit("copy"),
+            class: 'result-copy',
+            type: 'button',
+            onClick: () => emit('copy')
           },
-          [h(Icon, { icon: "solar:copy-bold", class: "result-copy-icon" }), h("span", "复制")],
+          [h(ElIcon, { size: 14 }, { default: () => h(CopyDocument) }), h('span', '复制')]
         ),
-        h("pre", { class: "result" }, props.text),
-      ]);
-  },
-});
+        h('pre', { class: 'result' }, props.text)
+      ])
+  }
+})
 </script>
 
 <template>
@@ -357,12 +369,12 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('status') }">
         <header class="card-header">
           <div class="card-title">
-            <Icon icon="solar:monitor-bold" class="card-icon" />
+            <el-icon class="card-icon"><Monitor /></el-icon>
             <span>状态</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('status')">
-            <Icon v-if="!isCollapsed('status')" icon="solar:alt-arrow-down-bold" />
-            <Icon v-else icon="solar:alt-arrow-right-bold" />
+            <el-icon v-if="!isCollapsed('status')"><ArrowDownBold /></el-icon>
+            <el-icon v-else><ArrowRightBold /></el-icon>
           </button>
         </header>
         <div class="card-body">
@@ -379,7 +391,7 @@ const ResultBlock = defineComponent({
               <span class="status-label">开机自启动</span>
               <span class="status-value">
                 <el-tag :type="autostartEnabled ? 'success' : 'info'" size="small">
-                  {{ autostartEnabled ? "已开启" : "已关闭" }}
+                  {{ autostartEnabled ? '已开启' : '已关闭' }}
                 </el-tag>
               </span>
             </div>
@@ -387,7 +399,7 @@ const ResultBlock = defineComponent({
               <span class="status-label">网络状态</span>
               <span class="status-value">
                 <el-tag :type="isOnline ? 'success' : 'danger'" size="small">
-                  {{ isOnline ? "online" : "offline" }}
+                  {{ isOnline ? 'online' : 'offline' }}
                 </el-tag>
               </span>
             </div>
@@ -395,7 +407,7 @@ const ResultBlock = defineComponent({
           <div class="actions">
             <el-button :loading="loading" @click="loadIframeContainer">
               <template #icon>
-                <Icon icon="solar:refresh-square-bold" />
+                <RefreshRight />
               </template>
               刷新 iframe 地址
             </el-button>
@@ -406,12 +418,12 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('notification') }">
         <header class="card-header">
           <div class="card-title">
-            <Icon icon="solar:bell-bold" class="card-icon" />
+            <el-icon class="card-icon"><Bell /></el-icon>
             <span>通知检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('notification')">
-            <Icon v-if="!isCollapsed('notification')" icon="solar:alt-arrow-down-bold" />
-            <Icon v-else icon="solar:alt-arrow-right-bold" />
+            <el-icon v-if="!isCollapsed('notification')"><ArrowDownBold /></el-icon>
+            <el-icon v-else><ArrowRightBold /></el-icon>
           </button>
         </header>
         <div class="card-body">
@@ -419,7 +431,7 @@ const ResultBlock = defineComponent({
           <div class="actions">
             <el-button type="primary" plain @click="runNotificationDetect">
               <template #icon>
-                <Icon icon="solar:bell-bing-bold" />
+                <el-icon><Bell /></el-icon>
               </template>
               发送通知
             </el-button>
@@ -431,12 +443,12 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('communication') }">
         <header class="card-header">
           <div class="card-title">
-            <Icon icon="solar:link-circle-bold" class="card-icon" />
+            <el-icon class="card-icon"><Link /></el-icon>
             <span>通信检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('communication')">
-            <Icon v-if="!isCollapsed('communication')" icon="solar:alt-arrow-down-bold" />
-            <Icon v-else icon="solar:alt-arrow-right-bold" />
+            <el-icon v-if="!isCollapsed('communication')"><ArrowDownBold /></el-icon>
+            <el-icon v-else><ArrowRightBold /></el-icon>
           </button>
         </header>
         <div class="card-body">
@@ -444,7 +456,7 @@ const ResultBlock = defineComponent({
           <div class="actions">
             <el-button type="primary" plain @click="runCommunicationDetect">
               <template #icon>
-                <Icon icon="solar:plain-bold" />
+                <el-icon><Promotion /></el-icon>
               </template>
               执行通信检测
             </el-button>
@@ -467,12 +479,12 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('token') }">
         <header class="card-header">
           <div class="card-title">
-            <Icon icon="solar:key-bold" class="card-icon" />
+            <el-icon class="card-icon"><Key /></el-icon>
             <span>Token 检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('token')">
-            <Icon v-if="!isCollapsed('token')" icon="solar:alt-arrow-down-bold" />
-            <Icon v-else icon="solar:alt-arrow-right-bold" />
+            <el-icon v-if="!isCollapsed('token')"><ArrowDownBold /></el-icon>
+            <el-icon v-else><ArrowRightBold /></el-icon>
           </button>
         </header>
         <div class="card-body">
@@ -484,11 +496,11 @@ const ResultBlock = defineComponent({
               </el-tag>
             </span>
           </div>
-          <p class="card-desc">从 iframe 获取 token 并写入本地加密缓存。</p>
+          <p class="card-desc">从 iframe 获取 token 并写入会话内存。</p>
           <div class="actions">
             <el-button type="primary" plain :loading="tokenLoading" @click="runTokenDetect">
               <template #icon>
-                <Icon icon="solar:refresh-square-bold" />
+                <RefreshRight />
               </template>
               执行 Token 检测
             </el-button>
@@ -500,51 +512,49 @@ const ResultBlock = defineComponent({
       <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('printclient') }">
         <header class="card-header">
           <div class="card-title">
-            <Icon icon="solar:printer-bold" class="card-icon" />
+            <el-icon class="card-icon"><Printer /></el-icon>
             <span>本地 CPMS 客户端（PrintClient）</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('printclient')">
-            <Icon v-if="!isCollapsed('printclient')" icon="solar:alt-arrow-down-bold" />
-            <Icon v-else icon="solar:alt-arrow-right-bold" />
+            <el-icon v-if="!isCollapsed('printclient')"><ArrowDownBold /></el-icon>
+            <el-icon v-else><ArrowRightBold /></el-icon>
           </button>
         </header>
         <div class="card-body">
           <div class="status-list">
             <div class="status-row">
               <span class="status-label">运行目录</span>
-              <span class="status-value">{{
-                printClient?.processDir || "未检测到运行中的 PrintClient"
-              }}</span>
+              <span class="status-value">{{ printClient?.processDir || '未检测到运行中的 PrintClient' }}</span>
             </div>
             <div class="status-row">
               <span class="status-label">安装路径</span>
-              <span class="status-value">{{ printClient?.dir || "未检测到" }}</span>
+              <span class="status-value">{{ printClient?.dir || '未检测到' }}</span>
             </div>
             <div class="status-row">
               <span class="status-label">配置文件</span>
-              <span class="status-value">{{ printClient?.configPath || "未检测到" }}</span>
+              <span class="status-value">{{ printClient?.configPath || '未检测到' }}</span>
             </div>
             <div class="status-row">
               <span class="status-label">WebsocketPort</span>
-              <span class="status-value">{{ printClient?.websocketPort ?? "未知" }}</span>
+              <span class="status-value">{{ printClient?.websocketPort ?? '未知' }}</span>
             </div>
             <div class="status-row">
               <span class="status-label">ServerAddr</span>
-              <span class="status-value">{{ printClient?.serverAddr || "未检测到" }}</span>
+              <span class="status-value">{{ printClient?.serverAddr || '未检测到' }}</span>
             </div>
             <div class="status-row">
               <span class="status-label">CenterServerAddr</span>
-              <span class="status-value">{{ printClient?.centerServerAddr || "未检测到" }}</span>
+              <span class="status-value">{{ printClient?.centerServerAddr || '未检测到' }}</span>
             </div>
             <div class="status-row">
               <span class="status-label">解析地址</span>
-              <span class="status-value">{{ printClient?.socketUrl || "未知" }}</span>
+              <span class="status-value">{{ printClient?.socketUrl || '未知' }}</span>
             </div>
           </div>
           <div class="actions">
             <el-button :loading="printClientLoading" @click="refreshPrintClientInfo">
               <template #icon>
-                <Icon icon="solar:refresh-square-bold" />
+                <RefreshRight />
               </template>
               刷新客户端信息
             </el-button>
@@ -555,27 +565,25 @@ const ResultBlock = defineComponent({
       <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('http-socket') }">
         <header class="card-header">
           <div class="card-title">
-            <Icon icon="solar:cpu-bold" class="card-icon" />
+            <el-icon class="card-icon"><Cpu /></el-icon>
             <span>请求检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('http-socket')">
-            <Icon v-if="!isCollapsed('http-socket')" icon="solar:alt-arrow-down-bold" />
-            <Icon v-else icon="solar:alt-arrow-right-bold" />
+            <el-icon v-if="!isCollapsed('http-socket')"><ArrowDownBold /></el-icon>
+            <el-icon v-else><ArrowRightBold /></el-icon>
           </button>
         </header>
         <div class="card-body">
           <div class="subsection">
             <h3 class="subsection-title">
-              <Icon icon="solar:link-minimalistic-bold" class="subsection-icon" />
+              <el-icon class="subsection-icon"><Link /></el-icon>
               HTTP
             </h3>
-            <p class="card-desc">
-              向 CPMS 基础地址发送一次 GET 代理请求，检测客户端 HTTP 代理能力。
-            </p>
+            <p class="card-desc">向 CPMS 基础地址发送一次 GET 代理请求，检测客户端 HTTP 代理能力。</p>
             <div class="actions">
               <el-button type="primary" :loading="httpLoading" @click="runHttpDetect">
                 <template #icon>
-                  <Icon icon="solar:plain-bold" />
+                  <Promotion />
                 </template>
                 执行 HTTP 请求检测
               </el-button>
@@ -587,7 +595,7 @@ const ResultBlock = defineComponent({
 
           <div class="subsection">
             <h3 class="subsection-title">
-              <Icon icon="solar:chat-round-dots-bold" class="subsection-icon" />
+              <el-icon class="subsection-icon"><ChatDotRound /></el-icon>
               Socket（监听端，等待推送连接）
             </h3>
             <div class="status-list">
@@ -604,11 +612,7 @@ const ResultBlock = defineComponent({
                 <span class="status-value">
                   <el-tag
                     :type="
-                      socketLink.status === 'listening'
-                        ? 'success'
-                        : socketLink.status === 'failed'
-                          ? 'danger'
-                          : 'info'
+                      socketLink.status === 'listening' ? 'success' : socketLink.status === 'failed' ? 'danger' : 'info'
                     "
                     size="small"
                   >
@@ -624,27 +628,18 @@ const ResultBlock = defineComponent({
             <div class="actions">
               <el-button type="success" plain @click="runSocketDetect">
                 <template #icon>
-                  <Icon icon="solar:target-bold" />
+                  <Aim />
                 </template>
                 执行 Socket 请求检测
               </el-button>
-              <el-button
-                type="warning"
-                plain
-                :loading="socketReconnectLoading"
-                @click="runSocketReconnect"
-              >
+              <el-button type="warning" plain :loading="socketReconnectLoading" @click="runSocketReconnect">
                 <template #icon>
-                  <Icon icon="solar:restart-square-bold" />
+                  <RefreshRight />
                 </template>
                 重启监听服务
               </el-button>
             </div>
-            <ResultBlock
-              v-if="socketResult"
-              :text="socketResult"
-              @copy="copyResult(socketResult)"
-            />
+            <ResultBlock v-if="socketResult" :text="socketResult" @copy="copyResult(socketResult)" />
           </div>
         </div>
       </section>
@@ -652,12 +647,12 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('autostart') }">
         <header class="card-header">
           <div class="card-title">
-            <Icon icon="solar:settings-bold" class="card-icon" />
+            <el-icon class="card-icon"><Setting /></el-icon>
             <span>开机自启动</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('autostart')">
-            <Icon v-if="!isCollapsed('autostart')" icon="solar:alt-arrow-down-bold" />
-            <Icon v-else icon="solar:alt-arrow-right-bold" />
+            <el-icon v-if="!isCollapsed('autostart')"><ArrowDownBold /></el-icon>
+            <el-icon v-else><ArrowRightBold /></el-icon>
           </button>
         </header>
         <div class="card-body">
@@ -665,17 +660,17 @@ const ResultBlock = defineComponent({
             <span class="status-label">当前状态</span>
             <span class="status-value">
               <el-tag :type="autostartEnabled ? 'success' : 'info'" size="small">
-                {{ autostartEnabled ? "已开启" : "已关闭" }}
+                {{ autostartEnabled ? '已开启' : '已关闭' }}
               </el-tag>
             </span>
           </div>
           <div class="actions">
             <el-button :loading="autostartLoading" @click="toggleAutostart">
               <template #icon>
-                <Icon v-if="!autostartEnabled" icon="solar:check-circle-bold" />
-                <Icon v-else icon="solar:close-circle-bold" />
+                <CircleCheckFilled v-if="!autostartEnabled" />
+                <CircleCloseFilled v-else />
               </template>
-              {{ autostartEnabled ? "关闭自启动" : "开启自启动" }}
+              {{ autostartEnabled ? '关闭自启动' : '开启自启动' }}
             </el-button>
           </div>
         </div>
@@ -749,8 +744,8 @@ const ResultBlock = defineComponent({
 .collapse-button {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: var(--cpms-radius-small);
@@ -766,6 +761,11 @@ const ResultBlock = defineComponent({
 .collapse-button:hover {
   background: var(--cpms-color-bg-hover);
   color: var(--cpms-color-text-primary);
+}
+
+.collapse-button:focus-visible {
+  outline: 2px solid var(--cpms-color-primary);
+  outline-offset: 2px;
 }
 
 .card-body {
@@ -857,7 +857,9 @@ const ResultBlock = defineComponent({
   z-index: 1;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--cpms-space-1);
+  min-height: 32px;
   padding: 4px 8px;
   font-size: var(--cpms-font-size-xs);
   color: var(--cpms-color-text-secondary);
@@ -875,6 +877,11 @@ const ResultBlock = defineComponent({
   color: var(--cpms-color-primary-text);
   border-color: var(--cpms-color-primary-border);
   background: var(--cpms-color-primary-bg);
+}
+
+.result-copy:focus-visible {
+  outline: 2px solid var(--cpms-color-primary);
+  outline-offset: 2px;
 }
 
 .result-copy-icon {
