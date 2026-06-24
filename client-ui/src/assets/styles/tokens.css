@@ -1,5 +1,176 @@
 @import "tailwindcss";
 
+/* =========================================================================
+ * shadcn/vue 主题令牌（Tailwind v4） —— 提前定义，暂不生成 components.json
+ * 设计方向：简约 · 清新（Fresh Minimal，由 ui-ux-pro-max 技能产出）
+ *   主色   = 清新青  cyan-700 #0e7490（填充态白字达 WCAG AA 4.5:1）
+ *   焦点环 = cyan-600；强调/成功 = 清爽绿 green-600；中性 = 冷调 slate
+ * shadcn 组件经 @theme inline 映射到 bg-primary / text-muted-foreground /
+ * border-input / ring-ring 等工具类；深色跟随系统 prefers-color-scheme 自动切换。
+ * 参考：https://vue.shadcn.org.cn/docs/theming
+ * ========================================================================= */
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(0.985 0.003 247.858);
+  --foreground: oklch(0.208 0.042 265.755);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.208 0.042 265.755);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.208 0.042 265.755);
+
+  --primary: oklch(0.52 0.105 223.128);
+  --primary-foreground: oklch(0.985 0.013 202);
+  --secondary: oklch(0.968 0.007 247.896);
+  --secondary-foreground: oklch(0.279 0.041 260.031);
+  --muted: oklch(0.968 0.007 247.896);
+  --muted-foreground: oklch(0.554 0.046 257.417);
+  --accent: oklch(0.956 0.045 203.388);
+  --accent-foreground: oklch(0.45 0.085 224.283);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border: oklch(0.929 0.013 255.508);
+  --input: oklch(0.929 0.013 255.508);
+  --ring: oklch(0.609 0.126 221.723);
+
+  /* 扩展语义色：状态标签 / Toast / Alert */
+  --success: oklch(0.627 0.194 149.214);
+  --success-foreground: oklch(0.982 0.018 155.826);
+  --warning: oklch(0.666 0.179 58.318);
+  --warning-foreground: oklch(0.208 0.042 265.755);
+  --info: oklch(0.685 0.169 237.323);
+  --info-foreground: oklch(0.985 0.003 247.858);
+
+  --chart-1: oklch(0.609 0.126 221.723);
+  --chart-2: oklch(0.627 0.194 149.214);
+  --chart-3: oklch(0.685 0.169 237.323);
+  --chart-4: oklch(0.769 0.188 70.08);
+  --chart-5: oklch(0.606 0.25 292.717);
+
+  --sidebar: oklch(0.985 0.003 247.858);
+  --sidebar-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-primary: oklch(0.52 0.105 223.128);
+  --sidebar-primary-foreground: oklch(0.985 0.013 202);
+  --sidebar-accent: oklch(0.956 0.045 203.388);
+  --sidebar-accent-foreground: oklch(0.45 0.085 224.283);
+  --sidebar-border: oklch(0.929 0.013 255.508);
+  --sidebar-ring: oklch(0.609 0.126 221.723);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+  --background: oklch(0.208 0.042 265.755);
+  --foreground: oklch(0.984 0.003 247.858);
+  --card: oklch(0.279 0.041 260.031);
+  --card-foreground: oklch(0.984 0.003 247.858);
+  --popover: oklch(0.279 0.041 260.031);
+  --popover-foreground: oklch(0.984 0.003 247.858);
+
+  --primary: oklch(0.789 0.154 211.53);
+  --primary-foreground: oklch(0.208 0.042 265.755);
+  --secondary: oklch(0.279 0.041 260.031);
+  --secondary-foreground: oklch(0.984 0.003 247.858);
+  --muted: oklch(0.279 0.041 260.031);
+  --muted-foreground: oklch(0.704 0.04 256.788);
+  --accent: oklch(0.372 0.044 257.287);
+  --accent-foreground: oklch(0.865 0.127 207.078);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.208 0.042 265.755);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.789 0.154 211.53);
+
+  --success: oklch(0.723 0.219 149.579);
+  --success-foreground: oklch(0.208 0.042 265.755);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.208 0.042 265.755);
+  --info: oklch(0.685 0.169 237.323);
+  --info-foreground: oklch(0.208 0.042 265.755);
+
+  --chart-1: oklch(0.789 0.154 211.53);
+  --chart-2: oklch(0.723 0.219 149.579);
+  --chart-3: oklch(0.685 0.169 237.323);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.606 0.25 292.717);
+
+  --sidebar: oklch(0.279 0.041 260.031);
+  --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-primary: oklch(0.789 0.154 211.53);
+  --sidebar-primary-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-accent: oklch(0.372 0.044 257.287);
+  --sidebar-accent-foreground: oklch(0.865 0.127 207.078);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.789 0.154 211.53);
+  }
+}
+
+@theme inline {
+  --font-sans: var(--cpms-font-family);
+  --font-mono: var(--cpms-font-family-mono);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
+
 /**
  * CPMS 客户端设计令牌。
  * 基于 ui-ux-pro-max 技能制定的 Fresh Minimal / Enterprise Gateway 统一设计系统。
@@ -49,11 +220,8 @@
   --cpms-font-size-xs: 12px;
   --cpms-font-size-small: 13px;
   --cpms-font-size-base: 16px;
-  --cpms-font-size-medium: 17px;
-  --cpms-font-size-large: 18px;
   --cpms-font-size-xl: 20px;
   --cpms-font-size-2xl: 24px;
-  --cpms-font-size-3xl: 32px;
 
   /* 行高体系 */
   --cpms-line-height-tight: 1.25;
@@ -67,80 +235,56 @@
   --cpms-font-weight-semibold: 600;
   --cpms-font-weight-bold: 700;
 
+  /* —— 颜色：统一派生自上方 shadcn 令牌（单一色板来源，随明暗自动切换）—— */
   /* 文字颜色 */
-  --cpms-color-text-primary: #020617;
-  --cpms-color-text-secondary: #334155;
-  --cpms-color-text-muted: #64748b;
-  --cpms-color-text-disabled: #94a3b8;
-  --cpms-color-text-placeholder: #94a3b8;
-  --cpms-color-text-on-primary: #ffffff;
-  --cpms-color-text-on-danger: #ffffff;
+  --cpms-color-text-primary: var(--foreground);
+  --cpms-color-text-secondary: color-mix(in oklch, var(--foreground) 78%, var(--background));
+  --cpms-color-text-muted: var(--muted-foreground);
+  --cpms-color-text-disabled: var(--muted-foreground);
+  --cpms-color-text-on-primary: var(--primary-foreground);
 
   /* 背景与表面 */
-  --cpms-color-bg-app: #eef3f8;
-  --cpms-color-bg-panel: #f8fafd;
-  --cpms-color-surface: #ffffff;
-  --cpms-color-surface-elevated: #ffffff;
-  --cpms-color-bg-hover: #f3f7fb;
-  --cpms-color-bg-active: #e2eef7;
-  --cpms-color-bg-code: #f3f7fb;
-  --cpms-color-bg-overlay: rgba(2, 6, 23, 0.28);
+  --cpms-color-bg-app: var(--background);
+  --cpms-color-bg-panel: var(--card);
+  --cpms-color-surface: var(--card);
+  --cpms-color-bg-hover: var(--secondary);
+  --cpms-color-bg-code: var(--muted);
 
   /* 边框与分隔 */
-  --cpms-color-border: #dbe5ef;
-  --cpms-color-border-strong: #c5d4e2;
-  --cpms-color-divider: #e4ebf2;
+  --cpms-color-border: var(--border);
+  --cpms-color-border-strong: color-mix(in oklch, var(--border), var(--foreground) 25%);
 
-  /* 前景/品牌色（用于标题栏、重点表面） */
-  --cpms-color-foreground: #0f4c9a;
+  /* 前景/品牌色（深青；标题栏、重点表面） */
+  --cpms-color-foreground: color-mix(in oklch, var(--primary), black 18%);
 
-  /* 主色（清新蓝） */
-  --cpms-color-primary: #1e67dc;
-  --cpms-color-primary-hover: #0f4c9a;
-  --cpms-color-primary-active: #0d3f80;
-  --cpms-color-primary-bg: #edf5ff;
-  --cpms-color-primary-bg-subtle: #dcecff;
-  --cpms-color-primary-border: #b8d7ff;
-  --cpms-color-primary-text: #1e67dc;
+  /* 主色（清新青） */
+  --cpms-color-primary: var(--primary);
+  --cpms-color-primary-hover: color-mix(in oklch, var(--primary), black 12%);
+  --cpms-color-primary-active: color-mix(in oklch, var(--primary), black 22%);
+  --cpms-color-primary-bg: color-mix(in oklch, var(--primary) 14%, var(--background));
+  --cpms-color-primary-border: color-mix(in oklch, var(--primary) 38%, var(--background));
+  --cpms-color-primary-text: var(--primary);
 
-  /* 强调色/CTA（清爽绿） */
-  --cpms-color-accent: #007dff;
-  --cpms-color-accent-hover: #0066d6;
-  --cpms-color-accent-bg: #edf7ff;
-  --cpms-color-accent-bg-subtle: #d9edff;
-  --cpms-color-accent-border: #a9d5ff;
-  --cpms-color-accent-text: #0066d6;
-
-  /* 成功/强调（交易绿） */
-  --cpms-color-success: #047857;
-  --cpms-color-success-bg: #d1fae5;
-  --cpms-color-success-border: #a7f3d0;
-  --cpms-color-success-text: #065f46;
+  /* 成功（清爽绿，软色调） */
+  --cpms-color-success-bg: color-mix(in oklch, var(--success) 15%, var(--background));
+  --cpms-color-success-border: color-mix(in oklch, var(--success) 30%, var(--background));
+  --cpms-color-success-text: var(--success);
 
   /* 警告 */
-  --cpms-color-warning: #b45309;
-  --cpms-color-warning-bg: #fef3c7;
-  --cpms-color-warning-border: #fde68a;
-  --cpms-color-warning-text: #92400e;
+  --cpms-color-warning: var(--warning);
+  --cpms-color-warning-bg: color-mix(in oklch, var(--warning) 15%, var(--background));
+  --cpms-color-warning-border: color-mix(in oklch, var(--warning) 30%, var(--background));
+  --cpms-color-warning-text: var(--warning);
 
   /* 危险 */
-  --cpms-color-danger: #dc2626;
-  --cpms-color-danger-hover: #b91c1c;
-  --cpms-color-danger-bg: #fef2f2;
-  --cpms-color-danger-border: #fecaca;
-  --cpms-color-danger-text: #991b1b;
-
-  /* 信息 */
-  --cpms-color-info: #2563eb;
-  --cpms-color-info-bg: #f0f9ff;
-  --cpms-color-info-border: #bae6fd;
-  --cpms-color-info-text: #0c4a6e;
+  --cpms-color-danger: var(--destructive);
+  --cpms-color-danger-bg: color-mix(in oklch, var(--destructive) 12%, var(--background));
+  --cpms-color-danger-border: color-mix(in oklch, var(--destructive) 28%, var(--background));
+  --cpms-color-danger-text: var(--destructive);
 
   /* 圆角 */
-  --cpms-radius-xs: 4px;
   --cpms-radius-small: 6px;
   --cpms-radius-panel: 8px;
-  --cpms-radius-medium: 18px;
   --cpms-radius-large: 24px;
   --cpms-radius-xl: 32px;
   --cpms-radius-full: 9999px;
@@ -154,32 +298,22 @@
   --cpms-space-3: 12px;
   --cpms-space-4: 16px;
   --cpms-space-5: 20px;
-  --cpms-space-6: 24px;
   --cpms-space-8: 32px;
   --cpms-space-10: 40px;
-  --cpms-space-12: 48px;
 
   /* 兼容性别名（旧代码使用） */
-  --cpms-space-xs: var(--cpms-space-1);
-  --cpms-space-small: var(--cpms-space-2);
   --cpms-space-base: var(--cpms-space-3);
-  --cpms-space-large: var(--cpms-space-4);
-  --cpms-space-xlarge: var(--cpms-space-5);
 
   /* 阴影：基于前景色 #020617，权威、克制的投影 */
   --cpms-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
   --cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
   --cpms-shadow-md: 0 8px 20px rgba(15, 23, 42, 0.08);
   --cpms-shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12);
-  --cpms-shadow-xl: 0 18px 42px rgba(15, 23, 42, 0.16);
 
   /* 动效：150-300ms，优先 transform/opacity */
   --cpms-duration-fast: 150ms;
   --cpms-duration-base: 200ms;
-  --cpms-duration-slow: 300ms;
   --cpms-easing-base: cubic-bezier(0.4, 0, 0.2, 1);
-  --cpms-easing-out: cubic-bezier(0, 0, 0.2, 1);
-  --cpms-easing-in: cubic-bezier(0.4, 0, 1, 1);
 
   /* 滚动条 */
   --cpms-scrollbar-track: transparent;
@@ -188,350 +322,19 @@
 }
 
 /**
- * 暗色模式：使用 prefers-color-scheme 动态切换。
- * Tauri webview 支持系统暗色时自动生效。
+ * 暗色模式：颜色令牌已由 shadcn 派生并随系统 prefers-color-scheme 自动切换，
+ * 此处仅覆盖阴影与滚动条（Tauri webview 跟随系统主题）。
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --cpms-color-text-primary: #f1f5f9;
-    --cpms-color-text-secondary: #cbd5e1;
-    --cpms-color-text-muted: #94a3b8;
-    --cpms-color-text-disabled: #64748b;
-    --cpms-color-text-placeholder: #64748b;
-
-    --cpms-color-bg-app: #0f172a;
-    --cpms-color-bg-panel: #1e293b;
-    --cpms-color-surface: #1e293b;
-    --cpms-color-surface-elevated: #334155;
-    --cpms-color-bg-hover: #334155;
-    --cpms-color-bg-active: #475569;
-    --cpms-color-bg-code: #1e293b;
-    --cpms-color-bg-overlay: rgba(0, 0, 0, 0.5);
-
-    --cpms-color-border: #334155;
-    --cpms-color-border-strong: #475569;
-    --cpms-color-divider: #334155;
-
-    --cpms-color-foreground: #f8fafc;
-
-    /* 暗色下主色切换为更亮的青蓝，保证在深色背景上的可视性 */
-    --cpms-color-primary: #38bdf8;
-    --cpms-color-primary-hover: #7dd3fc;
-    --cpms-color-primary-active: #0ea5e9;
-    --cpms-color-primary-bg: #0c4a6e;
-    --cpms-color-primary-bg-subtle: #1e40af;
-    --cpms-color-primary-border: #38bdf8;
-    --cpms-color-primary-text: #38bdf8;
-
-    --cpms-color-accent: #38bdf8;
-    --cpms-color-accent-hover: #7dd3fc;
-    --cpms-color-accent-bg: #0c4a6e;
-    --cpms-color-accent-bg-subtle: #065f46;
-    --cpms-color-accent-border: #38bdf8;
-    --cpms-color-accent-text: #38bdf8;
-
-    --cpms-color-success-bg: #064e3b;
-    --cpms-color-success-border: #10b981;
-    --cpms-color-success-text: #34d399;
-
-    --cpms-color-warning-bg: #78350f;
-    --cpms-color-warning-border: #f59e0b;
-    --cpms-color-warning-text: #fbbf24;
-
-    --cpms-color-danger-bg: #7f1d1d;
-    --cpms-color-danger-border: #f87171;
-    --cpms-color-danger-text: #fca5a5;
-
-    --cpms-color-info-bg: #0c4a6e;
-    --cpms-color-info-border: #38bdf8;
-    --cpms-color-info-text: #7dd3fc;
-
     --cpms-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.25);
     --cpms-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
     --cpms-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
     --cpms-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-    --cpms-shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.45);
 
     --cpms-scrollbar-thumb: #475569;
     --cpms-scrollbar-thumb-hover: #64748b;
   }
-}
-
-.cpms-button {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-  gap: var(--cpms-space-2);
-  border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 9px 15px;
-  color: var(--cpms-color-text-primary);
-  background: var(--cpms-color-surface);
-  font: inherit;
-  font-weight: var(--cpms-font-weight-medium);
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background-color var(--cpms-duration-fast) var(--cpms-easing-base),
-    border-color var(--cpms-duration-fast) var(--cpms-easing-base),
-    color var(--cpms-duration-fast) var(--cpms-easing-base),
-    box-shadow var(--cpms-duration-fast) var(--cpms-easing-base),
-    opacity var(--cpms-duration-fast) var(--cpms-easing-base);
-}
-
-.cpms-button:hover {
-  background: var(--cpms-color-bg-hover);
-}
-
-.cpms-button:focus-visible,
-.cpms-input:focus-visible,
-.cpms-select:focus-visible {
-  outline: 2px solid var(--cpms-color-primary);
-  outline-offset: 2px;
-}
-
-.cpms-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.cpms-button--primary,
-.cpms-button--success:not(.is-plain),
-.cpms-button--warning:not(.is-plain),
-.cpms-button--danger:not(.is-plain) {
-  color: var(--cpms-color-text-on-primary);
-  background: var(--cpms-color-primary);
-}
-
-.cpms-button--primary:hover {
-  background: var(--cpms-color-primary-hover);
-}
-
-.cpms-button--danger:not(.is-plain) {
-  background: var(--cpms-color-danger);
-}
-
-.cpms-button--danger:not(.is-plain):hover {
-  background: var(--cpms-color-danger-hover);
-}
-
-.cpms-button.is-plain {
-  border-color: var(--cpms-color-border);
-  color: var(--cpms-color-text-secondary);
-  background: var(--cpms-color-surface);
-}
-
-.cpms-button.is-plain:hover {
-  border-color: var(--cpms-color-primary-border);
-  color: var(--cpms-color-primary-text);
-  background: var(--cpms-color-primary-bg);
-}
-
-.cpms-button--danger.is-plain {
-  color: var(--cpms-color-danger-text);
-}
-
-.cpms-button.is-circle {
-  width: 44px;
-  min-width: 44px;
-  padding: 0;
-  border-radius: var(--cpms-radius-full);
-}
-
-.cpms-button__icon,
-.cpms-icon {
-  display: inline-flex;
-  width: 1em;
-  height: 1em;
-  align-items: center;
-  justify-content: center;
-  color: currentcolor;
-}
-
-.cpms-button__icon svg,
-.cpms-icon svg {
-  width: 100%;
-  height: 100%;
-  stroke-width: 1.8;
-}
-
-.cpms-button__spinner {
-  width: 16px;
-  height: 16px;
-  animation: cpms-spin 1s linear infinite;
-}
-
-.cpms-input,
-.cpms-select {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--cpms-color-border);
-  border-radius: 8px;
-  padding: 9px 12px;
-  color: var(--cpms-color-text-primary);
-  background: var(--cpms-color-surface);
-  font: inherit;
-}
-
-.cpms-input::placeholder {
-  color: var(--cpms-color-text-placeholder);
-}
-
-.cpms-select {
-  cursor: pointer;
-}
-
-.cpms-tag {
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--cpms-radius-full);
-  padding: 3px 9px;
-  color: var(--cpms-color-info-text);
-  background: var(--cpms-color-info-bg);
-  font-size: var(--cpms-font-size-small);
-  font-weight: var(--cpms-font-weight-medium);
-}
-
-.cpms-tag--small {
-  padding: 2px 8px;
-  font-size: var(--cpms-font-size-xs);
-}
-
-.cpms-tag--success {
-  color: var(--cpms-color-success-text);
-  background: var(--cpms-color-success-bg);
-}
-
-.cpms-tag--warning {
-  color: var(--cpms-color-warning-text);
-  background: var(--cpms-color-warning-bg);
-}
-
-.cpms-tag--danger {
-  color: var(--cpms-color-danger-text);
-  background: var(--cpms-color-danger-bg);
-}
-
-.cpms-alert {
-  display: flex;
-  gap: var(--cpms-space-3);
-  align-items: flex-start;
-  border: 1px solid var(--cpms-color-info-border);
-  border-radius: 8px;
-  padding: var(--cpms-space-3);
-  color: var(--cpms-color-info-text);
-  background: var(--cpms-color-info-bg);
-}
-
-.cpms-alert--error {
-  border-color: var(--cpms-color-danger-border);
-  color: var(--cpms-color-danger-text);
-  background: var(--cpms-color-danger-bg);
-}
-
-.cpms-alert--warning {
-  border-color: var(--cpms-color-warning-border);
-  color: var(--cpms-color-warning-text);
-  background: var(--cpms-color-warning-bg);
-}
-
-.cpms-alert__icon {
-  width: 18px;
-  height: 18px;
-  flex: none;
-}
-
-.cpms-alert__content {
-  min-width: 0;
-  flex: 1;
-}
-
-.cpms-alert__content p {
-  margin: 4px 0 0;
-}
-
-.cpms-alert__close {
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 6px;
-  color: currentcolor;
-  background: transparent;
-  cursor: pointer;
-}
-
-.cpms-empty {
-  display: grid;
-  min-height: 160px;
-  place-items: center;
-  align-content: center;
-  gap: var(--cpms-space-2);
-  color: var(--cpms-color-text-muted);
-}
-
-.cpms-empty__icon {
-  width: 36px;
-  height: 36px;
-}
-
-.cpms-divider {
-  width: 100%;
-  border: 0;
-  border-top: 1px solid var(--cpms-color-border);
-}
-
-.cpms-tooltip-trigger {
-  display: inline-flex;
-}
-
-.cpms-tabs {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-}
-
-.cpms-tabs__list {
-  display: flex;
-  gap: var(--cpms-space-2);
-  border-bottom: 1px solid var(--cpms-color-border);
-  padding: var(--cpms-space-3);
-  background: var(--cpms-color-surface);
-}
-
-.cpms-tabs__trigger {
-  min-height: 36px;
-  border: 0;
-  border-radius: 8px;
-  padding: 0 var(--cpms-space-3);
-  color: var(--cpms-color-text-secondary);
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.cpms-tabs__trigger.is-active {
-  color: var(--cpms-color-primary-text);
-  background: var(--cpms-color-primary-bg);
-}
-
-.cpms-tabs__content,
-.cpms-tab-pane {
-  min-height: 0;
-  flex: 1;
-}
-
-.cpms-tabs__content {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.cpms-tab-pane {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .cpms-toast-root {

@@ -417,9 +417,9 @@ const ResultBlock = defineComponent({
   <main class="example">
     <ErrorNotice />
 
-    <div class="cards-grid">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(360px,1fr))] gap-3 content-start">
       <section class="card" :class="{ 'is-collapsed': isCollapsed('status') }">
-        <header class="card-header">
+        <header class="flex items-center justify-between gap-2">
           <div class="card-title">
             <Monitor class="card-icon" />
             <span>状态</span>
@@ -430,7 +430,7 @@ const ResultBlock = defineComponent({
           </button>
         </header>
         <div class="card-body">
-          <div class="status-list">
+          <div class="flex flex-col gap-2">
             <div class="status-row">
               <span class="status-label">页面地址</span>
               <span class="status-value" :title="pageAddress">{{ pageAddress }}</span>
@@ -456,7 +456,7 @@ const ResultBlock = defineComponent({
               </span>
             </div>
           </div>
-          <div class="actions">
+          <div class="flex gap-2 flex-wrap">
             <Button :disabled="loading" @click="loadIframeContainer">
               <LoaderCircle v-if="loading" class="animate-spin" />
               <RefreshRight v-else />
@@ -467,7 +467,7 @@ const ResultBlock = defineComponent({
       </section>
 
       <section class="card" :class="{ 'is-collapsed': isCollapsed('notification') }">
-        <header class="card-header">
+        <header class="flex items-center justify-between gap-2">
           <div class="card-title">
             <Bell class="card-icon" />
             <span>通知检测</span>
@@ -479,7 +479,7 @@ const ResultBlock = defineComponent({
         </header>
         <div class="card-body">
           <p class="card-desc">向客户端发送一条测试通知，验证桌面通知子窗口是否正常弹出。</p>
-          <div class="actions">
+          <div class="flex gap-2 flex-wrap">
             <Button variant="outline" @click="runNotificationDetect">
               <Bell />
               发送通知
@@ -490,7 +490,7 @@ const ResultBlock = defineComponent({
       </section>
 
       <section class="card" :class="{ 'is-collapsed': isCollapsed('communication') }">
-        <header class="card-header">
+        <header class="flex items-center justify-between gap-2">
           <div class="card-title">
             <Link class="card-icon" />
             <span>通信检测</span>
@@ -502,7 +502,7 @@ const ResultBlock = defineComponent({
         </header>
         <div class="card-body">
           <Input v-model="communicationInput" placeholder="输入模拟传输文本" />
-          <div class="actions">
+          <div class="flex gap-2 flex-wrap">
             <Button variant="outline" @click="runCommunicationDetect">
               <Promotion />
               执行通信检测
@@ -524,7 +524,7 @@ const ResultBlock = defineComponent({
       </section>
 
       <section class="card" :class="{ 'is-collapsed': isCollapsed('token') }">
-        <header class="card-header">
+        <header class="flex items-center justify-between gap-2">
           <div class="card-title">
             <Key class="card-icon" />
             <span>Token 检测</span>
@@ -544,7 +544,7 @@ const ResultBlock = defineComponent({
             </span>
           </div>
           <p class="card-desc">从 iframe 获取 token 并写入会话内存。</p>
-          <div class="actions">
+          <div class="flex gap-2 flex-wrap">
             <Button variant="outline" :disabled="tokenLoading" @click="runTokenDetect">
               <LoaderCircle v-if="tokenLoading" class="animate-spin" />
               <RefreshRight v-else />
@@ -556,7 +556,7 @@ const ResultBlock = defineComponent({
       </section>
 
       <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('printclient') }">
-        <header class="card-header">
+        <header class="flex items-center justify-between gap-2">
           <div class="card-title">
             <Printer class="card-icon" />
             <span>本地 CPMS 客户端（PrintClient）</span>
@@ -567,7 +567,7 @@ const ResultBlock = defineComponent({
           </button>
         </header>
         <div class="card-body">
-          <div class="status-list">
+          <div class="flex flex-col gap-2">
             <div class="status-row">
               <span class="status-label">运行目录</span>
               <span class="status-value">{{ printClient?.processDir || '未检测到运行中的 PrintClient' }}</span>
@@ -597,7 +597,7 @@ const ResultBlock = defineComponent({
               <span class="status-value">{{ printClient?.socketUrl || '未知' }}</span>
             </div>
           </div>
-          <div class="actions">
+          <div class="flex gap-2 flex-wrap">
             <Button :disabled="printClientLoading" @click="refreshPrintClientInfo">
               <LoaderCircle v-if="printClientLoading" class="animate-spin" />
               <RefreshRight v-else />
@@ -608,7 +608,7 @@ const ResultBlock = defineComponent({
       </section>
 
       <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('http-socket') }">
-        <header class="card-header">
+        <header class="flex items-center justify-between gap-2">
           <div class="card-title">
             <Cpu class="card-icon" />
             <span>请求检测</span>
@@ -619,13 +619,13 @@ const ResultBlock = defineComponent({
           </button>
         </header>
         <div class="card-body">
-          <div class="subsection">
+          <div class="flex flex-col gap-3">
             <h3 class="subsection-title">
               <Link class="subsection-icon" />
               HTTP
             </h3>
             <p class="card-desc">向 CPMS 基础地址发送一次 GET 代理请求，检测客户端 HTTP 代理能力。</p>
-            <div class="actions">
+            <div class="flex gap-2 flex-wrap">
               <Button variant="default" :disabled="httpLoading" @click="runHttpDetect">
                 <LoaderCircle v-if="httpLoading" class="animate-spin" />
                 <Promotion v-else />
@@ -637,12 +637,12 @@ const ResultBlock = defineComponent({
 
           <Separator />
 
-          <div class="subsection">
+          <div class="flex flex-col gap-3">
             <h3 class="subsection-title">
               <ChatDotRound class="subsection-icon" />
               Socket（监听端，等待推送连接）
             </h3>
-            <div class="status-list">
+            <div class="flex flex-col gap-2">
               <div class="status-row">
                 <span class="status-label">监听地址</span>
                 <span class="status-value">{{ socketLinkUrl }}</span>
@@ -668,7 +668,7 @@ const ResultBlock = defineComponent({
                 <span class="status-value">{{ socketLink.message }}</span>
               </div>
             </div>
-            <div class="actions">
+            <div class="flex gap-2 flex-wrap">
               <Button variant="outline" @click="runSocketDetect">
                 <Aim />
                 执行 Socket 请求检测
@@ -685,7 +685,7 @@ const ResultBlock = defineComponent({
       </section>
 
       <section class="card" :class="{ 'is-collapsed': isCollapsed('autostart') }">
-        <header class="card-header">
+        <header class="flex items-center justify-between gap-2">
           <div class="card-title">
             <Setting class="card-icon" />
             <span>开机自启动</span>
@@ -704,7 +704,7 @@ const ResultBlock = defineComponent({
               </Badge>
             </span>
           </div>
-          <div class="actions">
+          <div class="flex gap-2 flex-wrap">
             <Button :disabled="autostartLoading" @click="toggleAutostart">
               <LoaderCircle v-if="autostartLoading" class="animate-spin" />
               <CircleCheckFilled v-else-if="!autostartEnabled" />
@@ -729,13 +729,6 @@ const ResultBlock = defineComponent({
   overflow: auto;
 }
 
-.cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: var(--cpms-space-base);
-  align-content: start;
-}
-
 .card {
   display: flex;
   flex-direction: column;
@@ -757,13 +750,6 @@ const ResultBlock = defineComponent({
 
 .card.is-collapsed .card-body {
   display: none;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--cpms-space-2);
 }
 
 .card-title {
@@ -823,12 +809,6 @@ const ResultBlock = defineComponent({
   line-height: var(--cpms-line-height-small);
 }
 
-.status-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cpms-space-2);
-}
-
 .status-row {
   display: flex;
   align-items: baseline;
@@ -847,18 +827,6 @@ const ResultBlock = defineComponent({
   flex: 1 1 auto;
   color: var(--cpms-color-text-secondary);
   word-break: break-word;
-}
-
-.actions {
-  display: flex;
-  gap: var(--cpms-space-2);
-  flex-wrap: wrap;
-}
-
-.subsection {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cpms-space-3);
 }
 
 .subsection-title {

@@ -166,8 +166,8 @@ async function closeWindow() {
             <p class="error-desc">
               无法在预定时间内加载 iframe 页面，请检查网络或客户端配置后重试。
             </p>
-            <div class="error-actions">
-              <Button variant="default" class="retry-button" @click="retryIframeLoad">
+            <div class="flex justify-center gap-3 flex-wrap">
+              <Button variant="default" class="min-w-[120px]" @click="retryIframeLoad">
                 <RefreshCw />
                 重新加载
               </Button>
@@ -256,17 +256,6 @@ async function closeWindow() {
   font-size: var(--cpms-font-size-base);
   color: var(--cpms-color-text-secondary);
   line-height: var(--cpms-line-height-relaxed);
-}
-
-.error-actions {
-  display: flex;
-  justify-content: center;
-  gap: var(--cpms-space-3);
-  flex-wrap: wrap;
-}
-
-.retry-button {
-  min-width: 120px;
 }
 
 .example-trigger {

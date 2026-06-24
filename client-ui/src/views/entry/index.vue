@@ -66,14 +66,14 @@ function useRecentUrl() {
 <template>
   <main class="entry-view">
     <section class="entry-card">
-      <div class="entry-brand">
+      <div class="grid gap-3 justify-items-center mb-8">
         <div class="entry-icon">
           <MonitorCog class="entry-icon-svg" />
         </div>
         <h1 class="entry-title">CPMS Client</h1>
       </div>
 
-      <div class="entry-form">
+      <div class="grid gap-3">
         <div class="entry-input-wrap" :class="{ 'has-error': error }">
           <span class="entry-input-prefix" aria-hidden="true">
             <Link />
@@ -112,7 +112,7 @@ function useRecentUrl() {
             <span>{{ loading ? "正在加载…" : "加载页面" }}</span>
           </Button>
 
-        <div v-if="hasRecentUrl" class="entry-recent">
+        <div v-if="hasRecentUrl" class="flex items-center justify-center gap-2 mt-1">
           <span class="entry-recent-label">最近使用</span>
           <Button
             variant="secondary"
@@ -165,13 +165,6 @@ function useRecentUrl() {
   text-align: center;
 }
 
-.entry-brand {
-  display: grid;
-  gap: var(--cpms-space-3);
-  justify-items: center;
-  margin-bottom: var(--cpms-space-8);
-}
-
 .entry-icon {
   display: grid;
   place-items: center;
@@ -196,11 +189,6 @@ function useRecentUrl() {
   font-weight: var(--cpms-font-weight-bold);
   line-height: var(--cpms-line-height-tight);
   color: var(--cpms-color-text-primary);
-}
-
-.entry-form {
-  display: grid;
-  gap: var(--cpms-space-3);
 }
 
 .entry-input-wrap {
@@ -366,14 +354,6 @@ function useRecentUrl() {
   to {
     transform: rotate(360deg);
   }
-}
-
-.entry-recent {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--cpms-space-2);
-  margin-top: var(--cpms-space-1);
 }
 
 .entry-recent-label {

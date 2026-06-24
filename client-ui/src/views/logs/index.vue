@@ -148,9 +148,9 @@ function levelClass(level: string) {
 <template>
   <main class="logs-view">
     <section class="toolbar">
-      <div class="toolbar-left">
+      <div class="flex items-center gap-3">
         <Select v-model="activeCategory">
-          <SelectTrigger class="category-select" aria-label="类别">
+          <SelectTrigger class="w-40" aria-label="类别">
             <SelectValue placeholder="类别" />
           </SelectTrigger>
           <SelectContent>
@@ -161,7 +161,7 @@ function levelClass(level: string) {
         </Select>
         <span class="entry-count">共 {{ formattedLogEntries.length }} 条</span>
       </div>
-      <div class="actions">
+      <div class="flex gap-2">
         <Button variant="outline" :disabled="fileStateLoading" @click="refreshFileState">
           <LoaderCircle v-if="fileStateLoading" class="animate-spin" />
           <RefreshCw v-else />
@@ -179,7 +179,7 @@ function levelClass(level: string) {
     </section>
 
     <section v-if="fileState" class="file-state">
-      <div class="file-state-main">
+      <div class="flex items-center gap-2 min-w-0">
         <FileText class="file-state-icon" />
         <span class="file-path" :title="fileState.path">{{ fileState.path }}</span>
       </div>
@@ -228,24 +228,9 @@ function levelClass(level: string) {
   flex-wrap: wrap;
 }
 
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: var(--cpms-space-3);
-}
-
-.category-select {
-  width: 160px;
-}
-
 .entry-count {
   font-size: var(--cpms-font-size-small);
   color: var(--cpms-color-text-muted);
-}
-
-.actions {
-  display: flex;
-  gap: var(--cpms-space-2);
 }
 
 .file-state {
@@ -259,13 +244,6 @@ function levelClass(level: string) {
   border: 1px solid var(--cpms-color-border);
   border-radius: var(--cpms-radius-small);
   font-size: var(--cpms-font-size-small);
-}
-
-.file-state-main {
-  display: flex;
-  align-items: center;
-  gap: var(--cpms-space-2);
-  min-width: 0;
 }
 
 .file-state-icon {

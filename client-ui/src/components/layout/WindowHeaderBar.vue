@@ -45,11 +45,11 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
 
 <template>
   <header class="window-headerbar" data-tauri-drag-region>
-    <div class="headerbar-title" data-tauri-drag-region>
+    <div class="flex items-center gap-2 min-w-0" data-tauri-drag-region>
       <img v-if="icon" :src="icon" class="headerbar-logo" alt="应用图标" data-tauri-drag-region />
       <strong class="headerbar-text" data-tauri-drag-region>{{ title }}</strong>
     </div>
-    <nav class="headerbar-actions" aria-label="窗口控制">
+    <nav class="flex items-center gap-1 flex-none" aria-label="窗口控制">
       <button
         v-if="controls.includes('entry')"
         type="button"
@@ -129,13 +129,6 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
   user-select: none;
 }
 
-.headerbar-title {
-  display: flex;
-  align-items: center;
-  gap: var(--cpms-space-small);
-  min-width: 0;
-}
-
 .headerbar-logo {
   width: 28px;
   height: 28px;
@@ -151,13 +144,6 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.headerbar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--cpms-space-1);
-  flex: none;
 }
 
 .headerbar-button {
