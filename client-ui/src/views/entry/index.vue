@@ -90,7 +90,6 @@ function useRecentUrl() {
             v-if="url"
             class="entry-input-clear"
             type="button"
-            aria-label="清空"
             @click="url = ''"
           >
             <CircleX />
@@ -125,7 +124,6 @@ function useRecentUrl() {
           <button
             type="button"
             class="entry-recent-action"
-            aria-label="填入最近地址"
             title="填入"
             @click="useRecentUrl"
           >

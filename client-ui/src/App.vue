@@ -46,6 +46,7 @@ html {
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  user-select: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
@@ -73,6 +74,12 @@ body {
   box-sizing: border-box;
 }
 
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+}
+
 ::selection {
   color: var(--cpms-color-text-on-primary);
   background-color: var(--cpms-color-primary);
@@ -83,6 +90,13 @@ a:focus-visible,
 [tabindex]:not([tabindex="-1"]):focus-visible {
   outline: 2px solid var(--cpms-color-primary);
   outline-offset: 2px;
+}
+
+svg:focus,
+svg:focus-visible,
+svg:active,
+svg.is-active {
+  outline: none;
 }
 
 /* WebKit 统一滚动条 */

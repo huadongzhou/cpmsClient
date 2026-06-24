@@ -217,11 +217,11 @@
   --cpms-font-family-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
 
   /* 字号体系：基础 16px，符合 WCAG 可读性 */
-  --cpms-font-size-xs: 12px;
-  --cpms-font-size-small: 13px;
-  --cpms-font-size-base: 16px;
-  --cpms-font-size-xl: 20px;
-  --cpms-font-size-2xl: 24px;
+  --cpms-font-size-xs: 11px;
+  --cpms-font-size-small: 12px;
+  --cpms-font-size-base: 14px;
+  --cpms-font-size-xl: 18px;
+  --cpms-font-size-2xl: 20px;
 
   /* 行高体系 */
   --cpms-line-height-tight: 1.25;
@@ -290,7 +290,7 @@
   --cpms-radius-full: 9999px;
 
   /* 标题栏 */
-  --cpms-headerbar-height: 50px;
+  --cpms-headerbar-height: 35px;
 
   /* 间距体系（4pt 网格） */
   --cpms-space-1: 4px;

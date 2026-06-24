@@ -150,7 +150,7 @@ function levelClass(level: string) {
     <section class="toolbar">
       <div class="flex items-center gap-3">
         <Select v-model="activeCategory">
-          <SelectTrigger class="w-40" aria-label="类别">
+          <SelectTrigger class="w-40">
             <SelectValue placeholder="类别" />
           </SelectTrigger>
           <SelectContent>
