@@ -1,4 +1,4 @@
-<script setup lang="ts" name="WindowHeaderBar">
+<script setup lang="ts">
 import { computed } from 'vue'
 import {
   House,
@@ -9,7 +9,6 @@ import {
   PinOff,
   X,
 } from '@lucide/vue'
-
 type WindowControl = 'entry' | 'pin' | 'collapse' | 'fullscreen' | 'close'
 
 const props = withDefaults(
@@ -59,7 +58,7 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
         title="入口页"
         @click="emit('entry')"
       >
-        <el-icon class="headerbar-icon"><House /></el-icon>
+        <House class="headerbar-icon" />
       </button>
       <button
         v-if="controls.includes('pin')"
@@ -70,7 +69,7 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
         :title="pinTitle"
         @click="emit('pin')"
       >
-        <el-icon class="headerbar-icon"><component :is="pinIcon" /></el-icon>
+        <component :is="pinIcon" class="headerbar-icon" />
       </button>
       <button
         v-if="controls.includes('collapse')"
@@ -80,7 +79,7 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
         title="收起"
         @click="emit('collapse')"
       >
-        <el-icon class="headerbar-icon"><Minus /></el-icon>
+        <Minus class="headerbar-icon" />
       </button>
       <button
         v-if="controls.includes('fullscreen')"
@@ -91,20 +90,25 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
         :title="fullscreenTitle"
         @click="emit('fullscreen')"
       >
-        <el-icon class="headerbar-icon"><component :is="fullscreenIcon" /></el-icon>
+        <component :is="fullscreenIcon" class="headerbar-icon" />
       </button>
-      <el-tooltip content="隐藏到托盘" placement="bottom">
-        <button
-          v-if="controls.includes('close')"
-          type="button"
-          class="headerbar-button headerbar-button-close"
-          aria-label="关闭窗口"
-          title="关闭"
-          @click="emit('close')"
-        >
-          <el-icon class="headerbar-icon"><X /></el-icon>
-        </button>
-      </el-tooltip>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button
+              v-if="controls.includes('close')"
+              type="button"
+              class="headerbar-button headerbar-button-close"
+              aria-label="关闭窗口"
+              title="关闭"
+              @click="emit('close')"
+            >
+              <X class="headerbar-icon" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">隐藏到托盘</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </nav>
   </header>
 </template>

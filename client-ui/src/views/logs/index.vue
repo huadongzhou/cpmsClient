@@ -1,6 +1,6 @@
 <script setup lang="ts" name="LogView">
 import { storeToRefs } from "pinia";
-import { Copy, FileText, RefreshCw, Trash2 } from "@lucide/vue";
+import { Copy, FileText, Inbox, LoaderCircle, RefreshCw, Trash2 } from "@lucide/vue";
 import { getClientLogState } from "@/api/tauri/log";
 import { confirmAction, message } from "@/services/ui/message";
 import { useLogStore } from "@/stores/log";
@@ -149,48 +149,48 @@ function levelClass(level: string) {
   <main class="logs-view">
     <section class="toolbar">
       <div class="toolbar-left">
-        <el-select v-model="activeCategory" class="category-select" placeholder="类别">
-          <el-option
-            v-for="category in categories"
-            :key="category"
-            :label="category"
-            :value="category"
-          />
-        </el-select>
+        <Select v-model="activeCategory">
+          <SelectTrigger class="category-select" aria-label="类别">
+            <SelectValue placeholder="类别" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="category in categories" :key="category" :value="category">
+              {{ category }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <span class="entry-count">共 {{ formattedLogEntries.length }} 条</span>
       </div>
       <div class="actions">
-        <el-button plain :loading="fileStateLoading" @click="refreshFileState">
-          <template #icon>
-            <RefreshCw />
-          </template>
+        <Button variant="outline" :disabled="fileStateLoading" @click="refreshFileState">
+          <LoaderCircle v-if="fileStateLoading" class="animate-spin" />
+          <RefreshCw v-else />
           刷新
-        </el-button>
-        <el-button plain @click="copyLogs">
-          <template #icon>
-            <Copy />
-          </template>
+        </Button>
+        <Button variant="outline" @click="copyLogs">
+          <Copy />
           复制
-        </el-button>
-        <el-button plain type="danger" @click="confirmClearLogs">
-          <template #icon>
-            <Trash2 />
-          </template>
+        </Button>
+        <Button variant="outline" class="text-destructive hover:bg-destructive/10" @click="confirmClearLogs">
+          <Trash2 />
           清空
-        </el-button>
+        </Button>
       </div>
     </section>
 
     <section v-if="fileState" class="file-state">
       <div class="file-state-main">
-        <el-icon class="file-state-icon"><FileText /></el-icon>
+        <FileText class="file-state-icon" />
         <span class="file-path" :title="fileState.path">{{ fileState.path }}</span>
       </div>
       <span class="file-size">{{ formatFileSize(fileState.sizeBytes) }}</span>
     </section>
 
     <section class="log-panel">
-      <el-empty v-if="filteredEntries.length === 0" description="暂无客户端日志" />
+      <Empty v-if="filteredEntries.length === 0" class="logs-empty">
+        <Inbox class="logs-empty-icon" />
+        <p>暂无客户端日志</p>
+      </Empty>
       <div v-else class="log-text">
         <div
           v-for="entry in formattedLogEntries"
@@ -273,6 +273,22 @@ function levelClass(level: string) {
   height: 16px;
   flex: none;
   color: var(--cpms-color-text-muted);
+}
+
+.logs-empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cpms-space-2);
+  color: var(--cpms-color-text-muted);
+}
+
+.logs-empty-icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.6;
 }
 
 .file-path {

@@ -25,6 +25,7 @@ import {
   Crosshair as Aim,
   KeyRound as Key,
   Link,
+  LoaderCircle,
   MessageCircle as ChatDotRound,
   Monitor,
   Printer,
@@ -39,7 +40,6 @@ import { useRuntimeStore } from '@/stores/runtime'
 import { useTaskStore } from '@/stores/task'
 import type { IframePayloadBridgeResult } from '@/composables/useIframePayloadBridge'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import ElIcon from '@/components/ui/ElIcon.vue'
 import { message } from '@/services/ui/message'
 
 const props = defineProps<{
@@ -405,7 +405,7 @@ const ResultBlock = defineComponent({
             type: 'button',
             onClick: () => emit('copy')
           },
-          [h(ElIcon, { size: 14 }, { default: () => h(CopyDocument) }), h('span', '复制')]
+          [h(CopyDocument, { class: 'result-copy-icon' }), h('span', '复制')]
         ),
         h('pre', { class: 'result' }, props.text)
       ])
@@ -421,12 +421,12 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('status') }">
         <header class="card-header">
           <div class="card-title">
-            <el-icon class="card-icon"><Monitor /></el-icon>
+            <Monitor class="card-icon" />
             <span>状态</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('status')">
-            <el-icon v-if="!isCollapsed('status')"><ArrowDownBold /></el-icon>
-            <el-icon v-else><ArrowRightBold /></el-icon>
+            <ArrowDownBold v-if="!isCollapsed('status')" />
+            <ArrowRightBold v-else />
           </button>
         </header>
         <div class="card-body">
@@ -442,27 +442,26 @@ const ResultBlock = defineComponent({
             <div class="status-row">
               <span class="status-label">开机自启动</span>
               <span class="status-value">
-                <el-tag :type="autostartEnabled ? 'success' : 'info'" size="small">
+                <Badge :variant="autostartEnabled ? 'default' : 'secondary'">
                   {{ autostartEnabled ? '已开启' : '已关闭' }}
-                </el-tag>
+                </Badge>
               </span>
             </div>
             <div class="status-row">
               <span class="status-label">网络状态</span>
               <span class="status-value">
-                <el-tag :type="isOnline ? 'success' : 'danger'" size="small">
+                <Badge :variant="isOnline ? 'default' : 'destructive'">
                   {{ isOnline ? 'online' : 'offline' }}
-                </el-tag>
+                </Badge>
               </span>
             </div>
           </div>
           <div class="actions">
-            <el-button :loading="loading" @click="loadIframeContainer">
-              <template #icon>
-                <RefreshRight />
-              </template>
+            <Button :disabled="loading" @click="loadIframeContainer">
+              <LoaderCircle v-if="loading" class="animate-spin" />
+              <RefreshRight v-else />
               刷新 iframe 地址
-            </el-button>
+            </Button>
           </div>
         </div>
       </section>
@@ -470,23 +469,21 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('notification') }">
         <header class="card-header">
           <div class="card-title">
-            <el-icon class="card-icon"><Bell /></el-icon>
+            <Bell class="card-icon" />
             <span>通知检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('notification')">
-            <el-icon v-if="!isCollapsed('notification')"><ArrowDownBold /></el-icon>
-            <el-icon v-else><ArrowRightBold /></el-icon>
+            <ArrowDownBold v-if="!isCollapsed('notification')" />
+            <ArrowRightBold v-else />
           </button>
         </header>
         <div class="card-body">
           <p class="card-desc">向客户端发送一条测试通知，验证桌面通知子窗口是否正常弹出。</p>
           <div class="actions">
-            <el-button type="primary" plain @click="runNotificationDetect">
-              <template #icon>
-                <el-icon><Bell /></el-icon>
-              </template>
+            <Button variant="outline" @click="runNotificationDetect">
+              <Bell />
               发送通知
-            </el-button>
+            </Button>
           </div>
           <ResultBlock v-if="notifyResult" :text="notifyResult" @copy="copyResult(notifyResult)" />
         </div>
@@ -495,23 +492,21 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('communication') }">
         <header class="card-header">
           <div class="card-title">
-            <el-icon class="card-icon"><Link /></el-icon>
+            <Link class="card-icon" />
             <span>通信检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('communication')">
-            <el-icon v-if="!isCollapsed('communication')"><ArrowDownBold /></el-icon>
-            <el-icon v-else><ArrowRightBold /></el-icon>
+            <ArrowDownBold v-if="!isCollapsed('communication')" />
+            <ArrowRightBold v-else />
           </button>
         </header>
         <div class="card-body">
-          <el-input v-model="communicationInput" placeholder="输入模拟传输文本" />
+          <Input v-model="communicationInput" placeholder="输入模拟传输文本" />
           <div class="actions">
-            <el-button type="primary" plain @click="runCommunicationDetect">
-              <template #icon>
-                <el-icon><Promotion /></el-icon>
-              </template>
+            <Button variant="outline" @click="runCommunicationDetect">
+              <Promotion />
               执行通信检测
-            </el-button>
+            </Button>
           </div>
           <ResultBlock
             v-if="communicationSendText"
@@ -531,31 +526,30 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('token') }">
         <header class="card-header">
           <div class="card-title">
-            <el-icon class="card-icon"><Key /></el-icon>
+            <Key class="card-icon" />
             <span>Token 检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('token')">
-            <el-icon v-if="!isCollapsed('token')"><ArrowDownBold /></el-icon>
-            <el-icon v-else><ArrowRightBold /></el-icon>
+            <ArrowDownBold v-if="!isCollapsed('token')" />
+            <ArrowRightBold v-else />
           </button>
         </header>
         <div class="card-body">
           <div class="status-row">
             <span class="status-label">客户端 token</span>
             <span class="status-value">
-              <el-tag :type="runtimeStore.iframeToken ? 'success' : 'info'" size="small">
+              <Badge :variant="runtimeStore.iframeToken ? 'default' : 'secondary'">
                 {{ iframeTokenStatus }}
-              </el-tag>
+              </Badge>
             </span>
           </div>
           <p class="card-desc">从 iframe 获取 token 并写入会话内存。</p>
           <div class="actions">
-            <el-button type="primary" plain :loading="tokenLoading" @click="runTokenDetect">
-              <template #icon>
-                <RefreshRight />
-              </template>
+            <Button variant="outline" :disabled="tokenLoading" @click="runTokenDetect">
+              <LoaderCircle v-if="tokenLoading" class="animate-spin" />
+              <RefreshRight v-else />
               执行 Token 检测
-            </el-button>
+            </Button>
           </div>
           <ResultBlock v-if="tokenResult" :text="tokenResult" @copy="copyResult(tokenResult)" />
         </div>
@@ -564,12 +558,12 @@ const ResultBlock = defineComponent({
       <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('printclient') }">
         <header class="card-header">
           <div class="card-title">
-            <el-icon class="card-icon"><Printer /></el-icon>
+            <Printer class="card-icon" />
             <span>本地 CPMS 客户端（PrintClient）</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('printclient')">
-            <el-icon v-if="!isCollapsed('printclient')"><ArrowDownBold /></el-icon>
-            <el-icon v-else><ArrowRightBold /></el-icon>
+            <ArrowDownBold v-if="!isCollapsed('printclient')" />
+            <ArrowRightBold v-else />
           </button>
         </header>
         <div class="card-body">
@@ -604,12 +598,11 @@ const ResultBlock = defineComponent({
             </div>
           </div>
           <div class="actions">
-            <el-button :loading="printClientLoading" @click="refreshPrintClientInfo">
-              <template #icon>
-                <RefreshRight />
-              </template>
+            <Button :disabled="printClientLoading" @click="refreshPrintClientInfo">
+              <LoaderCircle v-if="printClientLoading" class="animate-spin" />
+              <RefreshRight v-else />
               刷新客户端信息
-            </el-button>
+            </Button>
           </div>
         </div>
       </section>
@@ -617,37 +610,36 @@ const ResultBlock = defineComponent({
       <section class="card is-wide" :class="{ 'is-collapsed': isCollapsed('http-socket') }">
         <header class="card-header">
           <div class="card-title">
-            <el-icon class="card-icon"><Cpu /></el-icon>
+            <Cpu class="card-icon" />
             <span>请求检测</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('http-socket')">
-            <el-icon v-if="!isCollapsed('http-socket')"><ArrowDownBold /></el-icon>
-            <el-icon v-else><ArrowRightBold /></el-icon>
+            <ArrowDownBold v-if="!isCollapsed('http-socket')" />
+            <ArrowRightBold v-else />
           </button>
         </header>
         <div class="card-body">
           <div class="subsection">
             <h3 class="subsection-title">
-              <el-icon class="subsection-icon"><Link /></el-icon>
+              <Link class="subsection-icon" />
               HTTP
             </h3>
             <p class="card-desc">向 CPMS 基础地址发送一次 GET 代理请求，检测客户端 HTTP 代理能力。</p>
             <div class="actions">
-              <el-button type="primary" :loading="httpLoading" @click="runHttpDetect">
-                <template #icon>
-                  <Promotion />
-                </template>
+              <Button variant="default" :disabled="httpLoading" @click="runHttpDetect">
+                <LoaderCircle v-if="httpLoading" class="animate-spin" />
+                <Promotion v-else />
                 执行 HTTP 请求检测
-              </el-button>
+              </Button>
             </div>
             <ResultBlock v-if="httpResult" :text="httpResult" @copy="copyResult(httpResult)" />
           </div>
 
-          <el-divider />
+          <Separator />
 
           <div class="subsection">
             <h3 class="subsection-title">
-              <el-icon class="subsection-icon"><ChatDotRound /></el-icon>
+              <ChatDotRound class="subsection-icon" />
               Socket（监听端，等待推送连接）
             </h3>
             <div class="status-list">
@@ -662,14 +654,13 @@ const ResultBlock = defineComponent({
               <div class="status-row">
                 <span class="status-label">监听状态</span>
                 <span class="status-value">
-                  <el-tag
-                    :type="
-                      socketLink.status === 'listening' ? 'success' : socketLink.status === 'failed' ? 'danger' : 'info'
+                  <Badge
+                    :variant="
+                      socketLink.status === 'listening' ? 'default' : socketLink.status === 'failed' ? 'destructive' : 'secondary'
                     "
-                    size="small"
                   >
                     {{ socketStatusText }}
-                  </el-tag>
+                  </Badge>
                 </span>
               </div>
               <div v-if="socketLink.message" class="status-row">
@@ -678,18 +669,15 @@ const ResultBlock = defineComponent({
               </div>
             </div>
             <div class="actions">
-              <el-button type="success" plain @click="runSocketDetect">
-                <template #icon>
-                  <Aim />
-                </template>
+              <Button variant="outline" @click="runSocketDetect">
+                <Aim />
                 执行 Socket 请求检测
-              </el-button>
-              <el-button type="warning" plain :loading="socketReconnectLoading" @click="runSocketReconnect">
-                <template #icon>
-                  <RefreshRight />
-                </template>
+              </Button>
+              <Button variant="outline" :disabled="socketReconnectLoading" @click="runSocketReconnect">
+                <LoaderCircle v-if="socketReconnectLoading" class="animate-spin" />
+                <RefreshRight v-else />
                 重启监听服务
-              </el-button>
+              </Button>
             </div>
             <ResultBlock v-if="socketResult" :text="socketResult" @copy="copyResult(socketResult)" />
           </div>
@@ -699,31 +687,30 @@ const ResultBlock = defineComponent({
       <section class="card" :class="{ 'is-collapsed': isCollapsed('autostart') }">
         <header class="card-header">
           <div class="card-title">
-            <el-icon class="card-icon"><Setting /></el-icon>
+            <Setting class="card-icon" />
             <span>开机自启动</span>
           </div>
           <button type="button" class="collapse-button" @click="toggleCard('autostart')">
-            <el-icon v-if="!isCollapsed('autostart')"><ArrowDownBold /></el-icon>
-            <el-icon v-else><ArrowRightBold /></el-icon>
+            <ArrowDownBold v-if="!isCollapsed('autostart')" />
+            <ArrowRightBold v-else />
           </button>
         </header>
         <div class="card-body">
           <div class="status-row">
             <span class="status-label">当前状态</span>
             <span class="status-value">
-              <el-tag :type="autostartEnabled ? 'success' : 'info'" size="small">
+              <Badge :variant="autostartEnabled ? 'default' : 'secondary'">
                 {{ autostartEnabled ? '已开启' : '已关闭' }}
-              </el-tag>
+              </Badge>
             </span>
           </div>
           <div class="actions">
-            <el-button :loading="autostartLoading" @click="toggleAutostart">
-              <template #icon>
-                <CircleCheckFilled v-if="!autostartEnabled" />
-                <CircleCloseFilled v-else />
-              </template>
+            <Button :disabled="autostartLoading" @click="toggleAutostart">
+              <LoaderCircle v-if="autostartLoading" class="animate-spin" />
+              <CircleCheckFilled v-else-if="!autostartEnabled" />
+              <CircleCloseFilled v-else />
               {{ autostartEnabled ? '关闭自启动' : '开启自启动' }}
-            </el-button>
+            </Button>
           </div>
         </div>
       </section>

@@ -160,70 +160,44 @@ async function closeWindow() {
         <div v-if="iframeLoadError" class="iframe-error">
           <div class="error-card">
             <div class="error-icon">
-              <el-icon><TriangleAlert /></el-icon>
+              <TriangleAlert />
             </div>
             <h2 class="error-title">页面加载失败</h2>
             <p class="error-desc">
               无法在预定时间内加载 iframe 页面，请检查网络或客户端配置后重试。
             </p>
             <div class="error-actions">
-              <el-button type="primary" class="retry-button" @click="retryIframeLoad">
-                <template #icon>
-                  <RefreshCw />
-                </template>
+              <Button variant="default" class="retry-button" @click="retryIframeLoad">
+                <RefreshCw />
                 重新加载
-              </el-button>
-              <el-button @click="backToEntry">
-                <template #icon>
-                  <Pencil />
-                </template>
+              </Button>
+              <Button variant="secondary" @click="backToEntry">
+                <Pencil />
                 重新输入地址
-              </el-button>
+              </Button>
             </div>
           </div>
         </div>
       </template>
 
-      <div
-        v-if="exampleDrawerVisible"
-        class="iframe-overlay"
-        aria-hidden="true"
-        @click="exampleDrawerVisible = false"
-      />
-
-      <el-button
-        class="example-trigger"
-        type="primary"
-        circle
-        aria-label="打开调试抽屉"
-        @click="exampleDrawerVisible = true"
-      >
-        <el-icon class="example-trigger-icon"><Wrench /></el-icon>
-      </el-button>
-
-      <el-drawer
-        v-model="exampleDrawerVisible"
-        size="80%"
-        :show-close="false"
-        destroy-on-close
-        class="debug-drawer"
-      >
-        <template #header>
-          <WindowHeaderBar
-            title="客户端调试"
-            :controls="['close']"
-            @close="exampleDrawerVisible = false"
-          />
-        </template>
-        <el-tabs v-model="drawerTab" class="drawer-tabs">
-          <el-tab-pane label="能力检测" name="detect">
-            <ExampleView :query-iframe-payload="queryIframePayload" />
-          </el-tab-pane>
-          <el-tab-pane label="客户端日志" name="logs">
-            <LogView />
-          </el-tab-pane>
-        </el-tabs>
-      </el-drawer>
+      <Sheet v-model:open="exampleDrawerVisible">
+        <SheetTrigger as-child>
+          <Button class="example-trigger" size="icon" aria-label="打开调试抽屉" @click="exampleDrawerVisible = true">
+            <Wrench class="example-trigger-icon" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="right" class="debug-drawer" :style="{ width: '80%', minWidth: '560px', maxWidth: '900px' }">
+          <WindowHeaderBar title="客户端调试" :controls="['close']" @close="exampleDrawerVisible = false" />
+          <Tabs v-model="drawerTab" class="drawer-tabs">
+            <TabsList>
+              <TabsTrigger value="detect">能力检测</TabsTrigger>
+              <TabsTrigger value="logs">客户端日志</TabsTrigger>
+            </TabsList>
+            <TabsContent value="detect"><ExampleView :query-iframe-payload="queryIframePayload" /></TabsContent>
+            <TabsContent value="logs"><LogView /></TabsContent>
+          </Tabs>
+        </SheetContent>
+      </Sheet>
   </WindowFrame>
 </template>
 
@@ -295,13 +269,6 @@ async function closeWindow() {
   min-width: 120px;
 }
 
-.iframe-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: var(--cpms-color-bg-overlay);
-}
-
 .example-trigger {
   position: fixed;
   right: var(--cpms-space-5);
@@ -335,59 +302,9 @@ async function closeWindow() {
   fill: currentcolor;
 }
 
-/* 抽屉外壳与窗口外壳统一：标题栏复用 WindowHeaderBar，页签/内容走令牌。 */
-.debug-drawer :deep(.el-drawer__header) {
-  margin: 0;
-  padding: 0;
-}
-
-.debug-drawer :deep(.el-drawer__body) {
-  padding: 0;
-  overflow: hidden;
-}
-
-.debug-drawer :deep(.el-drawer) {
-  border-radius: var(--cpms-radius-large) 0 0 var(--cpms-radius-large);
-  box-shadow: var(--cpms-shadow-xl);
-  min-width: 560px;
-  max-width: 900px;
-  background: var(--cpms-color-bg-app);
-}
-
 .drawer-tabs {
   display: flex;
   flex-direction: column;
-  height: 100%;
-}
-
-.drawer-tabs :deep(.el-tabs__header) {
-  margin: 0;
-  padding: 0 var(--cpms-space-base);
-  border-bottom: 1px solid var(--cpms-color-border);
-  background: var(--cpms-color-bg-panel);
-}
-
-.drawer-tabs :deep(.el-tabs__nav-wrap::after) {
-  display: none;
-}
-
-.drawer-tabs :deep(.el-tabs__item) {
-  font-weight: var(--cpms-font-weight-medium);
-  color: var(--cpms-color-text-secondary);
-}
-
-.drawer-tabs :deep(.el-tabs__item.is-active) {
-  color: var(--cpms-color-primary);
-}
-
-.drawer-tabs :deep(.el-tabs__active-bar) {
-  background-color: var(--cpms-color-primary);
-}
-
-.drawer-tabs :deep(.el-tabs__content),
-.drawer-tabs :deep(.el-tab-pane) {
-  flex: 1 1 auto;
-  min-height: 0;
   height: 100%;
 }
 

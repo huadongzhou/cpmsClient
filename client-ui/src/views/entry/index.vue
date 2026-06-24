@@ -2,6 +2,7 @@
 import {
   CircleX,
   Link,
+  LoaderCircle,
   MonitorCog,
   Pencil,
   TriangleAlert,
@@ -67,7 +68,7 @@ function useRecentUrl() {
     <section class="entry-card">
       <div class="entry-brand">
         <div class="entry-icon">
-          <el-icon class="entry-icon-svg"><MonitorCog /></el-icon>
+          <MonitorCog class="entry-icon-svg" />
         </div>
         <h1 class="entry-title">CPMS Client</h1>
       </div>
@@ -75,9 +76,9 @@ function useRecentUrl() {
       <div class="entry-form">
         <div class="entry-input-wrap" :class="{ 'has-error': error }">
           <span class="entry-input-prefix" aria-hidden="true">
-            <el-icon><Link /></el-icon>
+            <Link />
           </span>
-          <ElInput
+          <Input
             v-model="url"
             class="entry-input"
             type="text"
@@ -92,34 +93,35 @@ function useRecentUrl() {
             aria-label="清空"
             @click="url = ''"
           >
-            <el-icon><CircleX /></el-icon>
+            <CircleX />
           </button>
         </div>
 
         <p v-if="error" class="entry-error" role="alert">
-          <el-icon><TriangleAlert /></el-icon>
+          <TriangleAlert />
           <span>{{ error }}</span>
         </p>
 
-          <ElButton
-            type="primary"
+          <Button
+            variant="default"
             class="entry-submit"
-            :loading="loading"
             :disabled="!isSubmittable"
             @click="loadUrl()"
           >
+            <LoaderCircle v-if="loading" class="animate-spin" />
             <span>{{ loading ? "正在加载…" : "加载页面" }}</span>
-          </ElButton>
+          </Button>
 
         <div v-if="hasRecentUrl" class="entry-recent">
           <span class="entry-recent-label">最近使用</span>
-          <ElButton
+          <Button
+            variant="secondary"
             class="entry-recent-chip"
             :disabled="loading"
             @click="loadUrl(recentUrl)"
           >
             {{ recentUrl }}
-          </ElButton>
+          </Button>
           <button
             type="button"
             class="entry-recent-action"
@@ -127,7 +129,7 @@ function useRecentUrl() {
             title="填入"
             @click="useRecentUrl"
           >
-            <el-icon><Pencil /></el-icon>
+            <Pencil />
           </button>
         </div>
 

@@ -117,7 +117,7 @@ const notificationMessage = computed(() => currentNotification.value?.message?.t
     >
       <section class="notification-body">
         <div class="notification-type">
-          <el-icon class="notification-type-icon"><component :is="notificationMeta.icon" /></el-icon>
+          <component :is="notificationMeta.icon" class="notification-type-icon" />
           <span>{{ notificationMeta.label }}</span>
         </div>
         <p class="notification-message">{{ notificationMessage }}</p>

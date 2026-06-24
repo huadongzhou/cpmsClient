@@ -3,6 +3,10 @@ packages:
   - "client-tauri1"
   - "client-tauri2"
 
+allowBuilds:
+  maplibre-gl: false
+  vue-demi: true
+
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vitest: npm:@voidzero-dev/vite-plus-test@latest

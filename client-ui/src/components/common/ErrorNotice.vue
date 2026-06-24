@@ -1,20 +1,14 @@
 <script setup lang="ts" name="ErrorNotice">
 import { useAppError } from "@/composables/useAppError";
 
-const { latestError, clearError } = useAppError();
+const { latestError } = useAppError();
 </script>
 
 <template>
-  <el-alert
-    v-if="latestError"
-    class="error-notice"
-    :type="latestError.level === 'error' ? 'error' : 'warning'"
-    :title="latestError.message"
-    :description="`${latestError.source} / ${latestError.code}`"
-    show-icon
-    closable
-    @close="clearError(latestError.id)"
-  />
+  <Alert v-if="latestError" class="error-notice" :variant="latestError.level === 'error' ? 'destructive' : 'default'">
+    <AlertTitle>{{ latestError.message }}</AlertTitle>
+    <AlertDescription>{{ `${latestError.source} / ${latestError.code}` }}</AlertDescription>
+  </Alert>
 </template>
 
 <style scoped>
