@@ -6,16 +6,11 @@ import {
   type EventCallback,
   type UnlistenFn,
 } from "../../node_modules/@tauri-apps/api/event.js";
-import { WebviewWindow } from "../../node_modules/@tauri-apps/api/window.js";
 
 async function emitTo(label: string, event: string, payload?: unknown) {
-  const target = WebviewWindow.getByLabel(label);
-
-  if (target) {
-    await target.emit(event, payload);
-    return;
-  }
-
+  // Tauri 1 has no real emitTo API. A global emit reaches window-scoped
+  // listeners, while WebviewWindow.emit uses the label as the source window.
+  void label;
   await emit(event, payload);
 }
 

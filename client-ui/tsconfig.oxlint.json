@@ -16,14 +16,7 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@orange/*": ["./src/orange/*"],
-      "element-plus/es/utils": ["./node_modules/element-plus/es/utils/index.d.ts"],
-      "element-plus/es/components/form": [
-        "./node_modules/element-plus/es/components/form/index.d.ts"
-      ],
-      "element-plus/es/components/upload": [
-        "./node_modules/element-plus/es/components/upload/index.d.ts"
-      ]
+      "@orange/*": ["./src/orange/*"]
     },
     "types": ["node", "vite/client"],
     "noImplicitAny": false,

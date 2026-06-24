@@ -1,15 +1,13 @@
 import { defineConfig } from "vite-plus";
 import vue from "@vitejs/plugin-vue";
-import UnoCSS from "unocss/vite";
+import tailwindcss from "@tailwindcss/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import VueSetupExtend from "unplugin-vue-setup-extend-plus/vite";
-import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
 const uiRoot = fileURLToPath(new URL("../client-ui", import.meta.url));
-const unoConfig = fileURLToPath(new URL("../client-ui/uno.config.ts", import.meta.url));
 const shimRoot = fileURLToPath(new URL("./src-shims/tauri", import.meta.url));
 
 export default defineConfig({
@@ -17,14 +15,12 @@ export default defineConfig({
   plugins: [
     VueSetupExtend({}),
     vue(),
-    UnoCSS({ configFile: unoConfig }),
+    tailwindcss(),
     AutoImport({
       imports: ["vue", "pinia", "@vueuse/core"],
-      resolvers: [ElementPlusResolver()],
       dts: false,
     }),
     Components({
-      resolvers: [ElementPlusResolver({ importStyle: "css" })],
       dts: false,
     }),
   ],

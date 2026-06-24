@@ -18,14 +18,7 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@orange/*": ["./src/modules/orange/*"],
-      "element-plus/es/utils": ["./node_modules/element-plus/es/utils/index.d.ts"],
-      "element-plus/es/components/form": [
-        "./node_modules/element-plus/es/components/form/index.d.ts"
-      ],
-      "element-plus/es/components/upload": [
-        "./node_modules/element-plus/es/components/upload/index.d.ts"
-      ]
+      "@orange/*": ["./src/modules/orange/*"]
     },
     "types": ["node", "vite/client"],
     // 自定义配置

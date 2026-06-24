@@ -100,7 +100,7 @@ cargo check
 - 视觉系统以 `client-ui/src/assets/styles/tokens.css` 的 `--cpms-*` 令牌为准。
 - 主窗口、通知窗口和调试抽屉复用 `WindowHeaderBar.vue` 的窗口语义。
 - 宿主 UI 保持工具型、紧凑、可扫描；不要把业务页面搬进宿主。
-- 新增图标优先使用项目现有 Element Plus Icons / unplugin-icons 风格。
+- 新增图标统一使用 `@lucide/vue` 风格；不再新增旧图标包、旧自动图标类或旧原子样式图标类。
 
 ## 验证建议
 

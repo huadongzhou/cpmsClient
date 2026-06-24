@@ -1,12 +1,12 @@
 <script setup lang="ts" name="EntryView">
-import { ElMessage } from "element-plus";
 import {
-  CircleCloseFilled,
-  EditPen,
+  CircleX,
   Link,
-  Platform,
-  WarningFilled,
-} from "@element-plus/icons-vue";
+  MonitorCog,
+  Pencil,
+  TriangleAlert,
+} from "@lucide/vue";
+import { message } from "@/services/ui/message";
 import { setClientIframeUrl } from "@/api/tauri/desktop";
 
 const LAST_IFRAME_URL_KEY = "cpms-last-iframe-url";
@@ -58,18 +58,16 @@ async function loadUrl(input?: string) {
 function useRecentUrl() {
   if (!recentUrl.value) return;
   url.value = recentUrl.value;
-  void ElMessage.info("已填入最近使用的地址");
+  message.info("已填入最近使用的地址");
 }
 </script>
 
 <template>
   <main class="entry-view">
-    <div class="entry-decoration" aria-hidden="true" />
-
     <section class="entry-card">
       <div class="entry-brand">
         <div class="entry-icon">
-          <el-icon class="entry-icon-svg"><Platform /></el-icon>
+          <el-icon class="entry-icon-svg"><MonitorCog /></el-icon>
         </div>
         <h1 class="entry-title">CPMS Client</h1>
       </div>
@@ -79,7 +77,7 @@ function useRecentUrl() {
           <span class="entry-input-prefix" aria-hidden="true">
             <el-icon><Link /></el-icon>
           </span>
-          <input
+          <ElInput
             v-model="url"
             class="entry-input"
             type="text"
@@ -94,30 +92,34 @@ function useRecentUrl() {
             aria-label="清空"
             @click="url = ''"
           >
-            <el-icon><CircleCloseFilled /></el-icon>
+            <el-icon><CircleX /></el-icon>
           </button>
         </div>
 
         <p v-if="error" class="entry-error" role="alert">
-          <el-icon><WarningFilled /></el-icon>
+          <el-icon><TriangleAlert /></el-icon>
           <span>{{ error }}</span>
         </p>
 
-        <button type="button" class="entry-submit" :disabled="!isSubmittable" @click="loadUrl()">
-          <span v-if="loading" class="entry-spinner" aria-hidden="true" />
-          <span>{{ loading ? "正在加载…" : "加载页面" }}</span>
-        </button>
+          <ElButton
+            type="primary"
+            class="entry-submit"
+            :loading="loading"
+            :disabled="!isSubmittable"
+            @click="loadUrl()"
+          >
+            <span>{{ loading ? "正在加载…" : "加载页面" }}</span>
+          </ElButton>
 
         <div v-if="hasRecentUrl" class="entry-recent">
           <span class="entry-recent-label">最近使用</span>
-          <button
-            type="button"
+          <ElButton
             class="entry-recent-chip"
             :disabled="loading"
             @click="loadUrl(recentUrl)"
           >
             {{ recentUrl }}
-          </button>
+          </ElButton>
           <button
             type="button"
             class="entry-recent-action"
@@ -125,7 +127,7 @@ function useRecentUrl() {
             title="填入"
             @click="useRecentUrl"
           >
-            <el-icon><EditPen /></el-icon>
+            <el-icon><Pencil /></el-icon>
           </button>
         </div>
 
@@ -144,17 +146,8 @@ function useRecentUrl() {
   min-height: 0;
   width: 100%;
   padding: var(--cpms-space-5);
-  background: transparent;
+  background: var(--cpms-color-bg-app);
   overflow: hidden;
-}
-
-.entry-decoration {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 12% 18%, var(--cpms-color-primary-bg) 0%, transparent 38%),
-    radial-gradient(circle at 88% 82%, var(--cpms-color-success-bg) 0%, transparent 38%);
 }
 
 .entry-card {
@@ -201,13 +194,6 @@ function useRecentUrl() {
   font-weight: var(--cpms-font-weight-bold);
   line-height: var(--cpms-line-height-tight);
   color: var(--cpms-color-text-primary);
-}
-
-.entry-desc {
-  margin: 0;
-  font-size: var(--cpms-font-size-base);
-  color: var(--cpms-color-text-muted);
-  line-height: var(--cpms-line-height-relaxed);
 }
 
 .entry-form {
@@ -396,6 +382,7 @@ function useRecentUrl() {
 
 .entry-recent-chip {
   max-width: 260px;
+  min-height: 32px;
   padding: 5px 12px;
   font-size: var(--cpms-font-size-small);
   color: var(--cpms-color-text-secondary);

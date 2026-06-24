@@ -4,7 +4,6 @@ import { createPinia } from "pinia";
 import { useAppStore } from "@/stores/app";
 import { injectHubClientBridge } from "@/utils/hubBridge";
 import "@/assets/styles/tokens.css";
-import "uno.css";
 
 const pinia = createPinia();
 const app = createApp(App);

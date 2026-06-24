@@ -1,10 +1,9 @@
 import { defineConfig } from "vite-plus";
 import vue from "@vitejs/plugin-vue";
-import UnoCSS from "unocss/vite";
+import tailwindcss from "@tailwindcss/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import VueSetupExtend from "unplugin-vue-setup-extend-plus/vite";
-import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -24,15 +23,13 @@ export default defineConfig(() => {
     plugins: [
       VueSetupExtend({}),
       vue(),
-      UnoCSS(),
+      tailwindcss(),
       AutoImport({
         imports: ["vue", "pinia", "@vueuse/core"],
-        resolvers: [ElementPlusResolver()],
         vueTemplate: true,
         dts: "src/types/auto-imports.d.ts",
       }),
       Components({
-        resolvers: [ElementPlusResolver({ importStyle: "css" })],
         dts: "src/types/components.d.ts",
       }),
     ],

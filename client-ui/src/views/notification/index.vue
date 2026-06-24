@@ -1,14 +1,19 @@
 <script setup lang="ts" name="NotificationView">
-import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event'
+import { emit, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
-  CircleCheckFilled,
-  CircleCloseFilled,
-  InfoFilled,
-  WarningFilled,
-} from '@element-plus/icons-vue'
+  CircleAlert,
+  CircleCheck,
+  Info,
+  TriangleAlert,
+} from '@lucide/vue'
 import type { Component } from 'vue'
-import { DESKTOP_NOTIFICATION_PUSH_EVENT, DESKTOP_NOTIFICATION_READY_EVENT } from '@/api/tauri/notification'
+import {
+  DESKTOP_NOTIFICATION_ACK_EVENT,
+  DESKTOP_NOTIFICATION_PUSH_EVENT,
+  DESKTOP_NOTIFICATION_READY_EVENT,
+  type DesktopNotificationAckPayload
+} from '@/api/tauri/notification'
 import WindowFrame from '@/components/layout/WindowFrame.vue'
 import type { AppNotification, AppNotificationType } from '@/types/app/notification'
 
@@ -20,19 +25,19 @@ interface NotificationMeta {
 const META_BY_TYPE: Record<AppNotificationType, NotificationMeta> = {
   info: {
     label: '通知',
-    icon: InfoFilled
+    icon: Info
   },
   success: {
     label: '成功',
-    icon: CircleCheckFilled
+    icon: CircleCheck
   },
   warning: {
     label: '警告',
-    icon: WarningFilled
+    icon: TriangleAlert
   },
   error: {
     label: '错误',
-    icon: CircleCloseFilled
+    icon: CircleAlert
   }
 }
 
@@ -41,8 +46,8 @@ const currentNotification = ref<AppNotification>()
 let unlistenPush: UnlistenFn | undefined
 
 onMounted(async () => {
-  unlistenPush = await listen<AppNotification>(DESKTOP_NOTIFICATION_PUSH_EVENT, (event) => {
-    pushNotification(event.payload)
+  unlistenPush = await currentWindow.listen<AppNotification>(DESKTOP_NOTIFICATION_PUSH_EVENT, (event) => {
+    void pushNotification(event.payload)
   })
   await emit(DESKTOP_NOTIFICATION_READY_EVENT)
 })
@@ -51,14 +56,34 @@ onBeforeUnmount(() => {
   unlistenPush?.()
 })
 
-function pushNotification(notification: AppNotification) {
+async function pushNotification(notification: AppNotification) {
   currentNotification.value = notification
-  void currentWindow.show()
+  await emitNotificationAck(notification, 'received')
+
+  try {
+    await currentWindow.show()
+    await emitNotificationAck(notification, 'shown')
+  } catch (error) {
+    await emitNotificationAck(notification, 'show-error', error instanceof Error ? error.message : String(error))
+  }
 }
 
 function closeNotification() {
   currentNotification.value = undefined
   void currentWindow.hide()
+}
+
+async function emitNotificationAck(
+  notification: AppNotification,
+  stage: DesktopNotificationAckPayload['stage'],
+  error?: string
+) {
+  await emit(DESKTOP_NOTIFICATION_ACK_EVENT, {
+    id: notification.id,
+    stage,
+    error,
+    time: Date.now()
+  } satisfies DesktopNotificationAckPayload)
 }
 
 const notificationMeta = computed(() => {
@@ -111,7 +136,7 @@ const notificationMessage = computed(() => currentNotification.value?.message?.t
 }
 
 :deep(.notification-frame-body) {
-  background: #fff;
+  background: var(--cpms-color-bg-app);
 }
 
 .notification-body {
@@ -120,7 +145,11 @@ const notificationMessage = computed(() => currentNotification.value?.message?.t
   flex: 1 1 auto;
   min-height: 0;
   gap: var(--cpms-space-3);
-  padding: var(--cpms-space-base);
+  margin: var(--cpms-space-3);
+  padding: var(--cpms-space-4);
+  border: 1px solid var(--cpms-color-border);
+  border-radius: var(--cpms-radius-large);
+  background: var(--cpms-color-surface);
   color: var(--cpms-color-text-secondary);
   font-size: var(--cpms-font-size-base);
   line-height: var(--cpms-line-height-relaxed);

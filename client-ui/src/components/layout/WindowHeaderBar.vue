@@ -1,13 +1,14 @@
 <script setup lang="ts" name="WindowHeaderBar">
 import { computed } from 'vue'
 import {
-  Aim,
-  CloseBold,
-  FullScreen,
-  HomeFilled,
+  House,
+  Maximize,
+  Minimize2,
   Minus,
-  MostlyCloudy,
-} from '@element-plus/icons-vue'
+  Pin,
+  PinOff,
+  X,
+} from '@lucide/vue'
 
 type WindowControl = 'entry' | 'pin' | 'collapse' | 'fullscreen' | 'close'
 
@@ -37,9 +38,10 @@ const emit = defineEmits<{
 
 const pinLabel = computed(() => (props.pinned ? '取消固定窗口' : '固定窗口'))
 const pinTitle = computed(() => (props.pinned ? '取消固定' : '固定'))
+const pinIcon = computed(() => (props.pinned ? PinOff : Pin))
 const fullscreenLabel = computed(() => (props.fullscreen ? '退出全屏' : '全屏窗口'))
 const fullscreenTitle = computed(() => (props.fullscreen ? '退出全屏' : '全屏'))
-const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
+const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
 </script>
 
 <template>
@@ -57,7 +59,7 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
         title="入口页"
         @click="emit('entry')"
       >
-        <el-icon class="headerbar-icon"><HomeFilled /></el-icon>
+        <el-icon class="headerbar-icon"><House /></el-icon>
       </button>
       <button
         v-if="controls.includes('pin')"
@@ -68,7 +70,7 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
         :title="pinTitle"
         @click="emit('pin')"
       >
-        <el-icon class="headerbar-icon"><MostlyCloudy /></el-icon>
+        <el-icon class="headerbar-icon"><component :is="pinIcon" /></el-icon>
       </button>
       <button
         v-if="controls.includes('collapse')"
@@ -100,7 +102,7 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
           title="关闭"
           @click="emit('close')"
         >
-          <el-icon class="headerbar-icon"><CloseBold /></el-icon>
+          <el-icon class="headerbar-icon"><X /></el-icon>
         </button>
       </el-tooltip>
     </nav>
@@ -116,8 +118,8 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
   flex: none;
   height: var(--cpms-headerbar-height);
   padding: 0 var(--cpms-space-base);
-  background: rgba(15, 23, 42, 1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--cpms-color-foreground);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   color: var(--cpms-color-text-on-primary);
   backdrop-filter: blur(12px);
   user-select: none;
@@ -131,9 +133,10 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
 }
 
 .headerbar-logo {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   flex: none;
+  border-radius: 8px;
 }
 
 .headerbar-text {
@@ -160,7 +163,7 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
   height: 44px;
   padding: 0;
   border: 0;
-  border-radius: var(--cpms-radius-small);
+  border-radius: 10px;
   background: transparent;
   color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
@@ -174,7 +177,6 @@ const fullscreenIcon = computed(() => (props.fullscreen ? Aim : FullScreen))
   width: 18px;
   height: 18px;
   color: currentcolor;
-  fill: currentcolor;
 }
 
 .headerbar-button:hover {

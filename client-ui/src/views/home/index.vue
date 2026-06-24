@@ -1,11 +1,11 @@
 <script setup lang="ts" name="HomeView">
 import { emitViewEvent } from "@/api/tauri/events";
 import {
-  EditPen,
-  RefreshRight,
-  Tools,
-  WarningFilled,
-} from "@element-plus/icons-vue";
+  Pencil,
+  RefreshCw,
+  TriangleAlert,
+  Wrench,
+} from "@lucide/vue";
 import WindowFrame from "@/components/layout/WindowFrame.vue";
 import WindowHeaderBar from "@/components/layout/WindowHeaderBar.vue";
 import {
@@ -143,6 +143,7 @@ async function closeWindow() {
     loading-text="正在加载页面…"
     :controls="showEntryPage ? ['pin', 'collapse', 'fullscreen', 'close'] : ['entry', 'pin', 'collapse', 'fullscreen', 'close']"
     @entry="backToEntry"
+    @pin="toggleWindowPin"
     @collapse="collapseWindow"
     @fullscreen="toggleWindowFullscreen"
     @close="closeWindow"
@@ -159,7 +160,7 @@ async function closeWindow() {
         <div v-if="iframeLoadError" class="iframe-error">
           <div class="error-card">
             <div class="error-icon">
-              <el-icon><WarningFilled /></el-icon>
+              <el-icon><TriangleAlert /></el-icon>
             </div>
             <h2 class="error-title">页面加载失败</h2>
             <p class="error-desc">
@@ -168,13 +169,13 @@ async function closeWindow() {
             <div class="error-actions">
               <el-button type="primary" class="retry-button" @click="retryIframeLoad">
                 <template #icon>
-                  <RefreshRight />
+                  <RefreshCw />
                 </template>
                 重新加载
               </el-button>
               <el-button @click="backToEntry">
                 <template #icon>
-                  <EditPen />
+                  <Pencil />
                 </template>
                 重新输入地址
               </el-button>
@@ -197,7 +198,7 @@ async function closeWindow() {
         aria-label="打开调试抽屉"
         @click="exampleDrawerVisible = true"
       >
-        <el-icon class="example-trigger-icon"><Tools /></el-icon>
+        <el-icon class="example-trigger-icon"><Wrench /></el-icon>
       </el-button>
 
       <el-drawer

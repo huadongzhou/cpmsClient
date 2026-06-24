@@ -1,6 +1,5 @@
 <script setup lang="ts" name="WindowFrame">
-import { vLoading } from 'element-plus'
-import 'element-plus/es/components/loading/style/css'
+import { LoaderCircle } from '@lucide/vue'
 import WindowHeaderBar from '@/components/layout/WindowHeaderBar.vue'
 
 type WindowControl = 'entry' | 'pin' | 'collapse' | 'fullscreen' | 'close'
@@ -52,8 +51,12 @@ const emit = defineEmits<{
         @fullscreen="emit('fullscreen')"
         @close="emit('close')"
       />
-      <main v-loading="loading" class="window-frame-body" :class="bodyClass" :element-loading-text="loadingText">
+      <main class="window-frame-body" :class="bodyClass" :aria-busy="loading">
         <slot />
+        <div v-if="loading" class="window-frame-loading" role="status">
+          <LoaderCircle class="window-frame-loading-icon" aria-hidden="true" />
+          <span>{{ loadingText }}</span>
+        </div>
       </main>
     </section>
   </section>
@@ -71,7 +74,6 @@ const emit = defineEmits<{
   flex-direction: column;
   width: 100%;
   height: 100%;
-  border-radius: var(--cpms-radius-large);
   overflow: hidden;
 }
 
@@ -82,7 +84,33 @@ const emit = defineEmits<{
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  background: #fff;
+  background: var(--cpms-color-bg-app);
   overflow: hidden;
+}
+
+.window-frame-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--cpms-space-3);
+  color: var(--cpms-color-text-secondary);
+  background: rgba(238, 243, 248, 0.86);
+  backdrop-filter: blur(6px);
+}
+
+.window-frame-loading-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--cpms-color-primary);
+  animation: cpms-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .window-frame-loading-icon {
+    animation: none;
+  }
 }
 </style>

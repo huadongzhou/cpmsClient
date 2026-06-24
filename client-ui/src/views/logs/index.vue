@@ -1,8 +1,8 @@
 <script setup lang="ts" name="LogView">
 import { storeToRefs } from "pinia";
-import { ElMessage, ElMessageBox } from "element-plus";
-import { CopyDocument, Delete, Document, RefreshRight } from "@element-plus/icons-vue";
+import { Copy, FileText, RefreshCw, Trash2 } from "@lucide/vue";
 import { getClientLogState } from "@/api/tauri/log";
+import { confirmAction, message } from "@/services/ui/message";
 import { useLogStore } from "@/stores/log";
 import type { ClientLogEntry, ClientLogFileState } from "@/types/app/log";
 
@@ -93,24 +93,21 @@ async function refreshFileState() {
 
 async function copyLogs() {
   if (!logText.value) {
-    ElMessage.info("暂无可复制日志");
+    message.info("暂无可复制日志");
     return;
   }
 
   await navigator.clipboard.writeText(logText.value);
-  ElMessage.success("日志已复制");
+  message.success("日志已复制");
 }
 
 async function confirmClearLogs() {
   try {
-    await ElMessageBox.confirm("确定要清空当前显示的客户端日志吗？此操作不可恢复。", "清空日志", {
-      confirmButtonText: "清空",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    const confirmed = await confirmAction("确定要清空当前显示的客户端日志吗？此操作不可恢复。");
+    if (!confirmed) return;
 
     logStore.clearLogs();
-    ElMessage.success("日志已清空");
+    message.success("日志已清空");
   } catch {
     // 用户取消，不做任何操作。
   }
@@ -165,19 +162,19 @@ function levelClass(level: string) {
       <div class="actions">
         <el-button plain :loading="fileStateLoading" @click="refreshFileState">
           <template #icon>
-            <RefreshRight />
+            <RefreshCw />
           </template>
           刷新
         </el-button>
         <el-button plain @click="copyLogs">
           <template #icon>
-            <CopyDocument />
+            <Copy />
           </template>
           复制
         </el-button>
         <el-button plain type="danger" @click="confirmClearLogs">
           <template #icon>
-            <Delete />
+            <Trash2 />
           </template>
           清空
         </el-button>
@@ -186,7 +183,7 @@ function levelClass(level: string) {
 
     <section v-if="fileState" class="file-state">
       <div class="file-state-main">
-        <el-icon class="file-state-icon"><Document /></el-icon>
+        <el-icon class="file-state-icon"><FileText /></el-icon>
         <span class="file-path" :title="fileState.path">{{ fileState.path }}</span>
       </div>
       <span class="file-size">{{ formatFileSize(fileState.sizeBytes) }}</span>

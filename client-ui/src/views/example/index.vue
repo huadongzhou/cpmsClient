@@ -10,35 +10,37 @@ import {
   reconnectSocket,
   setAutostartEnabled
 } from '@/api/tauri/desktop'
+import { diagnoseDesktopNotification } from '@/api/tauri/notification'
+import type { AppNotification } from '@/types/app/notification'
 import type { ClientSocketStatePayload, PrintClientInfo } from '@/types/app/runtime'
 import ErrorNotice from '@/components/common/ErrorNotice.vue'
 import {
-  Aim,
-  ArrowDownBold,
-  ArrowRightBold,
   Bell,
-  ChatDotRound,
-  CircleCheckFilled,
-  CircleCloseFilled,
-  CopyDocument,
+  ChevronDown as ArrowDownBold,
+  ChevronRight as ArrowRightBold,
+  CircleCheck as CircleCheckFilled,
+  CircleX as CircleCloseFilled,
+  Copy as CopyDocument,
   Cpu,
-  Key,
+  Crosshair as Aim,
+  KeyRound as Key,
   Link,
+  MessageCircle as ChatDotRound,
   Monitor,
   Printer,
-  Promotion,
-  RefreshRight,
-  Setting
-} from '@element-plus/icons-vue'
+  RefreshCw as RefreshRight,
+  Send as Promotion,
+  Settings as Setting
+} from '@lucide/vue'
 import { useIframeContainer } from '@/composables/useIframeContainer'
-import { useAppNotification } from '@/composables/useAppNotification'
 import { useAppStore } from '@/stores/app'
 import { useNetworkStore } from '@/stores/network'
 import { useRuntimeStore } from '@/stores/runtime'
 import { useTaskStore } from '@/stores/task'
 import type { IframePayloadBridgeResult } from '@/composables/useIframePayloadBridge'
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { ElIcon, ElMessage } from 'element-plus'
+import ElIcon from '@/components/ui/ElIcon.vue'
+import { message } from '@/services/ui/message'
 
 const props = defineProps<{
   queryIframePayload?: (reason?: string) => Promise<IframePayloadBridgeResult>
@@ -48,7 +50,6 @@ const appStore = useAppStore()
 const networkStore = useNetworkStore()
 const runtimeStore = useRuntimeStore()
 const taskStore = useTaskStore()
-const { notify } = useAppNotification()
 const { isOnline } = storeToRefs(networkStore)
 const { iframe, loadIframeContainer, loading } = useIframeContainer()
 const autostartEnabled = ref(false)
@@ -104,12 +105,12 @@ function toggleCard(key: string) {
 
 async function copyResult(text: string) {
   if (!text) {
-    ElMessage.info('暂无可复制内容')
+    message.info('暂无可复制内容')
     return
   }
 
   await navigator.clipboard.writeText(text)
-  ElMessage.success('结果已复制')
+  message.success('结果已复制')
 }
 
 // 客户端只有一个 token：经 iframe 获取后本地缓存，等待拉取/推送更新。
@@ -160,13 +161,64 @@ async function runNotificationDetect() {
   const payload = {
     type: 'info' as const,
     title: '通知检测',
-    message: 'desktop notification body message',
+    message: '这是一条客户端调试通知，用于验证通知窗口是否正常弹出。',
     durationMs: 5000
   }
 
-  notify(payload)
-  await pushClientNotificationEvent(payload)
-  notifyResult.value = ['[Notify Payload]', JSON.stringify(payload, null, 2)].join('\n')
+  const notification: AppNotification = {
+    id: createDiagnosticNotificationId(),
+    type: payload.type,
+    title: payload.title,
+    message: payload.message,
+    createdAt: new Date().toISOString(),
+    durationMs: payload.durationMs
+  }
+  let clientEventForwarded = false
+  let clientEventError: string | undefined
+  const desktopWindowDiagnostic = await diagnoseDesktopNotification(notification)
+  const blockedStep = desktopWindowDiagnostic.steps.find((step) => step.status !== 'ok')
+  const desktopWindowError = blockedStep
+    ? [blockedStep.name, blockedStep.status, blockedStep.detail].filter(Boolean).join(': ')
+    : undefined
+
+  if (desktopWindowDiagnostic.ok) {
+    message.success('测试通知已发送')
+  } else {
+    message.error(`通知弹窗未确认：${desktopWindowError ?? 'unknown'}`)
+  }
+
+  try {
+    clientEventForwarded = await pushClientNotificationEvent(payload)
+  } catch (error) {
+    clientEventError = error instanceof Error ? error.message : '客户端通知回推失败'
+  }
+
+  notifyResult.value = [
+    '[Notify Payload]',
+    JSON.stringify(
+      {
+        payload,
+        notificationId: notification.id,
+        frontendQueue: false,
+        frontendQueueDetail: 'skipped to avoid duplicate desktop dispatch during diagnostics',
+        desktopWindowShown: desktopWindowDiagnostic.ok,
+        desktopWindowError,
+        desktopWindowDiagnostic,
+        clientEventForwarded,
+        clientEventError
+      },
+      null,
+      2
+    )
+  ].join('\n')
+}
+
+function createDiagnosticNotificationId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  return `notification-detect-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 async function runCommunicationDetect() {
@@ -683,7 +735,9 @@ const ResultBlock = defineComponent({
 .example {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   height: 100%;
+  min-height: 0;
   padding: var(--cpms-space-base);
   overflow: auto;
 }

@@ -1,357 +1,234 @@
 # CPMS Client 设计规范
 
-> 基于 `ui-ux-pro-max` Skill 制定的统一设计系统：Enterprise Gateway / Trust & Authority。
-> 本文档描述 CPMS Client（PC 桌面端）的视觉与交互规范，并与 `cpmsClient/hub-platform` 保持跨端一致。
+> 基于 `ui-ux-pro-max` Skill 制定的统一设计系统：Fresh Minimal / Enterprise Gateway。
+> 本文档描述 CPMS Client 桌面宿主端的 UI/UX、公共组件和页面规范。技术前提：基础样式与组件体系统一切换为 TailwindCSS + Shadcn-UI（Vue 项目采用 shadcn-vue / Reka UI 实现）。
 
-## 1. 项目概述
+## 1. 项目定位
 
-- **产品类型**：企业级打印客户端基座（PC 桌面端）。
-- **技术栈**：Vue 3 + TypeScript + Vite + Element Plus + UnoCSS，Tauri 1/2 作为桌面壳。
-- **目标平台**：Windows / macOS / Linux（含国产 Linux legacy）。
-- **窗口形态**：
-  - 主窗口：默认 800×600，无系统标题栏（`decorations: false`），背景透明（`transparent: true`），自绘 `WindowHeaderBar`。
-  - 通知子窗口：400×400，屏幕右下角，背景透明（`transparent: true`），自绘标题栏。
-  - 调试抽屉：从主窗口右侧滑出，宽度 80%（min 560px / max 900px）。
-- **设计语言**：权威、专业、清晰、可信赖。窗口外壳采用深色标题栏（`--cpms-color-foreground`），内容区保持明亮简洁；以海军蓝（Navy）为主色、青蓝（Cyan-Blue）为强调色。
+- **产品类型**：企业级打印客户端宿主，负责桌面外壳、iframe 容器、通知窗口、调试面板和宿主桥接。
+- **目标平台**：Windows / macOS / Linux，当前客户端原生能力只维护 `client-tauri1`。
+- **设计语言**：权威、专业、紧凑、可扫描、可信赖。
+- **交互密度**：桌面工具型高密度，主要面向鼠标键盘，同时保证 44px 以上可点击区域。
+- **跨端关系**：`client` 是容器与系统能力层，`hub-web` 是 iframe 内业务视图；两端共享色彩、字体、圆角、阴影和动效节奏，但组件按各自职责拆分。
 
-## 2. 设计语言与风格
+## 2. 技术基座
 
-### 2.1 整体风格
+### 2.1 UI 技术栈
 
-- **风格关键词**：权威、专业、紧凑、工具型、无边框窗口。
-- **视觉层次**：通过自绘标题栏、面板背景色、Element Plus 组件层级区分。
-- **密度**：高密度，适合 PC 端鼠标操作与信息密度较大的调试/日志场景。
-- **色彩倾向**：主色为权威海军蓝 `#1E3A8A`，强调/CTA 为青蓝 `#0369A1`，危险态为红色 `#DC2626`。
+- 使用 **TailwindCSS** 作为样式基础，负责布局、间距、状态、响应式和主题变量消费。
+- 使用 **Shadcn-UI Vue 体系**作为公共组件基座，组件源码落在 `client-ui/src/components/ui`，按需复制、可本地改造。
+- 使用 **Reka UI / Radix Vue 类无样式原语**承载 Dialog、Tabs、Tooltip、Popover、Select 等复杂交互语义。
+- 使用 **@lucide/vue** 作为结构图标库，保持 1.75px 或 2px stroke 的一致风格。
+- 不再引入旧组件库、旧图标包、旧原子样式方案或依赖 `i-*` 原子图标类。
 
-### 2.2 与 ui-ux-pro-max 的契合点
+### 2.2 样式边界
 
-| Skill 规则 | 当前实现 | 符合度 |
-|---|---|---|
-| `style-match`：产品类型匹配 | 企业工具型桌面客户端，Enterprise Gateway | ✅ 高 |
-| `consistency`：全站风格一致 | 全部窗口共用 `tokens.css` | ✅ 高 |
-| `no-emoji-icons`：不使用 emoji | 使用 SVG + Element Plus 图标 | ✅ 高 |
-| `system-controls`：优先系统/成熟组件 | 使用 Element Plus | ✅ 高 |
-| `elevation-consistent`：阴影统一 | 五级阴影基于统一前景色 | ✅ 高 |
-| `color-accessible-pairs`：文本对比度 | 关键组合均 ≥4.5:1 | ✅ 高 |
+- 设计令牌集中在 `client-ui/src/assets/styles/tokens.css` 与 Tailwind theme 中维护。
+- Tailwind 负责页面组合层；复杂组件样式优先沉淀到 shadcn 组件变体，不在页面里堆叠大量一次性 class。
+- `--cpms-*` 作为宿主语义令牌继续保留，迁移期映射到 shadcn 的语义变量，避免宿主与 iframe 视觉断层。
+- 禁止在组件中直接写裸色值、随机阴影和临时字号；新增颜色必须先进入令牌。
 
-## 3. 设计令牌（Design Tokens）
+## 3. 设计令牌
 
-所有令牌集中在 `client-ui/src/assets/styles/tokens.css` 的 `:root` 中。
+### 3.1 Shadcn 语义变量
 
-### 3.1 颜色系统
+以浅色工作台为默认主题，暗色主题可后续补齐。CSS 变量建议使用 HSL 三元值，便于 Tailwind `hsl(var(--token))` 消费。
 
 ```css
-/* 文本 */
---cpms-color-text-primary: #020617;
---cpms-color-text-secondary: #334155;
---cpms-color-text-muted: #64748b;
---cpms-color-text-disabled: #94a3b8;
---cpms-color-text-placeholder: #94a3b8;
-
-/* 背景 */
---cpms-color-bg-app: #f8fafc;
---cpms-color-bg-panel: #ffffff;
---cpms-color-bg-hover: #f1f5f9;
---cpms-color-bg-active: #e2e8f0;
---cpms-color-bg-code: #f1f5f9;
-
-/* 边框 */
---cpms-color-border: #e2e8f0;
---cpms-color-border-strong: #cbd5e1;
-
-/* 前景/品牌表面 */
---cpms-color-foreground: #0f172a;
-
-/* 主色 */
---cpms-color-primary: #1e3a8a;
---cpms-color-primary-hover: #1e40af;
---cpms-color-primary-active: #172554;
---cpms-color-primary-bg: #eff6ff;
---cpms-color-primary-bg-subtle: #dbeafe;
---cpms-color-primary-border: #bfdbfe;
---cpms-color-primary-text: #1e3a8a;
-
-/* 强调色/CTA */
---cpms-color-accent: #0369a1;
---cpms-color-accent-hover: #075985;
---cpms-color-accent-bg: #f0f9ff;
---cpms-color-accent-bg-subtle: #e0f2fe;
---cpms-color-accent-border: #bae6fd;
---cpms-color-accent-text: #0369a1;
-
-/* 语义色 */
---cpms-color-success: #047857;
---cpms-color-warning: #b45309;
---cpms-color-danger: #dc2626;
---cpms-color-danger-hover: #b91c1c;
---cpms-color-info: #0369a1;
+:root {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 224 64% 33%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 200 95% 32%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 224 64% 33%;
+  --radius: 0.5rem;
+}
 ```
 
-**对比度检查（基于 WCAG AA）**：
-- `#020617` on `#ffffff`：约 15.8:1 ✅
-- `#334155` on `#ffffff`：约 9.7:1 ✅
-- `#64748b` on `#ffffff`：约 5.7:1 ✅
-- `#1e3a8a` on `#ffffff`：约 9.6:1 ✅
-- `#0369a1` on `#ffffff`：约 5.0:1 ✅
-- `#dc2626` on `#ffffff`：约 5.7:1 ✅
-
-### 3.2 字体系统
-
-- **字体族**：`'Plus Jakarta Sans', Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif`
-- **本地字体文件**：`client-ui/src/assets/fonts/PlusJakartaSans-{400,500,600,700}.ttf`
-- **基础字号**：`16px`
-- **行高**：正文 `1.5`
-
-| 用途 | 字号 | 行高 | 字重 | 颜色 |
-|---|---|---|---|---|
-| 窗口标题栏文字 | 14px | 1.4 | 600 | `--cpms-color-text-primary` |
-| 正文/标签 | 16px | 1.5 | 400 | `--cpms-color-text-primary` |
-| 辅助说明 | 13px | 1.5 | 400 | `--cpms-color-text-secondary` |
-| 代码/日志 | 13px | 1.5 | 400 | `--cpms-color-text-primary` |
-| 区块标题 | 18px | 1.25 | 600 | `--cpms-color-text-primary` |
-| 页面标题 | 20px | 1.25 | 700 | `--cpms-color-text-primary` |
-
-### 3.3 间距系统
-
-采用 4pt 网格：
+### 3.2 宿主别名令牌
 
 ```css
---cpms-space-1: 4px;
---cpms-space-2: 8px;
---cpms-space-3: 12px;
---cpms-space-4: 16px;
---cpms-space-5: 20px;
---cpms-space-6: 24px;
---cpms-space-8: 32px;
---cpms-space-10: 40px;
---cpms-space-12: 48px;
+:root {
+  --cpms-color-bg-app: hsl(var(--background));
+  --cpms-color-bg-panel: hsl(var(--card));
+  --cpms-color-text-primary: hsl(var(--foreground));
+  --cpms-color-text-secondary: #334155;
+  --cpms-color-text-muted: hsl(var(--muted-foreground));
+  --cpms-color-border: hsl(var(--border));
+  --cpms-color-foreground: #0f172a;
+  --cpms-color-primary: hsl(var(--primary));
+  --cpms-color-accent: hsl(var(--accent));
+  --cpms-color-danger: hsl(var(--destructive));
+}
 ```
 
-### 3.4 圆角系统
+### 3.3 色彩策略
 
-```css
---cpms-radius-xs: 4px;
---cpms-radius-small: 6px;
---cpms-radius-panel: 10px;
---cpms-radius-medium: 12px;
---cpms-radius-large: 16px;
---cpms-radius-xl: 20px;
---cpms-radius-full: 9999px;
-```
+| 用途 | 颜色 | 说明 |
+| --- | --- | --- |
+| 主色 | `#2563EB` | 主按钮、焦点环、选中态 |
+| 强调色 | `#059669` | 次级 CTA、完成态、辅助重点操作 |
+| 背景 | `#F8FAFC` | 主窗口内容区、iframe 外壳背景 |
+| 面板 | `#FFFFFF` | 卡片、抽屉、通知窗口内容面 |
+| 文本 | `#020617` / `#334155` / `#64748B` | 主文本、次级文本、辅助文本 |
+| 边框 | `#E2E8F0` | 面板、输入框、分隔线 |
+| 危险 | `#DC2626` | 关闭、清空日志、危险确认 |
 
-| 用途 | 圆角 |
-|---|---|
-| 按钮/输入框/小标签/标题栏按钮 | `small` (6px) |
-| 卡片/面板/警告条 | `panel` (10px) |
-| 抽屉/大面板左侧圆角 | `large` (16px) |
+### 3.4 字体、间距、圆角
 
-### 3.5 阴影系统
+- 字体：`Plus Jakarta Sans, Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif`。
+- 基础字号：16px；正文行高 1.5；标题字重 600-700。
+- 间距：4px 网格，Tailwind spacing 使用 `1=4px`、`2=8px`、`3=12px`、`4=16px`。
+- 圆角：shadcn 默认 `--radius: 8px`；宿主工具按钮 6px，面板 8px，抽屉和通知窗口外框 12px。
+- 阴影：只保留 `shadow-sm`、`shadow-md`、`shadow-lg` 三档，禁止卡片过度漂浮。
 
-基于前景色 `#020617`：
+### 3.5 动效
 
-```css
---cpms-shadow-xs: 0 1px 2px rgba(2, 6, 23, 0.04);
---cpms-shadow-sm: 0 2px 8px rgba(2, 6, 23, 0.05);
---cpms-shadow-md: 0 4px 16px rgba(2, 6, 23, 0.08);
---cpms-shadow-lg: 0 8px 24px rgba(2, 6, 23, 0.12);
---cpms-shadow-xl: 0 12px 32px rgba(2, 6, 23, 0.16);
-```
+- hover / pressed：150ms。
+- Dialog、Drawer、Tooltip、Tabs 内容切换：200-300ms。
+- 只动画 `opacity` 与 `transform`，不动画宽高。
+- 必须支持 `prefers-reduced-motion: reduce`，减少或关闭过渡。
 
-| 用途 | 阴影 |
-|---|---|
-| 卡片/代码块 | `sm` |
-| 通知子窗口 | `md` |
-| 调试抽屉 | `lg` |
+## 4. 公共组件
 
-### 3.6 动效
+公共组件分两层：`components/ui` 是 shadcn 基础组件，`components/common` / `components/layout` 是 CPMS 语义组件。
 
-```css
---cpms-duration-fast: 150ms;
---cpms-duration-base: 200ms;
---cpms-duration-slow: 300ms;
---cpms-easing-base: cubic-bezier(0.4, 0, 0.2, 1);
---cpms-easing-out: cubic-bezier(0, 0, 0.2, 1);
---cpms-easing-in: cubic-bezier(0.4, 0, 1, 1);
-```
+### 4.1 基础组件清单
 
-| 元素 | 时长 | 属性 | 用途 |
-|---|---|---|---|
-| 按钮 hover/active | 150ms | background/transform | 状态反馈 |
-| 卡片 hover lift | 200ms | transform/box-shadow | 悬停提升 |
-| 抽屉/弹窗 | 200-300ms | transform/opacity | 进入/退出 |
+| 组件 | 来源 | 用途 |
+| --- | --- | --- |
+| `Button` | shadcn-vue | 主按钮、次按钮、危险按钮、图标按钮 |
+| `Input` / `Textarea` | shadcn-vue | 服务器地址、调试输入、日志筛选 |
+| `Label` | shadcn-vue | 所有表单可见标签 |
+| `Dialog` / `AlertDialog` | shadcn-vue | 关闭确认、清空日志确认、错误详情 |
+| `Sheet` | shadcn-vue | 调试面板右侧抽屉 |
+| `Tabs` | shadcn-vue | 能力检测 / 客户端日志 |
+| `Tooltip` | shadcn-vue | 标题栏图标按钮说明 |
+| `Alert` | shadcn-vue | 错误提示、桥接异常提示 |
+| `ScrollArea` | shadcn-vue | 日志、调试结果长内容滚动 |
+| `Badge` | shadcn-vue | 连接状态、通知类型、最近地址 |
+| `Skeleton` | shadcn-vue | iframe 初始化、日志加载占位 |
 
-## 4. 组件规范
+### 4.2 语义组件清单
 
-### 4.0 UnoCSS 与 Element Plus 应用约定
+| 组件 | 路径建议 | 职责 |
+| --- | --- | --- |
+| `WindowFrame` | `components/layout` | 无边框窗口根容器，统一背景、圆角、阴影和溢出裁剪 |
+| `WindowHeaderBar` | `components/layout` | 自绘标题栏、拖拽区、窗口控制按钮 |
+| `HostStatusBadge` | `components/common` | 连接、socket、token、serverAddress 等宿主状态 |
+| `ErrorNotice` | `components/common` | shadcn `Alert` 封装，展示标题、描述、恢复动作 |
+| `DebugSheet` | `components/layout` | 右侧调试抽屉，内部承载 Tabs |
+| `LogViewer` | `components/common` | 日志级别、复制、清空、滚动定位 |
+| `BridgeResultBlock` | `components/common` | 能力检测结果 JSON/文本块，支持复制 |
+| `IframeFallback` | `components/common` | iframe 空地址、加载失败、刷新重试 |
 
-- **Element Plus 是交互组件基座**：按钮、抽屉、页签、提示、空状态、确认框、loading 指令等优先使用 Element Plus。
-- **Element Plus 样式通过令牌对齐**：`tokens.css` 用 `:root:root` 覆盖关键 `--el-*` 变量，使 EP 组件与 `--cpms-*` 视觉令牌一致。
-- **UnoCSS 用于原子化辅助样式**：适合补充布局、间距、状态类和轻量工具类，不替代设计令牌。
-- **样式优先级**：跨组件视觉规范写入 `tokens.css`；单组件结构样式写在对应 `.vue` 的 scoped CSS；局部一次性布局可用 UnoCSS。
-- **图标使用**：结构图标使用 SVG（Solar / Element Plus / Lucide），不得使用 emoji。
+## 5. 宿主页面规范
 
-### 4.1 窗口标题栏（`WindowHeaderBar`）
+### 5.1 主窗口 `HomeView`
 
-```text
-┌────────────────────────────────────────┐
-│  [Logo] 标题                    ─ □ ✕ │
-└────────────────────────────────────────┘
-```
+- 骨架：`WindowFrame` -> `WindowHeaderBar` -> iframe 内容区 -> 右下角调试入口。
+- iframe 内容区默认铺满剩余空间，不额外包卡片，避免业务页面被双重框住。
+- 调试入口使用 44x44 图标按钮，固定右下角，图标为 `Bug` 或 `PanelRightOpen`，带 Tooltip。
+- iframe 加载中超过 300ms 显示轻量 skeleton；加载失败显示 `IframeFallback`，提供重试和回到入口页。
 
-- **高度**：`var(--cpms-headerbar-height)` = 44px。
-- **背景**：`--cpms-color-foreground`（深色海军蓝 `#0F172A`），底部 1px 半透明边框。
-- **标题**：左侧 Logo（20px）+ 白色文字，可拖拽区（`data-tauri-drag-region`）。
-- **控制按钮**：最小 `44×44px`，图标 18px，hover 在半透明白色背景上反馈。
-  - 固定/取消固定：pin 图标，`is-active` 时高亮边框色。
-  - 收起：下划线图标。
-  - 全屏/退出全屏：全屏图标。
-  - 关闭：× 图标，hover 使用危险红底白字。
-- **可访问性**：所有图标按钮带 `aria-label` 与 `title`；关闭按钮 tooltip 提示“隐藏到托盘”。
+### 5.2 入口页 `EntryView`
 
-### 4.2 主窗口布局（`HomeView`）
+- 使用居中窄面板，最大宽度 520px，面板半径 12px，边框 `border`，阴影 `shadow-md`。
+- 表单字段必须有可见 `Label`，地址输入使用 `Input type="url"`，支持 Enter 提交。
+- 主 CTA 使用 `Button` 的 `default` 变体，高度 44px 或 48px。
+- 最近地址使用 `Badge` + 图标按钮，不使用胶囊文本模拟按钮。
+- 错误信息位于字段下方，使用 `aria-describedby` 关联输入。
 
-- 标题栏 → iframe 业务页 → 右下角调试入口。
-- 入口页（`EntryView`）在未设置 iframe URL 时显示；设置后切换为全屏 iframe。
-- 调试抽屉宽度 `80%`，`min-width: 560px`，`max-width: 900px`。
+### 5.3 调试面板
 
-### 4.3 入口页（`EntryView`）
+- 用 shadcn `Sheet` 从右侧进入，宽度 `min(80vw, 900px)`，最小可用宽度 560px。
+- 顶部为面板标题和关闭按钮；内容用 `Tabs` 切分能力检测与客户端日志。
+- 能力检测模块使用紧凑面板，每个模块包含标题、说明、操作按钮、结果块。
+- 结果块使用 `ScrollArea` + `BridgeResultBlock`，代码字体 13px，复制按钮为图标按钮。
 
-- 居中卡片式布局，最大宽度 520px，带柔和投影与细边框。
-- 品牌区：纯色主色圆角图标（64px）+ 大标题 + 辅助说明。
-- 表单输入框：48px 高，左侧链式图标前缀，带聚焦光环；错误态显示在字段下方。
-- 提交按钮：纯色主色、48px 高、全宽，hover 加深，无渐变。
-- 最近地址：胶囊标签 + 44×44 操作按钮。
-- 服务器地址输入支持 `Enter` 提交。
+### 5.4 客户端日志页
 
-### 4.4 调试能力检测页（`ExampleView`）
+- 顶部工具栏：级别筛选、刷新、复制、清空。
+- 清空日志必须使用 `AlertDialog` 二次确认。
+- 日志正文使用等宽字体、保留换行、按级别增加文本标识，不只靠颜色区分。
+- 日志加载或刷新超过 300ms 显示 skeleton 或按钮 loading 状态。
 
-- 单列卡片流，每个 `section.card` 一个能力模块。
-- 卡片：背景 `--cpms-color-bg-panel`、边框 `--cpms-color-border`、圆角 `panel`、padding `16px`。
-- 结果展示：`<pre class="result">`，背景 `--cpms-color-bg-code`，支持一键复制。
-- 各模块支持折叠/展开。
+### 5.5 通知窗口 `NotificationView`
 
-### 4.5 客户端日志页（`LogView`）
+- 通知窗口保持 400x400，外层透明，内容面使用 `WindowFrame`。
+- 顶部复用 `WindowHeaderBar`，正文使用类型图标、标题、消息文本和可选操作。
+- error/warning/success/info 使用 `Alert` 风格映射，状态必须有图标与文本。
+- 关闭按钮为 44x44 图标按钮，带 `aria-label`。
 
-- 工具栏：类别下拉 + 刷新/复制/清空按钮。
-- 日志文本区撑满抽屉剩余空间，按级别着色（error/warn/info/debug）。
-- 清空操作需二次确认。
+## 6. 交互规范
 
-### 4.6 通知子窗口（`NotificationView`）
+- 所有 icon-only 按钮必须有 `aria-label` 和 Tooltip。
+- 按钮异步提交时必须禁用并显示 loading 状态，避免重复提交。
+- 关闭、清空、退出、覆盖配置等危险动作必须二次确认。
+- Keyboard：Tab 顺序与视觉顺序一致；Dialog/Sheet 打开后焦点进入容器，关闭后回到触发器。
+- 状态提示：请求失败必须说明原因和恢复路径，例如“重试”“回到入口页”“复制错误”。
+- Toast 不作为唯一错误承载；关键错误需要页面内 Alert。
 
-- 尺寸 400×400，卡片式窗口，窗口背景透明，卡片本身使用 `--cpms-color-bg-panel` 保持可读性。
-- 正文顶部显示类型图标 + 类型名称（info / success / warning / error），下方为消息内容。
-- 关闭按钮最小 `44×44px`。
+## 7. 可访问性与质量门槛
 
-### 4.7 错误提示（`ErrorNotice`）
+- 普通文本对比度不低于 4.5:1，大号文本不低于 3:1。
+- 焦点环使用 `ring-2 ring-primary ring-offset-2`，不得移除。
+- 可点击目标 hit area 不低于 44x44px。
+- 不使用 emoji 作为结构图标；统一 lucide 图标。
+- 支持 125% / 150% 系统缩放，文字不得被按钮或卡片裁切。
+- 支持 reduced motion。
 
-- 使用 `el-alert`，类型 error/warning。
-- 显示标题 + 来源/错误码描述，可关闭。
+## 8. 与 hub-web 的跨端契约
 
-## 5. 布局规范
+| 维度 | client | hub-web iframe |
+| --- | --- | --- |
+| 角色 | 桌面外壳、系统能力、容器 | 登录与业务流程 |
+| 主色 | `#2563EB` | `#2563EB` |
+| 强调色 | `#059669` | `#059669` |
+| 背景 | iframe 外壳 `#F8FAFC` | 页面背景 `#F8FAFC` |
+| 字体 | Plus Jakarta Sans / Inter | Plus Jakarta Sans / Inter |
+| 组件库 | shadcn-vue + Tailwind | shadcn-vue + Tailwind |
+| 图标 | @lucide/vue | @lucide/vue |
 
-### 5.1 页面骨架
+client 不复制业务页面样式；iframe 内外只共享设计令牌和状态语义。业务导航、业务表格、业务弹窗全部属于 `hub-web`。
 
-```text
-App.vue
-├── HomeView（主窗口）
-│   ├── WindowHeaderBar
-│   ├── main.iframe-root
-│   │   ├── EntryView
-│   │   ├── iframe（hub-platform）
-│   │   └── el-button.debug-trigger
-│   └── el-drawer.debug-drawer
-│       ├── WindowHeaderBar（抽屉标题）
-│       └── el-tabs
-│           ├── ExampleView
-│           └── LogView
-└── NotificationView（通知子窗口）
-    └── WindowHeaderBar + notification-body
-```
+## 9. 迁移原则
 
-### 5.2 响应式
+1. 先建立 Tailwind 与 shadcn 基础设施，再替换页面组件。
+2. 先迁移公共组件，再迁移页面：`WindowHeaderBar`、`ErrorNotice`、`DebugSheet`、`LogViewer` 优先。
+3. 旧组件对应关系：
+   - `el-button` -> `Button`
+   - `el-input` -> `Input`
+   - `el-alert` -> `Alert`
+   - `el-drawer` -> `Sheet`
+   - `el-tabs` / `el-tab-pane` -> `Tabs`
+   - `ElMessageBox` -> `AlertDialog`
+   - `ElMessage` -> `Toast` 或页面内 `Alert`
+4. 旧工具类迁移到 Tailwind class；图标类迁移到 lucide 组件。
+5. 移除 EP/Uno 后再清理 Vite 插件、自动引入配置和类型白名单。
 
-PC 端主窗口尺寸固定为 800×600，主要响应式场景为抽屉宽度与高 DPI 缩放：
-- 抽屉 `min-width: 560px`，`max-width: 900px`。
-- 所有固定高度组件需按 `rem` / 令牌取值，避免字号提升后截断。
+## 10. 页面速查
 
-## 6. 交互与动效
-
-- 按钮 hover/active 在 150ms 内完成。
-- 卡片 hover 仅使用 `transform: translateY(-2px)` + `box-shadow`，时长 200ms。
-- 支持 `prefers-reduced-motion: reduce`：全局禁用动画与过渡。
-- 所有可点击元素最小 `44×44px`（PC 鼠标操作可适当压缩视觉尺寸，但需保证 hit area）。
-
-## 7. 可访问性（Accessibility）
-
-- 图标按钮均带 `aria-label` 与 `title`。
-- 表单输入使用可见 `label`。
-- 错误信息使用 `aria-describedby` 与输入框关联。
-- 焦点环：`outline: 2px solid var(--cpms-color-primary)`，`outline-offset: 2px`。
-- 颜色不作为唯一信息载体，状态/错误需配合图标或文本。
-- 支持 `prefers-reduced-motion`。
-
-## 8. 与 hub-platform 的风格统一
-
-hub-platform 运行在 client 主窗口 iframe 内，两者视觉必须自然过渡。
-
-| 维度 | 统一值 |
-|---|---|
-| 主色 | `#1E3A8A` |
-| 强调色 | `#0369A1` |
-| 页面背景 | `#F8FAFC` |
-| 面板背景 | `#FFFFFF` |
-| 主文本 | `#020617` |
-| 次要文本 | `#334155` |
-| 弱化文本 | `#64748B` |
-| 边框 | `#E2E8F0` |
-| 字体 | Plus Jakarta Sans |
-| 阴影 | 基于 `#020617` 的五级阴影 |
-
-client 负责窗口外壳与容器，hub-platform 负责业务内容；两者共享语义色板，仅在间距密度上按平台微调。
-
-## 9. 页面级规范
-
-### 9.1 主窗口（`HomeView`）
-
-- 标题栏左侧 Logo + “CPMS Client”。
-- 内容区显示入口页或 iframe。
-- 调试入口为右下角悬浮按钮。
-
-### 9.2 调试抽屉
-
-- 标题栏复用 `WindowHeaderBar`，仅显示关闭按钮。
-- 页签：能力检测 / 客户端日志。
-- 内容区卡片式模块布局。
-
-### 9.3 通知窗口（`NotificationView`）
-
-- 标题栏显示通知标题 + 关闭按钮。
-- 正文预格式化文本，自动换行，按类型显示色条。
-
-## 10. 图标与图像
-
-- 标题栏控制按钮使用内联 SVG（14px）。
-- Logo 使用 `tauri.svg`（18px），带 `alt` 文本。
-- 业务图标优先使用 Element Plus / Solar / Lucide SVG。
-
-## 11. 待改进清单
-
-- [ ] 标题栏控制按钮扩展到 `44×44px` hit area。
-- [ ] 全部页面按新颜色、字体、动效令牌调整。
-- [ ] 增加 `prefers-reduced-motion` 降级验证。
-- [ ] 验证与 hub-platform 的 iframe 内外视觉一致性。
-
-## 12. 设计原则速查
-
-- **颜色**：以 `--cpms-*` 变量为准，禁止组件内写裸色值。
-- **字体**：Plus Jakarta Sans + 系统回退，正文 16px，行高 1.5。
-- **间距**：4pt 网格，PC 端保持紧凑。
-- **圆角**：小 6px、中 10px、大 16px。
-- **阴影**：统一五级阴影，基于 `#020617`。
-- **交互**：150–300ms 过渡，hover 反馈，关闭按钮危险态。
-- **可访问性**：图标按钮带 aria-label，表单使用可见 label，焦点环可见。
-- **跨端一致**：client 作为容器，hub-platform 作为内容，颜色/圆角/阴影/字体无缝衔接。
+- **HomeView**：无卡片 iframe，全屏承载，右下角调试入口。
+- **EntryView**：单卡片配置表单，主 CTA 明确，最近地址可快速复用。
+- **DebugSheet**：右侧抽屉，Tabs 分区，结果可复制。
+- **LogView**：工具栏 + 滚动日志区，危险清空二次确认。
+- **NotificationView**：400x400 独立通知窗口，类型图标 + 消息 + 关闭。
 
 ---
 
-*本文档基于 2026-06-22 的统一设计系统制定，后续 UI 迭代请同步更新。*
+_本文档更新于 2026-06-24，用于指导 TailwindCSS + Shadcn-UI 迁移。_
