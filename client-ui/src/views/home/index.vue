@@ -2,8 +2,16 @@
 import { emitViewEvent } from '@/api/tauri/events'
 import { Pencil, RefreshCw, TriangleAlert, Wrench } from '@lucide/vue'
 import WindowFrame from '@/components/layout/WindowFrame.vue'
-import WindowHeaderBar from '@/components/layout/WindowHeaderBar.vue'
 import { clearClientSessionDirectDeviceId, clearClientSessionServerAddress } from '@/api/tauri/desktop'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger
+} from '@/components/ui/drawer'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useIframeContainer } from '@/composables/useIframeContainer'
 import { useIframePayloadBridge } from '@/composables/useIframePayloadBridge'
 import { useRuntimeStore } from '@/stores/runtime'
@@ -171,24 +179,35 @@ async function closeWindow() {
       </div>
     </template>
 
-    <Sheet v-model:open="exampleDrawerVisible">
-      <SheetTrigger as-child>
+    <Drawer v-model:open="exampleDrawerVisible" direction="right">
+      <DrawerTrigger as-child>
         <Button class="example-trigger" size="icon" @click="exampleDrawerVisible = true">
           <Wrench class="example-trigger-icon" />
         </Button>
-      </SheetTrigger>
-      <SheetContent side="right" class="debug-drawer" :style="{ width: '80%', minWidth: '560px', maxWidth: '900px' }">
-        <WindowHeaderBar title="客户端调试" @close="exampleDrawerVisible = false" />
+      </DrawerTrigger>
+      <DrawerContent class="debug-drawer">
+        <DrawerHeader>
+          <DrawerTitle>客户端调试</DrawerTitle>
+          <DrawerDescription>检测客户端能力、查看运行日志</DrawerDescription>
+        </DrawerHeader>
         <Tabs v-model="drawerTab" class="drawer-tabs">
           <TabsList>
             <TabsTrigger value="detect">能力检测</TabsTrigger>
             <TabsTrigger value="logs">客户端日志</TabsTrigger>
           </TabsList>
-          <TabsContent value="detect"><ExampleView :query-iframe-payload="queryIframePayload" /></TabsContent>
-          <TabsContent value="logs"><LogView /></TabsContent>
+          <TabsContent value="detect" class="tab-content">
+            <ScrollArea class="tab-scroll-area">
+              <ExampleView :query-iframe-payload="queryIframePayload" />
+            </ScrollArea>
+          </TabsContent>
+          <TabsContent value="logs" class="tab-content">
+            <ScrollArea class="tab-scroll-area">
+              <LogView />
+            </ScrollArea>
+          </TabsContent>
         </Tabs>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   </WindowFrame>
 </template>
 
@@ -282,10 +301,32 @@ async function closeWindow() {
   fill: currentcolor;
 }
 
+.debug-drawer {
+  width: 80%;
+  min-width: 560px;
+  max-width: 900px;
+  height: 100%;
+}
+
 .drawer-tabs {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 var(--cpms-space-4) var(--cpms-space-4);
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tab-scroll-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {

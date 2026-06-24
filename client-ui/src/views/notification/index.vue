@@ -1,12 +1,7 @@
 <script setup lang="ts" name="NotificationView">
-import { emit, type UnlistenFn } from '@tauri-apps/api/event'
+import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import {
-  CircleAlert,
-  CircleCheck,
-  Info,
-  TriangleAlert,
-} from '@lucide/vue'
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from '@lucide/vue'
 import type { Component } from 'vue'
 import {
   DESKTOP_NOTIFICATION_ACK_EVENT,
@@ -46,7 +41,7 @@ const currentNotification = ref<AppNotification>()
 let unlistenPush: UnlistenFn | undefined
 
 onMounted(async () => {
-  unlistenPush = await currentWindow.listen<AppNotification>(DESKTOP_NOTIFICATION_PUSH_EVENT, (event) => {
+  unlistenPush = await listen<AppNotification>(DESKTOP_NOTIFICATION_PUSH_EVENT, (event) => {
     void pushNotification(event.payload)
   })
   await emit(DESKTOP_NOTIFICATION_READY_EVENT)
@@ -115,13 +110,7 @@ const notificationMessage = computed(() => currentNotification.value?.message?.t
       body-class="notification-frame-body"
       @close="closeNotification"
     >
-      <section class="notification-body">
-        <div class="notification-type">
-          <component :is="notificationMeta.icon" class="notification-type-icon" />
-          <span>{{ notificationMeta.label }}</span>
-        </div>
-        <p class="notification-message">{{ notificationMessage }}</p>
-      </section>
+      <p class="notification-message">{{ notificationMessage }}</p>
     </WindowFrame>
   </main>
 </template>
@@ -139,45 +128,16 @@ const notificationMessage = computed(() => currentNotification.value?.message?.t
   background: var(--cpms-color-bg-app);
 }
 
-.notification-body {
-  display: flex;
-  flex-direction: column;
+.notification-message {
   flex: 1 1 auto;
   min-height: 0;
-  gap: var(--cpms-space-3);
-  margin: var(--cpms-space-3);
-  padding: var(--cpms-space-4);
-  border: 1px solid var(--cpms-color-border);
-  border-radius: var(--cpms-radius-large);
+  padding: var(--cpms-space-3);
   background: var(--cpms-color-surface);
   color: var(--cpms-color-text-secondary);
   font-size: var(--cpms-font-size-base);
   line-height: var(--cpms-line-height-relaxed);
-  overflow: auto;
-}
-
-.notification-type {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cpms-space-2);
-  align-self: flex-start;
-  padding: var(--cpms-space-1) var(--cpms-space-2);
-  border-radius: var(--cpms-radius-full);
-  background: var(--cpms-color-bg-hover);
-  color: var(--cpms-color-text-secondary);
-  font-size: var(--cpms-font-size-small);
-  font-weight: var(--cpms-font-weight-medium);
-}
-
-.notification-type-icon {
-  width: 16px;
-  height: 16px;
-  color: currentcolor;
-}
-
-.notification-message {
-  margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow: auto;
 }
 </style>

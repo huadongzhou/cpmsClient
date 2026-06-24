@@ -291,14 +291,12 @@ function levelClass(level: string) {
   border: 1px solid var(--cpms-color-border);
   border-radius: var(--cpms-radius-panel);
   box-shadow: var(--cpms-shadow-xs);
-  overflow: hidden;
 }
 
 .log-text {
   flex: 1 1 auto;
   min-height: 0;
   margin: 0;
-  overflow: auto;
   padding: var(--cpms-space-base);
   white-space: pre-wrap;
   word-break: break-word;

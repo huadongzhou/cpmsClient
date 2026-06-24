@@ -722,11 +722,7 @@ const ResultBlock = defineComponent({
 .example {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
   padding: var(--cpms-space-base);
-  overflow: auto;
 }
 
 .card {
