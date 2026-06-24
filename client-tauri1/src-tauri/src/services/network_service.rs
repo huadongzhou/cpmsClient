@@ -24,7 +24,7 @@ fn runtime() -> &'static Mutex<Option<NetworkMonitorHandle>> {
 }
 
 /// Starts a background thread that monitors network connectivity and emits
-/// `cpms:hub-network-changed` whenever the online/offline state changes.
+/// `hub-network-changed` whenever the online/offline state changes.
 pub fn start_network_monitor(app: AppHandle) -> Result<(), String> {
     let mut guard = runtime()
         .lock()

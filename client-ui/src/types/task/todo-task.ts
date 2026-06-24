@@ -9,15 +9,3 @@ export interface TodoTask {
   createdAt: string;
   updatedAt: string;
 }
-
-export interface TodoTaskSocketMessage {
-  id?: string;
-  taskId?: string;
-  title?: string;
-  name?: string;
-  detail?: string;
-  description?: string;
-  state?: string;
-  status?: string;
-  type?: string;
-}

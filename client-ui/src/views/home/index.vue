@@ -1,5 +1,5 @@
 <script setup lang="ts" name="HomeView">
-import { emitViewEvent } from '@/api/tauri/events'
+import { CLIENT_EVENT, emitViewEvent } from '@/api/tauri/events'
 import { Pencil, RefreshCw, TriangleAlert, Wrench } from '@lucide/vue'
 import WindowFrame from '@/components/layout/WindowFrame.vue'
 import { clearClientSessionDirectDeviceId, clearClientSessionServerAddress } from '@/api/tauri/desktop'
@@ -13,9 +13,8 @@ import {
 } from '@/components/ui/drawer'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useIframeContainer } from '@/composables/useIframeContainer'
-import { useIframePayloadBridge } from '@/composables/useIframePayloadBridge'
+import { startHubClientMessageBridge, useIframePayloadBridge } from '@/bridges'
 import { useRuntimeStore } from '@/stores/runtime'
-import { startHubClientMessageBridge } from '@/utils/hubBridge'
 import EntryView from '@/views/entry/index.vue'
 import ExampleView from '@/views/example/index.vue'
 import LogView from '@/views/logs/index.vue'
@@ -110,25 +109,25 @@ async function backToEntry() {
 /** 固定按钮事件：固定/取消固定客户端窗口。 */
 async function toggleWindowPin() {
   pinned.value = !pinned.value
-  await emitViewEvent(pinned.value ? 'client.window.pin' : 'client.window.unpin')
+  await emitViewEvent(pinned.value ? CLIENT_EVENT.WINDOW_PIN : CLIENT_EVENT.WINDOW_UNPIN)
 }
 
 /** 收起按钮事件：收起客户端窗口。 */
 async function collapseWindow() {
-  await emitViewEvent('client.window.minimize')
+  await emitViewEvent(CLIENT_EVENT.WINDOW_MINIMIZE)
 }
 
 /** 全屏按钮事件：全屏/退出全屏客户端窗口。 */
 async function toggleWindowFullscreen() {
   fullscreen.value = !fullscreen.value
-  await emitViewEvent(fullscreen.value ? 'client.window.fullscreen' : 'client.window.exit-fullscreen', {
+  await emitViewEvent(fullscreen.value ? CLIENT_EVENT.WINDOW_FULLSCREEN : CLIENT_EVENT.WINDOW_EXIT_FULLSCREEN, {
     fullscreen: fullscreen.value
   })
 }
 
 /** 关闭按钮事件：关闭客户端窗口（客户端隐藏到托盘）。 */
 async function closeWindow() {
-  await emitViewEvent('client.window.close')
+  await emitViewEvent(CLIENT_EVENT.WINDOW_CLOSE)
 }
 </script>
 

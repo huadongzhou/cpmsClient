@@ -3,8 +3,8 @@ use tauri::{AppHandle, Manager};
 
 use super::models::{NetworkState, StartupState};
 
-pub const HUB_SYSTEM_STATE_EVENT: &str = "cpms:hub-system-state";
-pub const HUB_NETWORK_CHANGED_EVENT: &str = "cpms:hub-network-changed";
+pub const HUB_SYSTEM_STATE_EVENT: &str = "hub-system-state";
+pub const HUB_NETWORK_CHANGED_EVENT: &str = "hub-network-changed";
 
 pub fn emit_hub_state(app: &AppHandle, state: &StartupState) {
     let _ = app.emit_all(HUB_SYSTEM_STATE_EVENT, state);

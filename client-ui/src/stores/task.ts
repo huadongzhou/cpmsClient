@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { TodoTask, TodoTaskState } from "@/types/task/todo-task";
+import type { TodoTask } from "@/types/task/todo-task";
 
 export const useTaskStore = defineStore("task", () => {
   const todoTasks = ref<TodoTask[]>([]);
@@ -28,22 +28,9 @@ export const useTaskStore = defineStore("task", () => {
     todoTasks.value = todoTasks.value.slice(0, 100);
   }
 
-  /** 更新 Todo 任务状态。 */
-  function setTodoTaskState(id: string, state: TodoTaskState) {
-    const task = todoTasks.value.find((item) => item.id === id);
-
-    if (!task) {
-      return;
-    }
-
-    task.state = state;
-    task.updatedAt = new Date().toISOString();
-  }
-
   return {
     todoTasks,
     pendingTodoCount,
     upsertTodoTask,
-    setTodoTaskState,
   };
 });

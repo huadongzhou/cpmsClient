@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { useLocalStorage } from "@vueuse/core";
+import { createId } from "@/utils/id";
 import type { AppError } from "@/types/app/error";
 import type { ClientConfig } from "@/types/app/config";
 import type { AppNotification, PushNotificationInput } from "@/types/app/notification";
@@ -18,7 +19,7 @@ export const useAppStore = defineStore("app", () => {
   function pushError(input: Omit<AppError, "id" | "createdAt">) {
     const error: AppError = {
       ...input,
-      id: createErrorId(),
+      id: createId(),
       createdAt: new Date().toISOString(),
     };
 
@@ -46,7 +47,7 @@ export const useAppStore = defineStore("app", () => {
   function pushNotification(input: PushNotificationInput) {
     const normalizedInput = normalizeNotificationInput(input);
     const notification: AppNotification = {
-      id: createErrorId(),
+      id: createId(),
       type: normalizedInput.type ?? "info",
       title: normalizedInput.title,
       message: normalizedInput.message,
@@ -82,21 +83,7 @@ export const useAppStore = defineStore("app", () => {
   };
 });
 
-function createErrorId() {
-  if (window.crypto?.randomUUID) {
-    return window.crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 const NOTIFICATION_TEXT_MAP: Record<string, string> = {
-  "client.socket_task.received": "收到打印任务，正在上传服务器！",
-  "client.socket_task.forwarded": "打印任务上传成功！",
-  "client.socket_task.forward_failed": "打印任务上传失败，请联系管理员！",
-  "client.iframe_payload.request": "正在同步登录状态，请稍候。",
-  "client.iframe_payload.reported": "登录状态已同步。",
-  "client.iframe.refresh": "登录状态已过期，请重新登录！",
   UNKNOWN_METHOD: "系统暂不支持该操作，请联系管理员！",
   BRIDGE_ERROR: "系统连接异常，请联系管理员！",
   COMMAND_ERROR: "操作未完成，请联系管理员！",

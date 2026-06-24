@@ -6,11 +6,6 @@ import type {
   PrintClientInfo,
 } from "@/types/app/runtime";
 
-/** 让客户端主动向视图端派发事件。 */
-export function emitClientEvent(name: string, payload?: unknown) {
-  return unwrapCommand<boolean>("emit_client_event", { name, payload });
-}
-
 /** 让客户端向视图端派发通知事件。 */
 export function pushClientNotificationEvent(notification: DesktopNotificationEventPayload) {
   return unwrapCommand<boolean>("push_desktop_notification_event", { notification });
@@ -29,11 +24,6 @@ export function refreshClientIframeContainer() {
 /** 由视图端设置 iframe 容器地址（入口页手动输入）。 */
 export function setClientIframeUrl(url: string) {
   return unwrapCommand<ClientIframeStatePayload>("client_set_iframe_container_url", { url });
-}
-
-/** 由客户端发起请求，触发视图端查询 iframe payload。 */
-export function requestClientIframePayload(reason?: string) {
-  return unwrapCommand<string>("client_request_iframe_payload", { reason });
 }
 
 /** 视图端把 iframe token 查询结果回传给客户端（标准信封：payload 为 token 字符串）。 */
@@ -93,11 +83,6 @@ export function clearClientSessionServerAddress() {
   return unwrapCommand<boolean>("clear_session_server_address");
 }
 
-/** 获取当前会话级服务端地址（调试用）。 */
-export function getClientSessionServerAddress() {
-  return unwrapCommand<string | null>("get_session_server_address");
-}
-
 /** 设置会话级直连设备 ID（iframe 推送）。 */
 export function setClientSessionDirectDeviceId(deviceId: string) {
   return unwrapCommand<boolean>("set_session_direct_device_id", { deviceId });
@@ -108,11 +93,6 @@ export function clearClientSessionDirectDeviceId() {
   return unwrapCommand<boolean>("clear_session_direct_device_id");
 }
 
-/** 获取当前会话级直连设备 ID（调试用）。 */
-export function getClientSessionDirectDeviceId() {
-  return unwrapCommand<string | null>("get_session_direct_device_id");
-}
-
 /** 设置会话级平台标识（iframe 推送）。 */
 export function setClientSessionPlatform(platform: string) {
   return unwrapCommand<boolean>("set_session_platform", { platform });
@@ -121,9 +101,4 @@ export function setClientSessionPlatform(platform: string) {
 /** 清空会话级平台标识。 */
 export function clearClientSessionPlatform() {
   return unwrapCommand<boolean>("clear_session_platform");
-}
-
-/** 获取当前会话级平台标识（调试用）。 */
-export function getClientSessionPlatform() {
-  return unwrapCommand<string | null>("get_session_platform");
 }

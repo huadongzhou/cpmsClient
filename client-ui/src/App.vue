@@ -1,11 +1,14 @@
 <script setup lang="ts" name="App">
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useClientEventBridge } from "@/composables/useClientEventBridge";
-import { useClientLogBridge } from "@/composables/useClientLogBridge";
-import { useClientNotificationBridge } from "@/composables/useClientNotificationBridge";
-import { useClientRuntimeBridge } from "@/composables/useClientRuntimeBridge";
-import { useDesktopNotificationBridge } from "@/composables/useDesktopNotificationBridge";
+import { installClientTauriBridge } from "@/api/tauri/events";
+import {
+  useClientEventBridge,
+  useClientLogBridge,
+  useClientNotificationBridge,
+  useClientRuntimeBridge,
+  useDesktopNotificationBridge,
+} from "@/bridges";
 import HomeView from "@/views/home/index.vue";
 import NotificationView from "@/views/notification/index.vue";
 
@@ -13,6 +16,8 @@ const isNotificationWindow = ref(isTauri() && getCurrentWindow().label === "noti
 const isMainWindow = computed(() => !isNotificationWindow.value);
 
 if (isMainWindow.value) {
+  // 一次性装配：客户端 Tauri 事件统一汇入事件总线，下方各 bridge 仅订阅总线。
+  void installClientTauriBridge();
   useDesktopNotificationBridge();
   useClientNotificationBridge();
   useClientEventBridge();

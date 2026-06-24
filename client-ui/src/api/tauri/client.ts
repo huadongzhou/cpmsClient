@@ -31,8 +31,8 @@ export async function unwrapCommand<T>(command: string, args?: InvokeArgs): Prom
   return unwrapCommandResult(result);
 }
 
-/** 拆包 Rust CommandResult，供 command API 和测试代码复用。 */
-export function unwrapCommandResult<T>(result: CommandResult<T>): T {
+/** 拆包 Rust CommandResult：success=false 或 data 为空时抛出统一错误。 */
+function unwrapCommandResult<T>(result: CommandResult<T>): T {
   if (!result.success) {
     throw new CommandInvokeError(result.message, result.code, result as CommandResult<unknown>);
   }

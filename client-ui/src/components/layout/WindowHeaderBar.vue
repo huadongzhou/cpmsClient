@@ -1,5 +1,4 @@
-<script setup lang="ts">
-import { computed } from 'vue'
+<script setup lang="ts" name="WindowHeaderBar">
 import { House, Maximize, Minimize2, Minus, Pin, PinOff, X } from '@lucide/vue'
 type WindowControl = 'entry' | 'pin' | 'collapse' | 'fullscreen' | 'close'
 

@@ -1,9 +1,9 @@
-import type { UnlistenFn } from "@tauri-apps/api/event";
-import { listenClientEvent, listenClientLogEvent } from "@/api/tauri/events";
+import { CLIENT_LOG_EVENT, CLIENT_TO_VIEW_EVENT, onBridgeMessage } from "@/api/tauri/events";
 import { pushClientLog } from "@/api/tauri/log";
 import { useAppStore } from "@/stores/app";
 import { useLogStore } from "@/stores/log";
-import type { ClientLogLevel } from "@/types/app/log";
+import type { ClientEventPayload } from "@/types/app/ipc";
+import type { ClientLogEventPayload, ClientLogLevel } from "@/types/app/log";
 
 /**
  * 统一日志汇集桥：
@@ -15,29 +15,25 @@ export function useClientLogBridge() {
   const appStore = useAppStore();
   const logStore = useLogStore();
   const seenErrorIds = new Set<string>();
-  let unlistenClientEvents: UnlistenFn | undefined;
-  let unlistenClientLogs: UnlistenFn | undefined;
 
-  onMounted(async () => {
-    unlistenClientEvents = await listenClientEvent((payload) => {
-      logStore.appendLog({
-        level: /fail|error/i.test(payload.type) ? "error" : "info",
-        source: "client-event",
-        title: `[client/business] ${payload.type}`,
-        detail:
-          payload.payload === undefined || payload.payload === null
-            ? undefined
-            : JSON.stringify(payload.payload, null, 2),
-      });
+  onBridgeMessage<ClientEventPayload>(CLIENT_TO_VIEW_EVENT, (payload) => {
+    logStore.appendLog({
+      level: /fail|error/i.test(payload.type) ? "error" : "info",
+      source: "client-event",
+      title: `[client/business] ${payload.type}`,
+      detail:
+        payload.payload === undefined || payload.payload === null
+          ? undefined
+          : JSON.stringify(payload.payload, null, 2),
     });
+  });
 
-    unlistenClientLogs = await listenClientLogEvent((payload) => {
-      logStore.appendLog({
-        level: normalizeLogLevel(payload.level),
-        source: `client/${payload.source}`,
-        title: payload.title,
-        detail: payload.detail ?? undefined,
-      });
+  onBridgeMessage<ClientLogEventPayload>(CLIENT_LOG_EVENT, (payload) => {
+    logStore.appendLog({
+      level: normalizeLogLevel(payload.level),
+      source: `client/${payload.source}`,
+      title: payload.title,
+      detail: payload.detail ?? undefined,
     });
   });
 
@@ -65,11 +61,6 @@ export function useClientLogBridge() {
     },
     { deep: true },
   );
-
-  onBeforeUnmount(() => {
-    unlistenClientEvents?.();
-    unlistenClientLogs?.();
-  });
 }
 
 function normalizeLogLevel(level: string): ClientLogLevel {

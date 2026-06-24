@@ -1,5 +1,3 @@
-import { onMounted, watch } from "vue";
-import { storeToRefs } from "pinia";
 import { prepareNotificationWindow, showDesktopNotification } from "@/api/tauri/notification";
 import { useAppStore } from "@/stores/app";
 

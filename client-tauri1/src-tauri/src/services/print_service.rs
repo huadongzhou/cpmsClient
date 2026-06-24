@@ -89,7 +89,7 @@ fn build_upload_context(
     }
     user.token = Some(token.to_string());
 
-    // 平台标识优先使用 iframe 通过 cpms:platform 推送的会话缓存，未推送时默认 windows。
+    // 平台标识优先使用 iframe 通过 platform 消息推送的会话缓存，未推送时默认 windows。
     let platform = super::cached_platform(app).unwrap_or_else(|| "windows".to_string());
 
     Some(UploadContext {

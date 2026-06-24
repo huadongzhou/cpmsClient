@@ -1,6 +1,7 @@
 <script setup lang="ts" name="ExampleView">
 import { storeToRefs } from 'pinia'
-import { emitViewEvent, listenClientEvent, listenClientSocketEvent } from '@/api/tauri/events'
+import { CLIENT_SOCKET_EVENT, CLIENT_TO_VIEW_EVENT, emitViewEvent, onBridgeMessage, VIEW_TO_CLIENT_EVENT } from '@/api/tauri/events'
+import { createId } from '@/utils/id'
 import {
   clientHttpRequest,
   getAutostartEnabled,
@@ -10,7 +11,7 @@ import {
   reconnectSocket,
   setAutostartEnabled
 } from '@/api/tauri/desktop'
-import { diagnoseDesktopNotification } from '@/api/tauri/notification'
+import { diagnoseDesktopNotification } from '@/api/tauri/notification-diagnostics'
 import type { AppNotification } from '@/types/app/notification'
 import type { ClientSocketStatePayload, PrintClientInfo } from '@/types/app/runtime'
 import ErrorNotice from '@/components/common/ErrorNotice.vue'
@@ -38,8 +39,7 @@ import { useAppStore } from '@/stores/app'
 import { useNetworkStore } from '@/stores/network'
 import { useRuntimeStore } from '@/stores/runtime'
 import { useTaskStore } from '@/stores/task'
-import type { IframePayloadBridgeResult } from '@/composables/useIframePayloadBridge'
-import type { UnlistenFn } from '@tauri-apps/api/event'
+import type { IframePayloadBridgeResult } from '@/bridges'
 import { message } from '@/services/ui/message'
 
 const props = defineProps<{
@@ -72,8 +72,14 @@ const socketLink = ref<ClientSocketStatePayload>({
 })
 const printClient = ref<PrintClientInfo>()
 const printClientLoading = ref(false)
-let unlistenClientEvent: UnlistenFn | undefined
-let unlistenClientSocket: UnlistenFn | undefined
+
+// 统一出口：订阅总线，不再各自 listen / unlisten。
+onBridgeMessage(CLIENT_TO_VIEW_EVENT, (payload) => {
+  communicationReceiveText.value = ['[Client -> View]', JSON.stringify(payload, null, 2)].join('\n')
+})
+onBridgeMessage<ClientSocketStatePayload>(CLIENT_SOCKET_EVENT, (payload) => {
+  socketLink.value = payload
+})
 
 const SOCKET_STATUS_TEXT: Record<string, string> = {
   '': '未初始化',
@@ -125,18 +131,11 @@ onMounted(async () => {
     autostartEnabled.value = false
   }
 
-  unlistenClientEvent = await listenClientEvent((payload) => {
-    communicationReceiveText.value = ['[Client -> View]', JSON.stringify(payload, null, 2)].join('\n')
-  })
-
   try {
     socketLink.value = await getSocketState()
   } catch {
     // 非 Tauri 环境或尚未初始化时忽略。
   }
-  unlistenClientSocket = await listenClientSocketEvent((payload) => {
-    socketLink.value = payload
-  })
 
   await refreshPrintClientInfo()
 })
@@ -152,11 +151,6 @@ async function refreshPrintClientInfo() {
   }
 }
 
-onBeforeUnmount(() => {
-  unlistenClientEvent?.()
-  unlistenClientSocket?.()
-})
-
 async function runNotificationDetect() {
   const payload = {
     type: 'info' as const,
@@ -166,7 +160,7 @@ async function runNotificationDetect() {
   }
 
   const notification: AppNotification = {
-    id: createDiagnosticNotificationId(),
+    id: createId(),
     type: payload.type,
     title: payload.title,
     message: payload.message,
@@ -213,27 +207,22 @@ async function runNotificationDetect() {
   ].join('\n')
 }
 
-function createDiagnosticNotificationId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-
-  return `notification-detect-${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
+/** 通信检测演示事件类型（仅调试视图使用）。 */
+const COMMUNICATION_DETECT_EVENT = 'example.communication.detect'
 
 async function runCommunicationDetect() {
   const payload = {
     text: communicationInput.value,
-    channel: 'cpms:view-to-client',
+    channel: VIEW_TO_CLIENT_EVENT,
     at: new Date().toISOString()
   }
 
-  await emitViewEvent('example.communication.detect', payload)
+  await emitViewEvent(COMMUNICATION_DETECT_EVENT, payload)
   communicationSendText.value = [
     '[View -> Client]',
     JSON.stringify(
       {
-        event: 'example.communication.detect',
+        event: COMMUNICATION_DETECT_EVENT,
         payload
       },
       null,

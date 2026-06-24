@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 
 const LOG_FILE_NAME: &str = "cpms-client.log";
 const LOG_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
-const CLIENT_LOG_EVENT: &str = "cpms:client-log";
+const CLIENT_LOG_EVENT: &str = "client-log";
 const MAIN_WINDOW_LABEL: &str = "main";
 
 fn sink() -> &'static Mutex<Option<PathBuf>> {

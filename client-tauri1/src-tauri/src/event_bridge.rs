@@ -11,7 +11,9 @@ use crate::result::CommandResult;
 use crate::services;
 use crate::{
     new_message_id, ClientEventPayload, CLIENT_IFRAME_REFRESH_EVENT, CLIENT_NOTIFICATION_EVENT,
-    CLIENT_TO_VIEW_EVENT, MAIN_WINDOW_LABEL, VIEW_TO_CLIENT_EVENT,
+    CLIENT_TO_VIEW_EVENT, CLIENT_WINDOW_CLOSE_EVENT, CLIENT_WINDOW_EXIT_FULLSCREEN_EVENT,
+    CLIENT_WINDOW_FULLSCREEN_EVENT, CLIENT_WINDOW_HIDE_EVENT, CLIENT_WINDOW_MINIMIZE_EVENT,
+    CLIENT_WINDOW_PIN_EVENT, CLIENT_WINDOW_UNPIN_EVENT, MAIN_WINDOW_LABEL, VIEW_TO_CLIENT_EVENT,
 };
 
 #[derive(Debug, Deserialize)]
@@ -59,7 +61,7 @@ pub(crate) fn push_desktop_notification_event(
     }
 }
 
-/// token 最终不可用（认证过期）：通知窗口提示重新登录，并请视图端向 iframe 发 `cpms:refresh`。
+/// token 最终不可用（认证过期）：通知窗口提示重新登录，并请视图端向 iframe 发 `refresh`。
 pub(crate) fn notify_auth_expired(app: &AppHandle) {
     let _ = app.emit_to(
         MAIN_WINDOW_LABEL,
@@ -80,7 +82,7 @@ pub(crate) fn notify_auth_expired(app: &AppHandle) {
     services::log_service::warn(
         app,
         "token",
-        "认证已过期：已通知用户重新登录，并请求 iframe 刷新（cpms:refresh）",
+        "认证已过期：已通知用户重新登录，并请求 iframe 刷新（refresh）",
     );
 }
 
@@ -113,51 +115,47 @@ pub(crate) fn setup_client_event_bridge(app: &AppHandle) {
 
 fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> bool {
     match name {
-        "client.window.pin" | "window.pin" => {
+        CLIENT_WINDOW_PIN_EVENT | "window.pin" => {
             emit_view_command_result(
                 app,
-                "client.window.pin.result",
+                CLIENT_WINDOW_PIN_EVENT,
                 crate::window::set_always_on_top(app, true),
             );
             true
         }
-        "client.window.unpin" | "window.unpin" => {
+        CLIENT_WINDOW_UNPIN_EVENT | "window.unpin" => {
             emit_view_command_result(
                 app,
-                "client.window.unpin.result",
+                CLIENT_WINDOW_UNPIN_EVENT,
                 crate::window::set_always_on_top(app, false),
             );
             true
         }
-        "client.window.minimize" | "window.minimize" | "client.window.collapse" => {
-            emit_view_command_result(
-                app,
-                "client.window.minimize.result",
-                crate::window::minimize(app),
-            );
+        CLIENT_WINDOW_MINIMIZE_EVENT | "window.minimize" | "client.window.collapse" => {
+            emit_view_command_result(app, CLIENT_WINDOW_MINIMIZE_EVENT, crate::window::minimize(app));
             true
         }
-        "client.window.hide" | "window.hide" => {
-            emit_view_command_result(app, "client.window.hide.result", crate::window::hide(app));
+        CLIENT_WINDOW_HIDE_EVENT | "window.hide" => {
+            emit_view_command_result(app, CLIENT_WINDOW_HIDE_EVENT, crate::window::hide(app));
             true
         }
-        "client.window.close" | "window.close" => {
-            emit_view_command_result(app, "client.window.close.result", crate::window::hide(app));
+        CLIENT_WINDOW_CLOSE_EVENT | "window.close" => {
+            emit_view_command_result(app, CLIENT_WINDOW_CLOSE_EVENT, crate::window::hide(app));
             true
         }
-        "client.window.fullscreen" | "window.fullscreen" => {
+        CLIENT_WINDOW_FULLSCREEN_EVENT | "window.fullscreen" => {
             let fullscreen = payload_bool(payload.as_ref(), "fullscreen").unwrap_or(true);
             emit_view_command_result(
                 app,
-                "client.window.fullscreen.result",
+                CLIENT_WINDOW_FULLSCREEN_EVENT,
                 crate::window::set_fullscreen(app, fullscreen),
             );
             true
         }
-        "client.window.exit-fullscreen" | "window.exit-fullscreen" => {
+        CLIENT_WINDOW_EXIT_FULLSCREEN_EVENT | "window.exit-fullscreen" => {
             emit_view_command_result(
                 app,
-                "client.window.exit-fullscreen.result",
+                CLIENT_WINDOW_EXIT_FULLSCREEN_EVENT,
                 crate::window::set_fullscreen(app, false),
             );
             true
@@ -178,7 +176,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
                     title,
                     search_time,
                 );
-                emit_view_command_result(&app_handle, "client.jobs.list.result", result);
+                emit_view_command_result(&app_handle, "client.jobs.list", result);
             });
             true
         }
@@ -186,7 +184,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
             let app_handle = app.clone();
             thread::spawn(move || {
                 let result = services::get_available_devices(app_handle.clone());
-                emit_view_command_result(&app_handle, "client.devices.list.result", result);
+                emit_view_command_result(&app_handle, "client.devices.list", result);
             });
             true
         }
@@ -195,7 +193,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
             let Some(device) = device else {
                 emit_view_command_result::<Value>(
                     app,
-                    "client.device.select.result",
+                    "client.device.select",
                     CommandResult::fail("DEVICE_PAYLOAD_EMPTY", "device 不能为空"),
                 );
                 return true;
@@ -203,7 +201,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
             let app_handle = app.clone();
             thread::spawn(move || {
                 let result = services::select_direct_device(app_handle.clone(), device);
-                emit_view_command_result(&app_handle, "client.device.select.result", result);
+                emit_view_command_result(&app_handle, "client.device.select", result);
             });
             true
         }
@@ -214,7 +212,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
                 .unwrap_or_default();
             emit_view_command_result(
                 app,
-                "client.auth.update-token.result",
+                "client.auth.update-token",
                 services::save_auth_token(app.clone(), token),
             );
             true
@@ -223,7 +221,12 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
     }
 }
 
-fn emit_view_command_result<T: Serialize>(app: &AppHandle, name: &str, result: CommandResult<T>) {
+/// 回执统一在基础事件名后追加 `.result`（视图端按 `.result` 后缀识别命令回执）。
+fn emit_view_command_result<T: Serialize>(
+    app: &AppHandle,
+    base_event: &str,
+    result: CommandResult<T>,
+) {
     let payload = serde_json::to_value(result).unwrap_or_else(|error| {
         json!({
             "success": false,
@@ -237,7 +240,7 @@ fn emit_view_command_result<T: Serialize>(app: &AppHandle, name: &str, result: C
     let _ = app.emit_to(
         MAIN_WINDOW_LABEL,
         CLIENT_TO_VIEW_EVENT,
-        ClientEventPayload::new(name, Some(payload)),
+        ClientEventPayload::new(format!("{base_event}.result"), Some(payload)),
     );
 }
 

@@ -24,7 +24,9 @@ use crate::result::CommandResult;
 use crate::services;
 use crate::{
     now_iso_string, ClientEventPayload, ClientTodoTaskPayload, CLIENT_NOTIFICATION_EVENT,
-    CLIENT_TODO_TASK_EVENT, CLIENT_TO_VIEW_EVENT, MAIN_WINDOW_LABEL,
+    CLIENT_SOCKET_TASK_FORWARD_FAILED_EVENT, CLIENT_SOCKET_TASK_FORWARDED_EVENT,
+    CLIENT_SOCKET_TASK_RECEIVED_EVENT, CLIENT_TODO_TASK_EVENT, CLIENT_TO_VIEW_EVENT,
+    MAIN_WINDOW_LABEL,
 };
 
 const FORWARD_RETRY_INTERVAL: Duration = Duration::from_secs(30);
@@ -67,7 +69,7 @@ pub fn reconnect_socket(app: AppHandle) -> CommandResult<bool> {
     CommandResult::ok(true)
 }
 
-const SOCKET_STATE_EVENT: &str = "cpms:client-socket";
+const SOCKET_STATE_EVENT: &str = "client-socket";
 
 /// 本地 socket 连接状态：解析出的完整地址、端口、连接状态与最近一次说明。
 #[derive(Debug, Clone, Default, Serialize)]
@@ -588,7 +590,7 @@ fn emit_socket_forward_received(app: &AppHandle) {
         MAIN_WINDOW_LABEL,
         CLIENT_TO_VIEW_EVENT,
         ClientEventPayload::new(
-            "client.socket_task.received",
+            CLIENT_SOCKET_TASK_RECEIVED_EVENT,
             Some(json!({
                 "ok": true,
                 "message": "收到打印任务，正在上传服务器！",
@@ -611,7 +613,7 @@ fn emit_socket_forward_result(app: &AppHandle, result: Result<Value, String>) {
 
     let (name, payload) = match result {
         Ok(value) => (
-            "client.socket_task.forwarded",
+            CLIENT_SOCKET_TASK_FORWARDED_EVENT,
             json!({
                 "ok": true,
                 "message": "打印任务上传成功！",
@@ -619,7 +621,7 @@ fn emit_socket_forward_result(app: &AppHandle, result: Result<Value, String>) {
             }),
         ),
         Err(error) => (
-            "client.socket_task.forward_failed",
+            CLIENT_SOCKET_TASK_FORWARD_FAILED_EVENT,
             json!({
                 "ok": false,
                 "message": "打印任务上传失败，请联系管理员！",

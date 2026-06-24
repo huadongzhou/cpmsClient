@@ -1,30 +1,22 @@
-import type { UnlistenFn } from "@tauri-apps/api/event";
-import { listenClientEvent } from "@/api/tauri/events";
+import { CLIENT_EVENT, CLIENT_SOCKET_TASK_PREFIX, CLIENT_TO_VIEW_EVENT, onBridgeMessage } from "@/api/tauri/events";
 import { useAppStore } from "@/stores/app";
 import type { ClientEventPayload } from "@/types/app/ipc";
 import type { PushNotificationInput } from "@/types/app/notification";
 
-/** 监听客户端回推事件，并以轻量通知形式反馈到视图端。 */
+/** 订阅客户端回推事件，并以轻量通知形式反馈到视图端。 */
 export function useClientEventBridge() {
   const appStore = useAppStore();
-  let unlisten: UnlistenFn | undefined;
 
-  onMounted(async () => {
-    unlisten = await listenClientEvent((payload) => {
-      const notification = toClientEventNotification(payload);
-      if (notification) {
-        appStore.pushNotification(notification);
-      }
-    });
-  });
-
-  onBeforeUnmount(() => {
-    unlisten?.();
+  onBridgeMessage<ClientEventPayload>(CLIENT_TO_VIEW_EVENT, (payload) => {
+    const notification = toClientEventNotification(payload);
+    if (notification) {
+      appStore.pushNotification(notification);
+    }
   });
 }
 
 function toClientEventNotification(payload: ClientEventPayload): PushNotificationInput | null {
-  if (payload.type.startsWith("client.socket_task.")) {
+  if (payload.type.startsWith(CLIENT_SOCKET_TASK_PREFIX)) {
     return null;
   }
 
@@ -61,9 +53,9 @@ function toClientEventNotification(payload: ClientEventPayload): PushNotificatio
 
 function isInternalClientEvent(payload: ClientEventPayload) {
   if (
-    payload.type === "client.iframe_payload.request" ||
-    payload.type === "client.iframe_payload.reported" ||
-    payload.type === "client.iframe.refresh"
+    payload.type === CLIENT_EVENT.IFRAME_PAYLOAD_REQUEST ||
+    payload.type === CLIENT_EVENT.IFRAME_PAYLOAD_REPORTED ||
+    payload.type === CLIENT_EVENT.IFRAME_REFRESH
   ) {
     return true;
   }

@@ -1,6 +1,16 @@
 import type { Ref } from "vue";
 import { listen as tauriListen } from "@tauri-apps/api/event";
 import { unwrapCommand } from "@/api/tauri/client";
+import { pushClientLog } from "@/api/tauri/log";
+import {
+  type BridgeMessage,
+  HUB_CLIENT_EVENT,
+  HUB_CLIENT_LISTEN,
+  HUB_CLIENT_REQUEST,
+  HUB_CLIENT_RESPONSE,
+  HUB_CLIENT_UNSUBSCRIBE,
+  useBridgeBus,
+} from "@/api/tauri/events";
 
 /**
  * 调用方法名与参数列表。
@@ -8,7 +18,7 @@ import { unwrapCommand } from "@/api/tauri/client";
 type HubClientMethod = keyof HubClientBridge;
 
 interface HubClientBridge {
-  "cpms:ping": (server: ServerLike) => Promise<ClientPingResult>;
+  ping: (server: ServerLike) => Promise<ClientPingResult>;
   getStartupState: () => Promise<unknown>;
   savePolicyAgreed: () => Promise<unknown>;
   saveAuthState: (state: unknown) => Promise<unknown>;
@@ -48,19 +58,13 @@ interface ClientPingResult {
   message?: string;
 }
 
-const HUB_CLIENT_REQUEST = "cpms:hub-client:request";
-const HUB_CLIENT_RESPONSE = "cpms:hub-client:response";
-const HUB_CLIENT_LISTEN = "cpms:hub-client:listen";
-const HUB_CLIENT_EVENT = "cpms:hub-client:event";
-const HUB_CLIENT_UNSUBSCRIBE = "cpms:hub-client:unsubscribe";
-
 /**
  * 创建可与 Tauri 后端交互的桥接对象。
  * 该对象不再直接暴露给跨源 iframe；改由 message 桥统一转发。
  */
 export function createHubClientBridge(): HubClientBridge {
   return {
-    "cpms:ping": pingCpmsServer,
+    ping: pingCpmsServer,
     getStartupState: () => unwrapCommand("get_startup_state"),
     savePolicyAgreed: () => unwrapCommand("save_policy_agreed"),
     saveAuthState: (state: unknown) => unwrapCommand("save_auth_state", { state }),
@@ -138,18 +142,28 @@ export function injectHubClientBridge() {
   (window as unknown as Record<string, unknown>).__HUB_CLIENT__ = createHubClientBridge();
 }
 
-interface PendingRequest {
-  resolve: (value: unknown) => void;
-  reject: (reason: Error) => void;
+/** 守卫：判断 message 是否为统一消息实体。 */
+function isBridgeMessage(value: unknown): value is BridgeMessage {
+  return typeof value === "object" && value !== null && typeof (value as BridgeMessage).type === "string";
 }
 
+let messageBridgeInstalled = false;
+
 /**
- * 为当前主窗口的业务 iframe 启动跨源 postMessage 桥。
- * 监听 iframe 发来的方法调用/事件订阅请求，调用本地 Tauri 能力后通过 postMessage 返回结果。
+ * 父窗口侧唯一的 `message` 监听：统一处理来自业务 iframe 的全部消息。
+ * - 带 `log` 键的消息自动落盘到客户端日志，前缀 `[env/logType]`；
+ * - RPC 调用/事件订阅（hub-client:*）就地处理并回推统一实体；
+ * - 其余业务态推送（token/serverAddress/...）汇入统一总线，多文件订阅。
+ * 安装后保持监听、不再 removeEventListener。
  */
 export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | undefined>) {
+  if (messageBridgeInstalled) {
+    return () => {};
+  }
+  messageBridgeInstalled = true;
+
   const bridge = createHubClientBridge();
-  const pendingRequests = new Map<string, PendingRequest>();
+  const bus = useBridgeBus();
   const subscriptions = new Map<string, () => void>();
   let subscriptionCounter = 0;
 
@@ -159,7 +173,7 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
     return event.source === iframe.contentWindow;
   }
 
-  function postTo(source: MessageEventSource | null, message: unknown) {
+  function postTo(source: MessageEventSource | null, message: BridgeMessage) {
     if (source && "postMessage" in source) {
       (source as Window).postMessage(message, "*");
     }
@@ -167,100 +181,138 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
 
   async function handleRequest(
     event: MessageEvent<unknown>,
-    data: {
-      id: string;
-      method: string;
-      args?: unknown[];
-    },
+    message: BridgeMessage<{ method: string; args?: unknown[] }>,
   ) {
-    const { id, method, args = [] } = data;
+    const { id } = message;
+    const method = message.payload?.method ?? "";
+    const args = message.payload?.args ?? [];
     const target = bridge[method as HubClientMethod];
 
     if (typeof target !== "function") {
       postTo(event.source, {
+        env: "client",
         type: HUB_CLIENT_RESPONSE,
         id,
-        ok: false,
-        error: { code: "UNKNOWN_METHOD", message: `未知方法: ${method}` },
+        time: Date.now(),
+        status: "error",
+        payload: { code: "UNKNOWN_METHOD", message: `未知方法: ${method}` },
       });
       return;
     }
 
     try {
       const result = await (target as (...arguments_: unknown[]) => Promise<unknown>)(...args);
-      postTo(event.source, { type: HUB_CLIENT_RESPONSE, id, ok: true, result });
+      postTo(event.source, {
+        env: "client",
+        type: HUB_CLIENT_RESPONSE,
+        id,
+        time: Date.now(),
+        status: "ok",
+        payload: result,
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       const code = error instanceof Error && "code" in error ? String(error.code) : "BRIDGE_ERROR";
-      postTo(event.source, { type: HUB_CLIENT_RESPONSE, id, ok: false, error: { code, message } });
+      postTo(event.source, {
+        env: "client",
+        type: HUB_CLIENT_RESPONSE,
+        id,
+        time: Date.now(),
+        status: "error",
+        payload: { code, message: errorMessage },
+      });
     }
   }
 
   async function handleListen(
     event: MessageEvent<unknown>,
-    data: {
-      id: string;
-      eventName: string;
-    },
+    message: BridgeMessage<{ eventName: string }>,
   ) {
-    const { id, eventName } = data;
+    const { id } = message;
+    const eventName = message.payload?.eventName ?? "";
     subscriptionCounter += 1;
     const subscriptionId = `sub-${subscriptionCounter}`;
 
     try {
       const unlisten = await bridge.listen(eventName, (payload) => {
-        postTo(event.source, { type: HUB_CLIENT_EVENT, subscriptionId, eventName, payload });
+        postTo(event.source, {
+          env: "client",
+          type: HUB_CLIENT_EVENT,
+          time: Date.now(),
+          payload: { subscriptionId, eventName, data: payload },
+        });
       });
       subscriptions.set(subscriptionId, unlisten);
-      postTo(event.source, { type: HUB_CLIENT_RESPONSE, id, ok: true, result: { subscriptionId } });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
       postTo(event.source, {
+        env: "client",
         type: HUB_CLIENT_RESPONSE,
         id,
-        ok: false,
-        error: { code: "LISTEN_ERROR", message },
+        time: Date.now(),
+        status: "ok",
+        payload: { subscriptionId },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      postTo(event.source, {
+        env: "client",
+        type: HUB_CLIENT_RESPONSE,
+        id,
+        time: Date.now(),
+        status: "error",
+        payload: { code: "LISTEN_ERROR", message: errorMessage },
       });
     }
   }
 
-  function handleUnsubscribe(data: { subscriptionId: string }) {
-    const unlisten = subscriptions.get(data.subscriptionId);
+  function handleUnsubscribe(message: BridgeMessage<{ subscriptionId: string }>) {
+    const subscriptionId = message.payload?.subscriptionId ?? "";
+    const unlisten = subscriptions.get(subscriptionId);
     if (unlisten) {
       unlisten();
-      subscriptions.delete(data.subscriptionId);
+      subscriptions.delete(subscriptionId);
     }
+  }
+
+  /** 带 log 键的消息自动落盘：前缀 `[env/logType]`。 */
+  function autoRecordLog(message: BridgeMessage) {
+    if (!message.log) {
+      return;
+    }
+    const logType = message.logType ?? "log";
+    void pushClientLog({
+      level: "info",
+      source: `${message.env}/${logType}`,
+      message: `[${message.env}/${logType}] ${message.log}`,
+    }).catch(() => undefined);
   }
 
   function onMessage(event: MessageEvent<unknown>) {
     if (!isFromBusinessIframe(event)) return;
 
-    const data = event.data as Record<string, unknown> | undefined;
-    if (!data || typeof data !== "object") return;
+    const message = event.data;
+    if (!isBridgeMessage(message)) return;
 
-    switch (data.type) {
+    autoRecordLog(message);
+
+    switch (message.type) {
       case HUB_CLIENT_REQUEST:
-        void handleRequest(event, data as { id: string; method: string; args?: unknown[] });
+        void handleRequest(event, message as BridgeMessage<{ method: string; args?: unknown[] }>);
         break;
       case HUB_CLIENT_LISTEN:
-        void handleListen(event, data as { id: string; eventName: string });
+        void handleListen(event, message as BridgeMessage<{ eventName: string }>);
         break;
       case HUB_CLIENT_UNSUBSCRIBE:
-        handleUnsubscribe(data as { subscriptionId: string });
+        handleUnsubscribe(message as BridgeMessage<{ subscriptionId: string }>);
         break;
       default:
+        // 业务态推送（token/serverAddress/deviceId/platform...）统一进总线。
+        bus.emit(message);
         break;
     }
   }
 
   window.addEventListener("message", onMessage);
 
-  return () => {
-    window.removeEventListener("message", onMessage);
-    for (const unlisten of subscriptions.values()) {
-      unlisten();
-    }
-    subscriptions.clear();
-    pendingRequests.clear();
-  };
+  // 保持监听、移除 message-remove 行为：返回空清理函数以兼容旧调用点。
+  return () => {};
 }

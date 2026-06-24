@@ -2,7 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import { createPinia } from "pinia";
 import { useAppStore } from "@/stores/app";
-import { injectHubClientBridge } from "@/utils/hubBridge";
+import { injectHubClientBridge } from "@/bridges";
 import "@/assets/styles/tokens.css";
 
 const pinia = createPinia();

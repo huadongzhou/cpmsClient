@@ -20,14 +20,26 @@ use tauri::{
 use result::CommandResult;
 
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
-pub(crate) const VIEW_TO_CLIENT_EVENT: &str = "cpms:view-to-client";
-pub(crate) const CLIENT_TO_VIEW_EVENT: &str = "cpms:client-to-view";
-pub(crate) const CLIENT_NOTIFICATION_EVENT: &str = "cpms:desktop-notification";
-pub(crate) const CLIENT_IFRAME_EVENT: &str = "cpms:client-iframe";
-pub(crate) const CLIENT_TODO_TASK_EVENT: &str = "cpms:client-todo-task";
+pub(crate) const VIEW_TO_CLIENT_EVENT: &str = "view-to-client";
+pub(crate) const CLIENT_TO_VIEW_EVENT: &str = "client-to-view";
+pub(crate) const CLIENT_NOTIFICATION_EVENT: &str = "desktop-notification";
+pub(crate) const CLIENT_IFRAME_EVENT: &str = "client-iframe";
+pub(crate) const CLIENT_TODO_TASK_EVENT: &str = "client-todo-task";
 pub(crate) const CLIENT_IFRAME_PAYLOAD_REQUEST_EVENT: &str = "client.iframe_payload.request";
 pub(crate) const CLIENT_IFRAME_PAYLOAD_REPORT_EVENT: &str = "client.iframe_payload.reported";
 pub(crate) const CLIENT_IFRAME_REFRESH_EVENT: &str = "client.iframe.refresh";
+// 视图端 → 客户端：窗口控制命令（与 client-ui CLIENT_EVENT.WINDOW_* 一一对应）。
+pub(crate) const CLIENT_WINDOW_PIN_EVENT: &str = "client.window.pin";
+pub(crate) const CLIENT_WINDOW_UNPIN_EVENT: &str = "client.window.unpin";
+pub(crate) const CLIENT_WINDOW_MINIMIZE_EVENT: &str = "client.window.minimize";
+pub(crate) const CLIENT_WINDOW_HIDE_EVENT: &str = "client.window.hide";
+pub(crate) const CLIENT_WINDOW_CLOSE_EVENT: &str = "client.window.close";
+pub(crate) const CLIENT_WINDOW_FULLSCREEN_EVENT: &str = "client.window.fullscreen";
+pub(crate) const CLIENT_WINDOW_EXIT_FULLSCREEN_EVENT: &str = "client.window.exit-fullscreen";
+// 客户端 → 视图端：本地 socket 打印任务事件。
+pub(crate) const CLIENT_SOCKET_TASK_RECEIVED_EVENT: &str = "client.socket_task.received";
+pub(crate) const CLIENT_SOCKET_TASK_FORWARDED_EVENT: &str = "client.socket_task.forwarded";
+pub(crate) const CLIENT_SOCKET_TASK_FORWARD_FAILED_EVENT: &str = "client.socket_task.forward_failed";
 pub(crate) const DEFAULT_CPMS_BASE_URL: &str = "http://localhost:8080";
 pub(crate) const DEFAULT_IFRAME_CONFIG_PATH: &str = "/api/client/iframe-config";
 pub(crate) const DEFAULT_LOCAL_SOCKET_URL: &str = "ws://127.0.0.1:18101/ws/task";

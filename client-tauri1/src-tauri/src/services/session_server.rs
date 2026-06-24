@@ -1,10 +1,10 @@
 //! 会话级服务端地址、直连设备 ID 与登录 token。
 //!
 //! 由 iframe（hub-platform）在登录成功后通过 postMessage 推送：
-//! - `cpms:serverAddress` → 服务端地址
-//! - `cpms:deviceId` → 直连设备 ID
-//! - `cpms:token` → 登录 token
-//! - `cpms:platform` → 平台标识（harmony/windows），用于 platform 头与 printProperties.terminalType
+//! - `serverAddress` → 服务端地址
+//! - `deviceId` → 直连设备 ID
+//! - `token` → 登录 token
+//! - `platform` → 平台标识（harmony/windows），用于 platform 头与 printProperties.terminalType
 //!
 //! 这些值仅存于应用进程内存，关闭即失效；回到首页时清空。
 
@@ -65,7 +65,7 @@ pub(crate) fn set_session_auth_token(token: Option<String>) {
     write_session_string(&SESSION_AUTH_TOKEN, token);
 }
 
-/// 读取当前会话平台标识（由 iframe 通过 cpms:platform 推送）。
+/// 读取当前会话平台标识（由 iframe 通过 platform 消息推送）。
 pub(crate) fn session_platform() -> Option<String> {
     read_session_string(&SESSION_PLATFORM)
 }

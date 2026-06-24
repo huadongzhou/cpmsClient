@@ -18,8 +18,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@orange/*": ["./src/modules/orange/*"]
+      "@/*": ["./src/*"]
     },
     "types": ["node", "vite/client"],
     // 自定义配置
