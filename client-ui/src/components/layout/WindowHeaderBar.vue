@@ -15,7 +15,7 @@ const props = withDefaults(
     icon: '',
     pinned: false,
     fullscreen: false,
-    controls: () => ['pin', 'collapse', 'fullscreen', 'close']
+    controls: () => []
   }
 )
 
