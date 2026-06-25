@@ -19,17 +19,15 @@ export const CLIENT_TODO_TASK_EVENT = "client-todo-task";
 export const CLIENT_LOG_EVENT = "client-log";
 export const CLIENT_SOCKET_EVENT = "client-socket";
 
-/* iframe ↔ 客户端父窗口 postMessage 通道的统一消息类型（去 cpms: 前缀）。 */
+/**
+ * iframe ↔ 客户端父窗口 postMessage 通道的统一消息类型（去 cpms: 前缀）。
+ * RPC 不再用 hub-client:* 信封：`type` 直接是真实方法名，有 `id` 即请求/响应、无 `id` 即单向推送。
+ */
 export const IFRAME_TOKEN_EVENT = "token";
 export const IFRAME_SERVER_ADDRESS_EVENT = "serverAddress";
 export const IFRAME_DIRECT_DEVICE_EVENT = "deviceId";
 export const IFRAME_PLATFORM_EVENT = "platform";
 export const IFRAME_REFRESH_EVENT = "refresh";
-export const HUB_CLIENT_REQUEST = "hub-client:request";
-export const HUB_CLIENT_RESPONSE = "hub-client:response";
-export const HUB_CLIENT_LISTEN = "hub-client:listen";
-export const HUB_CLIENT_EVENT = "hub-client:event";
-export const HUB_CLIENT_UNSUBSCRIBE = "hub-client:unsubscribe";
 
 /**
  * 视图端 ↔ 客户端的业务事件类型（client-to-view / view-to-client 信封内的 `type` 值）。

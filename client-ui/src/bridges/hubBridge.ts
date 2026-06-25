@@ -1,16 +1,7 @@
 import type { Ref } from "vue";
-import { listen as tauriListen } from "@tauri-apps/api/event";
 import { unwrapCommand } from "@/api/tauri/client";
 import { pushClientLog } from "@/api/tauri/log";
-import {
-  type BridgeMessage,
-  HUB_CLIENT_EVENT,
-  HUB_CLIENT_LISTEN,
-  HUB_CLIENT_REQUEST,
-  HUB_CLIENT_RESPONSE,
-  HUB_CLIENT_UNSUBSCRIBE,
-  useBridgeBus,
-} from "@/api/tauri/events";
+import { type BridgeMessage, useBridgeBus } from "@/api/tauri/events";
 
 /**
  * 调用方法名与参数列表。
@@ -43,7 +34,6 @@ interface HubClientBridge {
     message: string;
     detail?: string;
   }) => Promise<unknown>;
-  listen: (eventName: string, handler: (payload: unknown) => void) => Promise<() => void>;
 }
 
 interface ServerLike {
@@ -98,12 +88,6 @@ export function createHubClientBridge(): HubClientBridge {
         message: entry.message,
         detail: entry.detail,
       }),
-    listen: async (eventName, handler) => {
-      const unlisten = await tauriListen(eventName, (event) => {
-        handler(event.payload);
-      });
-      return unlisten;
-    },
   };
 }
 
@@ -143,9 +127,14 @@ let messageBridgeInstalled = false;
 
 /**
  * 父窗口侧唯一的 `message` 监听：统一处理来自业务 iframe 的全部消息。
- * - 带 `log` 键的消息自动落盘到客户端日志，前缀 `[env/logType]`；
- * - RPC 调用/事件订阅（hub-client:*）就地处理并回推统一实体；
- * - 其余业务态推送（token/serverAddress/...）汇入统一总线，多文件订阅。
+ *
+ * 协议（无 hub-client:* 信封，`type` 即真实名字）：
+ * - 有 `id` 且无 `status` → iframe 发起的 RPC 请求：以 `type` 为方法名调用本地能力，
+ *   回推同 `type` + 同 `id` + `status:'ok'|'error'` 的响应；
+ * - 带 `status` 的响应（如取 token 的回包）/ 无 `id` 的单向推送（token/serverAddress/...）
+ *   → 汇入统一总线，多文件订阅；
+ * - 带 `log` 键的消息自动落盘到客户端日志，前缀 `[env/logType]`。
+ *
  * 安装后保持监听、不再 removeEventListener。
  */
 export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | undefined>) {
@@ -156,8 +145,6 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
 
   const bridge = createHubClientBridge();
   const bus = useBridgeBus();
-  const subscriptions = new Map<string, () => void>();
-  let subscriptionCounter = 0;
 
   function isFromBusinessIframe(event: MessageEvent<unknown>): boolean {
     const iframe = iframeRef.value;
@@ -171,19 +158,17 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
     }
   }
 
-  async function handleRequest(
-    event: MessageEvent<unknown>,
-    message: BridgeMessage<{ method: string; args?: unknown[] }>,
-  ) {
+  /** 处理 iframe 发起的 RPC 请求：`type` 即方法名，`payload` 即参数数组；回推同 type+id 的响应。 */
+  async function handleRequest(event: MessageEvent<unknown>, message: BridgeMessage) {
     const { id } = message;
-    const method = message.payload?.method ?? "";
-    const args = message.payload?.args ?? [];
+    const method = message.type;
+    const args = Array.isArray(message.payload) ? message.payload : [];
     const target = bridge[method as HubClientMethod];
 
     if (typeof target !== "function") {
       postTo(event.source, {
         env: "client",
-        type: HUB_CLIENT_RESPONSE,
+        type: method,
         id,
         time: Date.now(),
         status: "error",
@@ -196,7 +181,7 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
       const result = await (target as (...arguments_: unknown[]) => Promise<unknown>)(...args);
       postTo(event.source, {
         env: "client",
-        type: HUB_CLIENT_RESPONSE,
+        type: method,
         id,
         time: Date.now(),
         status: "ok",
@@ -207,61 +192,12 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
       const code = error instanceof Error && "code" in error ? String(error.code) : "BRIDGE_ERROR";
       postTo(event.source, {
         env: "client",
-        type: HUB_CLIENT_RESPONSE,
+        type: method,
         id,
         time: Date.now(),
         status: "error",
         payload: { code, message: errorMessage },
       });
-    }
-  }
-
-  async function handleListen(
-    event: MessageEvent<unknown>,
-    message: BridgeMessage<{ eventName: string }>,
-  ) {
-    const { id } = message;
-    const eventName = message.payload?.eventName ?? "";
-    subscriptionCounter += 1;
-    const subscriptionId = `sub-${subscriptionCounter}`;
-
-    try {
-      const unlisten = await bridge.listen(eventName, (payload) => {
-        postTo(event.source, {
-          env: "client",
-          type: HUB_CLIENT_EVENT,
-          time: Date.now(),
-          payload: { subscriptionId, eventName, data: payload },
-        });
-      });
-      subscriptions.set(subscriptionId, unlisten);
-      postTo(event.source, {
-        env: "client",
-        type: HUB_CLIENT_RESPONSE,
-        id,
-        time: Date.now(),
-        status: "ok",
-        payload: { subscriptionId },
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      postTo(event.source, {
-        env: "client",
-        type: HUB_CLIENT_RESPONSE,
-        id,
-        time: Date.now(),
-        status: "error",
-        payload: { code: "LISTEN_ERROR", message: errorMessage },
-      });
-    }
-  }
-
-  function handleUnsubscribe(message: BridgeMessage<{ subscriptionId: string }>) {
-    const subscriptionId = message.payload?.subscriptionId ?? "";
-    const unlisten = subscriptions.get(subscriptionId);
-    if (unlisten) {
-      unlisten();
-      subscriptions.delete(subscriptionId);
     }
   }
 
@@ -286,21 +222,14 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
 
     autoRecordLog(message);
 
-    switch (message.type) {
-      case HUB_CLIENT_REQUEST:
-        void handleRequest(event, message as BridgeMessage<{ method: string; args?: unknown[] }>);
-        break;
-      case HUB_CLIENT_LISTEN:
-        void handleListen(event, message as BridgeMessage<{ eventName: string }>);
-        break;
-      case HUB_CLIENT_UNSUBSCRIBE:
-        handleUnsubscribe(message as BridgeMessage<{ subscriptionId: string }>);
-        break;
-      default:
-        // 业务态推送（token/serverAddress/deviceId/platform...）统一进总线。
-        bus.emit(message);
-        break;
+    // 有 id 且无 status → iframe 发起的 RPC 请求，就地执行并回推响应。
+    if (message.id != null && message.status == null) {
+      void handleRequest(event, message);
+      return;
     }
+
+    // 其余（带 status 的响应 / 无 id 的单向推送）统一进总线。
+    bus.emit(message);
   }
 
   window.addEventListener("message", onMessage);
