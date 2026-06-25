@@ -38,7 +38,8 @@ module.exports = {
     },
   },
   devServer: {
-    port: 1420,
+    // legacy(tauri1) 用独立端口，避免与标准 pnpm dev / tauri2 的 1420 撞车而加载到 v2 包
+    port: isLegacy ? 1421 : 1420,
     allowedHosts: "all",
   },
 };
