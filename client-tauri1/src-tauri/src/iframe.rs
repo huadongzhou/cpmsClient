@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use reqwest::Url;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 
@@ -37,11 +38,18 @@ pub async fn client_refresh_iframe_container(
 
 /// 视图端手动设置 iframe 容器地址（入口页输入）。
 /// 仅校验格式与协议；域名白名单仅在显式配置 CPMS_IFRAME_ALLOW_HOSTS 时生效。
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientSetIframeContainerUrlReq {
+    url: String,
+}
+
 #[tauri::command]
 pub fn client_set_iframe_container_url(
     app: AppHandle,
-    url: String,
+    req: ClientSetIframeContainerUrlReq,
 ) -> CommandResult<ClientIframeEventPayload> {
+    let ClientSetIframeContainerUrlReq { url } = req;
     let trimmed = url.trim();
     if trimmed.is_empty() {
         return CommandResult::fail("INVALID_IFRAME_URL", "iframe 地址不能为空");
@@ -74,27 +82,47 @@ pub fn client_set_iframe_container_url(
     ))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientRequestIframePayloadReq {
+    reason: Option<String>,
+}
+
 #[tauri::command]
 pub fn client_request_iframe_payload(
     app: AppHandle,
-    reason: Option<String>,
+    req: ClientRequestIframePayloadReq,
 ) -> CommandResult<String> {
+    let ClientRequestIframePayloadReq { reason } = req;
     let request_id = emit_iframe_payload_request(&app, reason.as_deref().unwrap_or("manual"));
     CommandResult::ok(request_id)
+}
+
+/// 业务参数统一包进 req 一层：避免命令参数名与 Tauri v1 invoke 保留字段
+/// (callback/error，usize 回调 id) 平铺撞名。
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientSubmitIframePayloadReq {
+    id: String,
+    payload: Option<Value>,
+    ok: bool,
+    reason: Option<String>,
+    failure: Option<String>,
 }
 
 #[tauri::command]
 pub fn client_submit_iframe_payload(
     app: AppHandle,
     state: tauri::State<'_, AppRuntimeState>,
-    id: String,
-    payload: Option<Value>,
-    ok: bool,
-    reason: Option<String>,
-    // 注意：Tauri v1 invoke 把 args 与 IPC 保留字段 callback/error(usize 回调 id) 平铺同层，
-    // 参数名不能叫 error/callback，否则会覆盖 IPC 字段；故此处用 failure 承接错误信息。
-    failure: Option<String>,
+    req: ClientSubmitIframePayloadReq,
 ) -> CommandResult<bool> {
+    let ClientSubmitIframePayloadReq {
+        id,
+        payload,
+        ok,
+        reason,
+        failure,
+    } = req;
     // 上报即更新会话 token：仅保存到内存，供 socket 转发/CPMS 请求直接使用，不落盘缓存。
     if let Some(token) = payload
         .as_ref()

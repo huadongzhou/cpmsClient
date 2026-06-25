@@ -11,7 +11,7 @@ mod window;
 use std::fs;
 use std::sync::Mutex;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{
     AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, WindowEvent,
@@ -138,19 +138,33 @@ pub(crate) fn new_message_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClientHttpRequestReq {
+    request: services::ClientHttpRequest,
+}
+
 #[tauri::command]
 async fn client_http_request(
     app: AppHandle,
-    request: services::ClientHttpRequest,
+    req: ClientHttpRequestReq,
 ) -> CommandResult<Value> {
+    let ClientHttpRequestReq { request } = req;
     match services::http_service::execute_client_http_request(&app, request).await {
         Ok(value) => CommandResult::ok(value),
         Err(error) => CommandResult::fail("HTTP_REQUEST_ERROR", &error),
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClientPingAddressReq {
+    host: String,
+}
+
 #[tauri::command]
-fn client_ping_address(host: String) -> CommandResult<services::ping_service::ClientPingResult> {
+fn client_ping_address(req: ClientPingAddressReq) -> CommandResult<services::ping_service::ClientPingResult> {
+    let ClientPingAddressReq { host } = req;
     match services::ping_service::ping_address(&host) {
         Ok(value) => CommandResult::ok(value),
         Err(error) => CommandResult::fail("PING_ERROR", &error),
@@ -167,8 +181,15 @@ fn autostart_is_enabled(app: AppHandle) -> CommandResult<bool> {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AutostartSetEnabledReq {
+    enabled: bool,
+}
+
 #[tauri::command]
-fn autostart_set_enabled(app: AppHandle, enabled: bool) -> CommandResult<bool> {
+fn autostart_set_enabled(app: AppHandle, req: AutostartSetEnabledReq) -> CommandResult<bool> {
+    let AutostartSetEnabledReq { enabled } = req;
     match set_autostart_enabled(&app, enabled) {
         Ok(_) => {
             refresh_tray_autostart_state(&app);

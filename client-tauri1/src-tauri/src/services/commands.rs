@@ -1,6 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use reqwest::blocking::Client;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
@@ -43,9 +44,16 @@ pub fn save_policy_agreed(app: AppHandle) -> CommandResult<bool> {
     )
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAuthStateReq {
+    state: AuthPersistState,
+}
+
 #[tauri::command]
 /// Persists authenticated user, server, product type, and optional server init data.
-pub fn save_auth_state(app: AppHandle, state: AuthPersistState) -> CommandResult<StartupState> {
+pub fn save_auth_state(app: AppHandle, req: SaveAuthStateReq) -> CommandResult<StartupState> {
+    let SaveAuthStateReq { state } = req;
     let mut user = state.user.clone();
     let pushed_token = user
         .token
@@ -98,9 +106,16 @@ pub fn clear_auth_state(app: AppHandle) -> CommandResult<StartupState> {
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveServerInfoReq {
+    server: ServerData,
+}
+
 #[tauri::command]
 /// Saves the latest CPMS server endpoint selected by the user.
-pub fn save_server_info(app: AppHandle, server: ServerData) -> CommandResult<ServerData> {
+pub fn save_server_info(app: AppHandle, req: SaveServerInfoReq) -> CommandResult<ServerData> {
+    let SaveServerInfoReq { server } = req;
     update_preferences(&app, |preferences| {
         preferences.server = Some(server.clone());
     })
@@ -110,9 +125,16 @@ pub fn save_server_info(app: AppHandle, server: ServerData) -> CommandResult<Ser
     )
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSessionServerAddressReq {
+    addr: String,
+}
+
 #[tauri::command]
 /// 设置会话级服务端地址（iframe 推送），不持久化，应用关闭即失效。
-pub fn set_session_server_address(app: AppHandle, addr: String) -> CommandResult<bool> {
+pub fn set_session_server_address(app: AppHandle, req: SetSessionServerAddressReq) -> CommandResult<bool> {
+    let SetSessionServerAddressReq { addr } = req;
     match normalize_session_server_addr(&addr) {
         Some(normalized) => {
             super::session_server::set_session_server_addr(Some(normalized.clone()));
@@ -144,9 +166,16 @@ pub fn get_session_server_address(_app: AppHandle) -> CommandResult<Option<Strin
     CommandResult::ok(super::session_server::session_server_addr())
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSessionDirectDeviceIdReq {
+    device_id: String,
+}
+
 #[tauri::command]
 /// 设置会话级直连设备 ID（iframe 推送），不持久化，应用关闭即失效。
-pub fn set_session_direct_device_id(app: AppHandle, device_id: String) -> CommandResult<bool> {
+pub fn set_session_direct_device_id(app: AppHandle, req: SetSessionDirectDeviceIdReq) -> CommandResult<bool> {
+    let SetSessionDirectDeviceIdReq { device_id } = req;
     let device_id = device_id.trim().to_string();
     if device_id.is_empty() {
         return CommandResult::fail("HUB_SESSION_DEVICE_ID_EMPTY", "deviceId 不能为空");
@@ -175,9 +204,16 @@ pub fn get_session_direct_device_id(_app: AppHandle) -> CommandResult<Option<Str
     CommandResult::ok(super::session_server::session_direct_device_id())
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetSessionPlatformReq {
+    platform: String,
+}
+
 #[tauri::command]
 /// 设置会话级平台标识（iframe 推送），不持久化，应用关闭即失效。
-pub fn set_session_platform(app: AppHandle, platform: String) -> CommandResult<bool> {
+pub fn set_session_platform(app: AppHandle, req: SetSessionPlatformReq) -> CommandResult<bool> {
+    let SetSessionPlatformReq { platform } = req;
     let platform = platform.trim().to_string();
     if platform.is_empty() {
         return CommandResult::fail("HUB_SESSION_PLATFORM_EMPTY", "platform 不能为空");
@@ -221,9 +257,16 @@ fn normalize_session_server_addr(addr: &str) -> Option<String> {
     Some(format!("{}://{}", scheme, host))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDirectDeviceReq {
+    device: Value,
+}
+
 #[tauri::command]
 /// 兼容旧桥接入口：不再缓存 deviceId，仅同步到会话并清掉旧持久缓存。
-pub fn save_direct_device(app: AppHandle, device: Value) -> CommandResult<Value> {
+pub fn save_direct_device(app: AppHandle, req: SaveDirectDeviceReq) -> CommandResult<Value> {
+    let SaveDirectDeviceReq { device } = req;
     let device_id = direct_device_id_from_value(&device);
     match device_id.as_deref() {
         Some(value) => super::session_server::set_session_direct_device_id(Some(value.to_string())),
@@ -261,9 +304,21 @@ fn direct_device_id_from_value(value: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAuthTokenReq {
+    token: String,
+}
+
 #[tauri::command]
 /// Updates only the session auth token pushed by the iframe/Web side after login.
-pub fn save_auth_token(app: AppHandle, token: String) -> CommandResult<StartupState> {
+pub fn save_auth_token(app: AppHandle, req: SaveAuthTokenReq) -> CommandResult<StartupState> {
+    let SaveAuthTokenReq { token } = req;
+    save_auth_token_inner(app, token)
+}
+
+/// 内部实现：供命令包装与 Rust 内部（event_bridge 路由）直接复用。
+pub fn save_auth_token_inner(app: AppHandle, token: String) -> CommandResult<StartupState> {
     let token = token.trim().to_string();
     if token.is_empty() {
         return CommandResult::fail("HUB_AUTH_TOKEN_EMPTY", "token 不能为空");
@@ -278,9 +333,31 @@ pub fn save_auth_token(app: AppHandle, token: String) -> CommandResult<StartupSt
     load_and_emit_startup_state(&app, "HUB_PREFERENCES_READ_ERROR")
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetJobListReq {
+    page_number: i64,
+    page_size: i64,
+    job_type: i64,
+    title: Option<String>,
+    search_time: Option<String>,
+}
+
 #[tauri::command]
 /// Fetches the current user's CPMS job list.
-pub fn get_job_list(
+pub fn get_job_list(app: AppHandle, req: GetJobListReq) -> CommandResult<Value> {
+    let GetJobListReq {
+        page_number,
+        page_size,
+        job_type,
+        title,
+        search_time,
+    } = req;
+    get_job_list_inner(app, page_number, page_size, job_type, title, search_time)
+}
+
+/// 内部实现：供命令包装与 Rust 内部（event_bridge 路由）直接复用。
+pub fn get_job_list_inner(
     app: AppHandle,
     page_number: i64,
     page_size: i64,
@@ -329,9 +406,21 @@ pub fn get_available_devices(app: AppHandle) -> CommandResult<Value> {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectDirectDeviceReq {
+    device: Value,
+}
+
 #[tauri::command]
 /// Updates the selected direct-output device on CPMS and keeps it in session memory.
-pub fn select_direct_device(app: AppHandle, device: Value) -> CommandResult<Value> {
+pub fn select_direct_device(app: AppHandle, req: SelectDirectDeviceReq) -> CommandResult<Value> {
+    let SelectDirectDeviceReq { device } = req;
+    select_direct_device_inner(app, device)
+}
+
+/// 内部实现：供命令包装与 Rust 内部（event_bridge 路由）直接复用。
+pub fn select_direct_device_inner(app: AppHandle, device: Value) -> CommandResult<Value> {
     let Some(device_id) = device
         .get("deviceId")
         .or_else(|| device.get("id"))
@@ -457,9 +546,16 @@ pub fn get_app_version() -> CommandResult<AppVersion> {
     })
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenExternalReq {
+    url: String,
+}
+
 #[tauri::command]
 /// Opens a URL in the system default browser.
-pub async fn open_external(url: String) -> CommandResult<bool> {
+pub async fn open_external(req: OpenExternalReq) -> CommandResult<bool> {
+    let OpenExternalReq { url } = req;
     if url.trim().is_empty() {
         return CommandResult::fail("OPEN_EXTERNAL_EMPTY", "url 不能为空");
     }
@@ -470,23 +566,41 @@ pub async fn open_external(url: String) -> CommandResult<bool> {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignRequestReq {
+    uri: String,
+    params: String,
+}
+
 #[tauri::command]
 /// Generates an access_sign-compatible value for a CPMS request.
-pub fn sign_request(uri: String, params: String) -> CommandResult<String> {
+pub fn sign_request(req: SignRequestReq) -> CommandResult<String> {
+    let SignRequestReq { uri, params } = req;
     match crypto_service::sign_request(&uri, &params) {
         Ok(value) => CommandResult::ok(value),
         Err(error) => CommandResult::fail("HUB_SIGN_ERROR", &error),
     }
 }
 
-#[tauri::command]
-/// 接收前端（视图端 / iframe 业务端）推送的日志，写入客户端日志文件。
-pub fn push_client_log(
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushClientLogReq {
     level: Option<String>,
     source: Option<String>,
     message: String,
     detail: Option<String>,
-) -> CommandResult<bool> {
+}
+
+#[tauri::command]
+/// 接收前端（视图端 / iframe 业务端）推送的日志，写入客户端日志文件。
+pub fn push_client_log(req: PushClientLogReq) -> CommandResult<bool> {
+    let PushClientLogReq {
+        level,
+        source,
+        message,
+        detail,
+    } = req;
     let message = message.trim().to_string();
     if message.is_empty() {
         return CommandResult::fail("CLIENT_LOG_EMPTY", "message 不能为空");

@@ -50,11 +50,18 @@ pub fn emit_client_event(
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PushDesktopNotificationEventReq {
+    notification: DesktopNotificationPayload,
+}
+
 #[tauri::command]
 pub(crate) fn push_desktop_notification_event(
     app: AppHandle,
-    notification: DesktopNotificationPayload,
+    req: PushDesktopNotificationEventReq,
 ) -> CommandResult<bool> {
+    let PushDesktopNotificationEventReq { notification } = req;
     match app.emit_to(MAIN_WINDOW_LABEL, CLIENT_NOTIFICATION_EVENT, notification) {
         Ok(_) => CommandResult::ok(true),
         Err(error) => CommandResult::fail("EMIT_NOTIFICATION_ERROR", &error.to_string()),
@@ -168,7 +175,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
             let search_time = payload_string(payload.as_ref(), "searchTime");
             let app_handle = app.clone();
             thread::spawn(move || {
-                let result = services::get_job_list(
+                let result = services::get_job_list_inner(
                     app_handle.clone(),
                     page_number,
                     page_size,
@@ -200,7 +207,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
             };
             let app_handle = app.clone();
             thread::spawn(move || {
-                let result = services::select_direct_device(app_handle.clone(), device);
+                let result = services::select_direct_device_inner(app_handle.clone(), device);
                 emit_view_command_result(&app_handle, "client.device.select", result);
             });
             true
@@ -213,7 +220,7 @@ fn handle_view_event(app: &AppHandle, name: &str, payload: Option<Value>) -> boo
             emit_view_command_result(
                 app,
                 "client.auth.update-token",
-                services::save_auth_token(app.clone(), token),
+                services::save_auth_token_inner(app.clone(), token),
             );
             true
         }

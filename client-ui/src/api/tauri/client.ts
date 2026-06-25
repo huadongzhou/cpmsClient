@@ -19,7 +19,9 @@ export async function invokeCommand<T>(
   args?: InvokeArgs,
 ): Promise<CommandResult<T>> {
   try {
-    return await invoke<CommandResult<T>>(command, args);
+    // 统一把命令实参包进 req 一层（Tauri v1 invoke 会把 args 与保留字段 callback/error
+    // 平铺同层，包一层可避免业务字段与保留字段撞名）。
+    return await invoke<CommandResult<T>>(command, args === undefined ? undefined : { req: args });
   } catch (error) {
     throw new CommandInvokeError(normalizeCommandError(error), "TAURI_INVOKE_ERROR");
   }
