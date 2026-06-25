@@ -1,5 +1,4 @@
 <script setup lang="ts" name="WindowHeaderBar">
-import { House, Maximize, Minimize2, Minus, Pin, PinOff, X } from '@lucide/vue'
 type WindowControl = 'entry' | 'pin' | 'collapse' | 'fullscreen' | 'close'
 
 const props = withDefaults(
@@ -27,9 +26,7 @@ const emit = defineEmits<{
 }>()
 
 const pinTitle = computed(() => (props.pinned ? '取消固定' : '固定'))
-const pinIcon = computed(() => (props.pinned ? PinOff : Pin))
 const fullscreenTitle = computed(() => (props.fullscreen ? '退出全屏' : '全屏'))
-const fullscreenIcon = computed(() => (props.fullscreen ? Minimize2 : Maximize))
 
 function activateControl(control: WindowControl) {
   switch (control) {
@@ -54,72 +51,93 @@ function activateControl(control: WindowControl) {
 
 <template>
   <header class="window-headerbar" data-tauri-drag-region>
-    <div class="flex items-center gap-2 min-w-0" data-tauri-drag-region>
+    <div class="headerbar-title-group" data-tauri-drag-region>
       <img v-if="icon" :src="icon" class="headerbar-logo" alt="应用图标" data-tauri-drag-region />
       <strong class="headerbar-text" data-tauri-drag-region>{{ title }}</strong>
     </div>
-    <nav class="flex items-center gap-1 flex-none">
-      <House
+    <nav class="headerbar-controls">
+      <button
         v-if="controls.includes('entry')"
+        type="button"
         class="headerbar-icon-control"
-        role="button"
-        tabindex="0"
         title="入口页"
         @click="activateControl('entry')"
         @keydown.enter.prevent="activateControl('entry')"
         @keydown.space.prevent="activateControl('entry')"
-      />
-      <component
+      >
+        <i class="el-icon-s-home" aria-hidden="true" />
+      </button>
+      <button
         v-if="controls.includes('pin')"
-        :is="pinIcon"
+        type="button"
         class="headerbar-icon-control"
         :class="{ 'is-active': pinned }"
-        role="button"
-        tabindex="0"
         :title="pinTitle"
         @click="activateControl('pin')"
         @keydown.enter.prevent="activateControl('pin')"
         @keydown.space.prevent="activateControl('pin')"
-      />
-      <Minus
+      >
+        <svg
+          class="headerbar-control-svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <template v-if="pinned">
+            <line x1="2" y1="2" x2="22" y2="22" />
+            <line x1="12" y1="17" x2="12" y2="22" />
+            <path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h11" />
+            <path d="M15 9.34V6h1a2 2 0 0 0 0-4H7.89" />
+          </template>
+          <template v-else>
+            <line x1="12" y1="17" x2="12" y2="22" />
+            <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+          </template>
+        </svg>
+      </button>
+      <button
         v-if="controls.includes('collapse')"
+        type="button"
         class="headerbar-icon-control"
-        role="button"
-        tabindex="0"
         title="收起"
         @click="activateControl('collapse')"
         @keydown.enter.prevent="activateControl('collapse')"
         @keydown.space.prevent="activateControl('collapse')"
-      />
-      <component
+      >
+        <i class="el-icon-minus" aria-hidden="true" />
+      </button>
+      <button
         v-if="controls.includes('fullscreen')"
-        :is="fullscreenIcon"
+        type="button"
         class="headerbar-icon-control"
         :class="{ 'is-active': fullscreen }"
-        role="button"
-        tabindex="0"
         :title="fullscreenTitle"
         @click="activateControl('fullscreen')"
         @keydown.enter.prevent="activateControl('fullscreen')"
         @keydown.space.prevent="activateControl('fullscreen')"
-      />
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <X
-              v-if="controls.includes('close')"
-              class="headerbar-icon-control headerbar-icon-control-close"
-              role="button"
-              tabindex="0"
-              title="关闭"
-              @click="activateControl('close')"
-              @keydown.enter.prevent="activateControl('close')"
-              @keydown.space.prevent="activateControl('close')"
-            />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">隐藏到托盘</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      >
+        <i :class="fullscreen ? 'el-icon-copy-document' : 'el-icon-full-screen'" aria-hidden="true" />
+      </button>
+      <el-tooltip
+        v-if="controls.includes('close')"
+        content="隐藏到托盘"
+        placement="bottom"
+      >
+        <button
+          type="button"
+          class="headerbar-icon-control headerbar-icon-control-close"
+          title="关闭"
+          @click="activateControl('close')"
+          @keydown.enter.prevent="activateControl('close')"
+          @keydown.space.prevent="activateControl('close')"
+        >
+          <i class="el-icon-close" aria-hidden="true" />
+        </button>
+      </el-tooltip>
     </nav>
   </header>
 </template>
@@ -140,6 +158,13 @@ function activateControl(control: WindowControl) {
   user-select: none;
 }
 
+.headerbar-title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-2);
+  min-width: 0;
+}
+
 .headerbar-logo {
   width: 22px;
   height: 22px;
@@ -157,19 +182,36 @@ function activateControl(control: WindowControl) {
   text-overflow: ellipsis;
 }
 
+.headerbar-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-1);
+  flex: none;
+}
+
 .headerbar-icon-control {
   display: inline-grid;
   place-items: center;
   width: 35px;
   height: 35px;
   padding: 8px;
+  margin: 0;
+  border: 0;
+  background: transparent;
   color: var(--cpms-color-text-secondary);
   cursor: pointer;
   box-sizing: border-box;
+  font-size: 18px;
+  line-height: 1;
   transition:
     color var(--cpms-duration-fast) var(--cpms-easing-base),
     background-color var(--cpms-duration-fast) var(--cpms-easing-base),
     transform var(--cpms-duration-fast) var(--cpms-easing-base);
+}
+
+.headerbar-control-svg {
+  width: 18px;
+  height: 18px;
 }
 
 .headerbar-icon-control:hover {

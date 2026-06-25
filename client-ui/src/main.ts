@@ -1,17 +1,20 @@
-import { createApp } from "vue";
+import Vue from "vue";
+import { createPinia, PiniaVuePlugin } from "pinia";
+import ElementUI from "element-ui";
+import "element-ui/lib/theme-chalk/index.css";
+import locale from "element-ui/lib/locale/lang/zh-CN";
 import App from "./App.vue";
-import { createPinia } from "pinia";
 import { useAppStore } from "@/stores/app";
 import "@/assets/styles/tokens.css";
 
+Vue.config.productionTip = false;
+Vue.use(PiniaVuePlugin);
+Vue.use(ElementUI, { locale });
+
 const pinia = createPinia();
-const app = createApp(App);
-
-app.use(pinia);
-
 const appStore = useAppStore(pinia);
 
-app.config.errorHandler = (error) => {
+Vue.config.errorHandler = (error) => {
   appStore.pushError({
     source: "ui",
     level: "error",
@@ -29,4 +32,7 @@ window.addEventListener("unhandledrejection", (event) => {
   });
 });
 
-app.mount("#app");
+new Vue({
+  pinia,
+  render: (h) => h(App),
+}).$mount("#app");
