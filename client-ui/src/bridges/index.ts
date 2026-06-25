@@ -11,4 +11,4 @@ export { useClientRuntimeBridge } from "./useClientRuntimeBridge";
 export { useDesktopNotificationBridge } from "./useDesktopNotificationBridge";
 export { useIframePayloadBridge } from "./useIframePayloadBridge";
 export type { IframePayloadBridgeResult } from "./useIframePayloadBridge";
-export { injectHubClientBridge, startHubClientMessageBridge } from "./hubBridge";
+export { startHubClientMessageBridge } from "./hubBridge";

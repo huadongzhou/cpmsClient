@@ -134,14 +134,6 @@ function normalizePingHost(server?: string) {
   return withoutProtocol.split("/")[0]?.split(":")[0]?.trim() ?? "";
 }
 
-/**
- * 保留旧注入方式：仅在非 iframe 场景或同源场景下供 hub-platform 直接读取。
- * 实际跨源 iframe 统一走 postMessage 桥。
- */
-export function injectHubClientBridge() {
-  (window as unknown as Record<string, unknown>).__HUB_CLIENT__ = createHubClientBridge();
-}
-
 /** 守卫：判断 message 是否为统一消息实体。 */
 function isBridgeMessage(value: unknown): value is BridgeMessage {
   return typeof value === "object" && value !== null && typeof (value as BridgeMessage).type === "string";
