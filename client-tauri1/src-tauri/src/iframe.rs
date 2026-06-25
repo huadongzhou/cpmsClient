@@ -91,7 +91,9 @@ pub fn client_submit_iframe_payload(
     payload: Option<Value>,
     ok: bool,
     reason: Option<String>,
-    error: Option<String>,
+    // 注意：Tauri v1 invoke 把 args 与 IPC 保留字段 callback/error(usize 回调 id) 平铺同层，
+    // 参数名不能叫 error/callback，否则会覆盖 IPC 字段；故此处用 failure 承接错误信息。
+    failure: Option<String>,
 ) -> CommandResult<bool> {
     // 上报即更新会话 token：仅保存到内存，供 socket 转发/CPMS 请求直接使用，不落盘缓存。
     if let Some(token) = payload
@@ -126,7 +128,7 @@ pub fn client_submit_iframe_payload(
         "time": now_epoch_millis(),
         "ok": ok,
         "reason": reason,
-        "error": error,
+        "error": failure,
     });
 
     if let Ok(mut locked) = state.iframe_payload.lock() {

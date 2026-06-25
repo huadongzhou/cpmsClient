@@ -39,7 +39,8 @@ export function submitClientIframePayload(report: {
     payload: report.payload ?? null,
     ok: report.ok,
     reason: report.reason ?? null,
-    error: report.error ?? null,
+    // Tauri v1 保留 invoke 字段 error(usize 回调 id)，命令实参改用 failure 避免撞名覆盖。
+    failure: report.error ?? null,
   });
 }
 
