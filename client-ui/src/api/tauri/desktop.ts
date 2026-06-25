@@ -36,10 +36,10 @@ export function submitClientIframePayload(report: {
 }) {
   return unwrapCommand<boolean>("client_submit_iframe_payload", {
     id: report.id,
-    payload: report.payload,
+    payload: report.payload ?? null,
     ok: report.ok,
-    reason: report.reason,
-    error: report.error,
+    reason: report.reason ?? null,
+    error: report.error ?? null,
   });
 }
 
