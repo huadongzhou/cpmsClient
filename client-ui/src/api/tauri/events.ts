@@ -120,6 +120,7 @@ export async function emitViewEvent(type: string, payload?: unknown) {
   }
 
   await emit(VIEW_TO_CLIENT_EVENT, {
+    env: "client",
     id: createMessageId(),
     type,
     payload,

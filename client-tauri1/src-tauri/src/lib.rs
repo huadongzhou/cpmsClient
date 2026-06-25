@@ -52,9 +52,10 @@ const TRAY_QUIT: &str = "tray.quit";
 const AUTOSTART_INIT_MARKER: &str = ".autostart-initialized";
 
 /// 视图端 ↔ 客户端通信的标准消息信封（一层结构）：
-/// `{ id, type, payload, time }`，额外字段（reason/ok/error 等）补在同层。
+/// `{ env, id, type, payload, time }`，额外字段（reason/ok/error 等）补在同层。
 #[derive(Debug, Serialize, Clone)]
 pub(crate) struct ClientEventPayload {
+    pub(crate) env: String,
     pub(crate) id: String,
     #[serde(rename = "type")]
     pub(crate) kind: String,
@@ -65,6 +66,7 @@ pub(crate) struct ClientEventPayload {
 impl ClientEventPayload {
     pub(crate) fn new(kind: impl Into<String>, payload: Option<Value>) -> Self {
         Self {
+            env: "client".into(),
             id: new_message_id(),
             kind: kind.into(),
             payload,
@@ -78,6 +80,7 @@ impl ClientEventPayload {
         payload: Option<Value>,
     ) -> Self {
         Self {
+            env: "client".into(),
             id: id.into(),
             kind: kind.into(),
             payload,
@@ -338,11 +341,8 @@ pub fn run() {
             socket::start_forward_retry_worker(app_handle.clone());
             services::log_service::info(&app_handle, "startup", "本地 socket 监听 worker 已启动");
 
-            let app_handle_for_payload = app_handle.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                let _ = iframe::emit_iframe_payload_request(&app_handle_for_payload, "startup");
-            });
+            // 启动期不再主动向 iframe 取 token：iframe 登录成功会自动推送（notifyParentToken），
+            // 客户端按需读会话缓存即可；token 过期场景仍由 token_refresh 主动请求。
             services::log_service::info(&app_handle, "startup", "客户端初始化完成");
 
             Ok(())

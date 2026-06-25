@@ -48,7 +48,6 @@ export function useIframePayloadBridge(iframeRef: Ref<HTMLIFrameElement | undefi
 
   /** 统一出口：处理总线上与 iframe token / 会话态相关的消息。 */
   function handleBusMessage(message: BridgeMessage) {
-    console.log('收到消息（非id）', message)
     // 客户端（Rust）经 Tauri 回推的指令：手动取 token / 认证过期请求刷新。
     if (message.env === 'client' && message.type === CLIENT_TO_VIEW_EVENT) {
       const event = message.payload as ClientEventPayload | undefined

@@ -114,7 +114,13 @@ function normalizePingHost(server?: string) {
 
 /** 守卫：判断 message 是否为统一消息实体。 */
 function isBridgeMessage(value: unknown): value is BridgeMessage {
-  return typeof value === 'object' && value !== null && typeof (value as BridgeMessage).type === 'string'
+  if (typeof value !== 'object' || value === null) return false
+  const message = value as BridgeMessage
+  return (
+    (message.env === 'client' || message.env === 'iframe') &&
+    typeof message.type === 'string' &&
+    typeof message.time === 'number'
+  )
 }
 
 let messageBridgeInstalled = false
@@ -200,18 +206,15 @@ export function startHubClientMessageBridge(iframeRef: Ref<HTMLIFrameElement | u
     if (!message.log) {
       return
     }
-    console.log('消息日志记录', message)
     const logType = message.logType ?? 'log'
     void pushClientLog({
       level: 'info',
       source: `${message.env}/${logType}`,
       message: `[${message.env}/${logType}] ${message.log}`
-    }).catch(() => undefined)
+    }).catch((error) => console.warn('[autoRecordLog] 写入客户端日志失败', error))
   }
 
   function onMessage(event: MessageEvent<unknown>) {
-    console.log('收到消息', event.data)
-
     if (!isFromBusinessIframe(event)) return
 
     const message = event.data

@@ -117,8 +117,9 @@ pub fn client_submit_iframe_payload(
         }
     }
 
-    // 标准信封一层结构：{ id, type, payload, time, ok, reason, error }。
+    // 标准信封一层结构：{ env, id, type, payload, time, ok, reason, error }。
     let message = json!({
+        "env": "client",
         "id": id,
         "type": CLIENT_IFRAME_PAYLOAD_REPORT_EVENT,
         "payload": payload,
@@ -139,8 +140,9 @@ pub fn client_submit_iframe_payload(
 
 pub(crate) fn emit_iframe_payload_request(app: &AppHandle, reason: &str) -> String {
     let request_id = new_message_id();
-    // 标准信封一层结构：{ id, type, payload, time, reason }。
+    // 标准信封一层结构：{ env, id, type, payload, time, reason }。
     let message = json!({
+        "env": "client",
         "id": request_id,
         "type": CLIENT_IFRAME_PAYLOAD_REQUEST_EVENT,
         "payload": Value::Null,
