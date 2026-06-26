@@ -110,6 +110,7 @@ fn locate_print_client_config() -> Option<PathBuf> {
         for file_name in CONFIG_FILE_NAMES {
             let path = dir.join(file_name);
             if path.is_file() {
+                remember_print_client_dir(&dir);
                 return Some(path);
             }
         }
@@ -128,6 +129,11 @@ fn print_client_candidate_dirs() -> Vec<PathBuf> {
         if let Some(parent) = exe_dir.parent() {
             dirs.push(parent.to_path_buf());
         }
+    }
+
+    // 1b. 上次成功定位并持久化缓存的目录：CPMS 未运行（进程发现失败）时仍能据此读到配置。
+    if let Some(cached) = cached_print_client_dir() {
+        dirs.push(cached);
     }
 
     // 2. env 指定的安装目录。
@@ -409,11 +415,50 @@ fn locate_named_config(file_name: &str) -> Option<PathBuf> {
     for dir in print_client_candidate_dirs() {
         let path = dir.join(file_name);
         if path.is_file() {
+            remember_print_client_dir(&dir);
             return Some(path);
         }
     }
 
     None
+}
+
+/// 持久化缓存文件：记录上次成功定位到 PrintClient 配置的目录。
+/// 不依赖 AppHandle，用每用户稳定的缓存目录（Linux: $XDG_CACHE_HOME 或 ~/.cache；
+/// Windows: %LOCALAPPDATA%），让 CPMS 未运行时也能据此读到 configure.ini。
+fn printclient_cache_file() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    #[cfg(not(target_os = "windows"))]
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")));
+    base.map(|dir| dir.join("cpmsClient").join("printclient-dir"))
+}
+
+/// 读取缓存目录；为空或目录已不存在则视为失效返回 None。
+fn cached_print_client_dir() -> Option<PathBuf> {
+    let raw = fs::read_to_string(printclient_cache_file()?).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let dir = PathBuf::from(trimmed);
+    dir.is_dir().then_some(dir)
+}
+
+/// 记住成功定位到的目录（与现值相同则跳过写盘）。best-effort，失败静默忽略。
+fn remember_print_client_dir(dir: &Path) {
+    if cached_print_client_dir().as_deref() == Some(dir) {
+        return;
+    }
+    let Some(path) = printclient_cache_file() else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(path, dir.to_string_lossy().as_bytes());
 }
 
 fn extract_websocket_url(line: &str) -> Option<String> {
