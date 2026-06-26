@@ -4,6 +4,7 @@ packages:
   - "client-tauri2"
 
 allowBuilds:
+  core-js: false
   maplibre-gl: false
   vue-demi: true
 

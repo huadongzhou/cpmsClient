@@ -1,5 +1,4 @@
 <script setup lang="ts" name="WindowFrame">
-import { LoaderCircle } from '@lucide/vue'
 import WindowHeaderBar from '@/components/layout/WindowHeaderBar.vue'
 
 type WindowControl = 'entry' | 'pin' | 'collapse' | 'fullscreen' | 'close'
@@ -54,7 +53,7 @@ const emit = defineEmits<{
       <main class="window-frame-body" :class="bodyClass" :aria-busy="loading">
         <slot />
         <div v-if="loading" class="window-frame-loading" role="status">
-          <LoaderCircle class="window-frame-loading-icon" aria-hidden="true" />
+          <i class="el-icon-loading window-frame-loading-icon" aria-hidden="true" />
           <span>{{ loadingText }}</span>
         </div>
       </main>
@@ -102,10 +101,8 @@ const emit = defineEmits<{
 }
 
 .window-frame-loading-icon {
-  width: 28px;
-  height: 28px;
+  font-size: 28px;
   color: var(--cpms-color-primary);
-  animation: cpms-spin 1s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

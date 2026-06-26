@@ -1,17 +1,7 @@
 <script setup lang="ts" name="HomeView">
 import { CLIENT_EVENT, emitViewEvent } from '@/api/tauri/events'
-import { Pencil, RefreshCw, TriangleAlert, Wrench } from '@lucide/vue'
 import WindowFrame from '@/components/layout/WindowFrame.vue'
 import { clearClientSessionDirectDeviceId, clearClientSessionServerAddress } from '@/api/tauri/desktop'
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger
-} from '@/components/ui/drawer'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { useIframeContainer } from '@/composables/useIframeContainer'
 import { startHubClientMessageBridge, useIframePayloadBridge } from '@/bridges'
 import { useRuntimeStore } from '@/stores/runtime'
@@ -160,53 +150,59 @@ async function closeWindow() {
       <div v-if="iframeLoadError" class="iframe-error">
         <div class="error-card">
           <div class="error-icon">
-            <TriangleAlert />
+            <i class="el-icon-warning" />
           </div>
           <h2 class="error-title">页面加载失败</h2>
           <p class="error-desc">无法在预定时间内加载 iframe 页面，请检查网络或客户端配置后重试。</p>
-          <div class="flex justify-center gap-3 flex-wrap">
-            <Button variant="default" class="min-w-[120px]" @click="retryIframeLoad">
-              <RefreshCw />
+          <div class="error-actions">
+            <el-button type="primary" class="error-action-btn" @click="retryIframeLoad">
+              <i class="el-icon-refresh-right" />
               重新加载
-            </Button>
-            <Button variant="secondary" @click="backToEntry">
-              <Pencil />
+            </el-button>
+            <el-button @click="backToEntry">
+              <i class="el-icon-edit" />
               重新输入地址
-            </Button>
+            </el-button>
           </div>
         </div>
       </div>
     </template>
 
-    <Drawer v-model:open="exampleDrawerVisible" direction="right">
-      <DrawerTrigger as-child>
-        <Button class="example-trigger" size="icon" @click="exampleDrawerVisible = true">
-          <Wrench class="example-trigger-icon" />
-        </Button>
-      </DrawerTrigger>
-      <DrawerContent class="debug-drawer">
-        <DrawerHeader>
-          <DrawerTitle>客户端调试</DrawerTitle>
-          <DrawerDescription>检测客户端能力、查看运行日志</DrawerDescription>
-        </DrawerHeader>
-        <Tabs v-model="drawerTab" class="drawer-tabs">
-          <TabsList>
-            <TabsTrigger value="detect">能力检测</TabsTrigger>
-            <TabsTrigger value="logs">客户端日志</TabsTrigger>
-          </TabsList>
-          <TabsContent value="detect" class="tab-content">
-            <ScrollArea class="tab-scroll-area">
-              <ExampleView :query-iframe-payload="queryIframePayload" />
-            </ScrollArea>
-          </TabsContent>
-          <TabsContent value="logs" class="tab-content">
-            <ScrollArea class="tab-scroll-area">
-              <LogView />
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
-      </DrawerContent>
-    </Drawer>
+    <button type="button" class="example-trigger" @click="exampleDrawerVisible = true">
+      <i class="el-icon-s-tools example-trigger-icon" />
+    </button>
+
+    <el-drawer
+      :visible.sync="exampleDrawerVisible"
+      direction="rtl"
+      :with-header="false"
+      :modal="true"
+      size="80%"
+      custom-class="debug-drawer"
+    >
+      <div class="debug-drawer-body">
+        <header class="drawer-header">
+          <h2 class="drawer-title">客户端调试</h2>
+          <p class="drawer-description">检测客户端能力、查看运行日志</p>
+        </header>
+        <el-tabs v-model="drawerTab" class="drawer-tabs">
+          <el-tab-pane label="能力检测" name="detect">
+            <div class="tab-content">
+              <div class="tab-scroll-area">
+                <ExampleView :query-iframe-payload="queryIframePayload" />
+              </div>
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="客户端日志" name="logs">
+            <div class="tab-content">
+              <div class="tab-scroll-area">
+                <LogView />
+              </div>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </el-drawer>
   </WindowFrame>
 </template>
 
@@ -267,17 +263,37 @@ async function closeWindow() {
   line-height: var(--cpms-line-height-relaxed);
 }
 
+.error-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--cpms-space-3);
+  flex-wrap: wrap;
+}
+
+.error-action-btn {
+  min-width: 120px;
+}
+
+.error-actions .el-button i {
+  margin-right: var(--cpms-space-1);
+}
+
 .example-trigger {
   position: fixed;
   right: var(--cpms-space-5);
   bottom: var(--cpms-space-5);
   z-index: 10;
+  display: inline-grid;
+  place-items: center;
   width: 48px;
   height: 48px;
+  padding: 0;
   font-size: 20px;
-  color: var(--cpms-color-primary) !important;
-  background: var(--cpms-color-surface) !important;
-  border: 1px solid var(--cpms-color-border) !important;
+  cursor: pointer;
+  color: var(--cpms-color-primary);
+  background: var(--cpms-color-surface);
+  border: 1px solid var(--cpms-color-border);
+  border-radius: var(--cpms-radius-full);
   box-shadow: var(--cpms-shadow-sm);
   transition:
     color var(--cpms-duration-base) var(--cpms-easing-base),
@@ -287,24 +303,44 @@ async function closeWindow() {
 }
 
 .example-trigger:hover {
-  color: var(--cpms-color-text-on-primary) !important;
-  background: var(--cpms-color-primary) !important;
-  border-color: var(--cpms-color-primary) !important;
+  color: var(--cpms-color-text-on-primary);
+  background: var(--cpms-color-primary);
+  border-color: var(--cpms-color-primary);
   box-shadow: var(--cpms-shadow-md);
 }
 
 .example-trigger-icon {
-  width: 20px;
-  height: 20px;
+  font-size: 20px;
   color: currentcolor;
-  fill: currentcolor;
 }
 
 .debug-drawer {
-  width: 80%;
   min-width: 560px;
   max-width: 900px;
+}
+
+.debug-drawer-body {
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  min-height: 0;
+}
+
+.drawer-header {
+  padding: var(--cpms-space-5) var(--cpms-space-4) var(--cpms-space-2);
+}
+
+.drawer-title {
+  margin: 0;
+  font-size: var(--cpms-font-size-xl);
+  font-weight: var(--cpms-font-weight-semibold);
+  color: var(--cpms-color-text-primary);
+}
+
+.drawer-description {
+  margin: var(--cpms-space-1) 0 0;
+  font-size: var(--cpms-font-size-base);
+  color: var(--cpms-color-text-secondary);
 }
 
 .drawer-tabs {
@@ -313,6 +349,16 @@ async function closeWindow() {
   flex: 1 1 auto;
   min-height: 0;
   padding: 0 var(--cpms-space-4) var(--cpms-space-4);
+}
+
+.drawer-tabs ::v-deep .el-tabs__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.drawer-tabs ::v-deep .el-tab-pane {
+  height: 100%;
 }
 
 .tab-content {
@@ -326,6 +372,7 @@ async function closeWindow() {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+  overflow: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

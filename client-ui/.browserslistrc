@@ -1,0 +1,6 @@
+# 目标：麒麟 V10 / webkit2gtk 2.20（Safari 11 时代）及现代环境。
+Safari >= 11
+iOS >= 11
+last 2 versions
+> 0.5%
+not dead

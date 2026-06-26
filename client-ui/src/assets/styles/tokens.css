@@ -1,181 +1,7 @@
-@import "tailwindcss";
-
-/* =========================================================================
- * shadcn/vue 主题令牌（Tailwind v4） —— 提前定义，暂不生成 components.json
- * 设计方向：简约 · 清新（Fresh Minimal，由 ui-ux-pro-max 技能产出）
- *   主色   = 清新青  cyan-700 #0e7490（填充态白字达 WCAG AA 4.5:1）
- *   焦点环 = cyan-600；强调/成功 = 清爽绿 green-600；中性 = 冷调 slate
- * shadcn 组件经 @theme inline 映射到 bg-primary / text-muted-foreground /
- * border-input / ring-ring 等工具类；深色跟随系统 prefers-color-scheme 自动切换。
- * 参考：https://vue.shadcn.org.cn/docs/theming
- * ========================================================================= */
-:root {
-  --radius: 0.625rem;
-
-  --background: oklch(0.985 0.003 247.858);
-  --foreground: oklch(0.208 0.042 265.755);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.755);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.755);
-
-  --primary: oklch(0.52 0.105 223.128);
-  --primary-foreground: oklch(0.985 0.013 202);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.279 0.041 260.031);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.956 0.045 203.388);
-  --accent-foreground: oklch(0.45 0.085 224.283);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.609 0.126 221.723);
-
-  /* 扩展语义色：状态标签 / Toast / Alert */
-  --success: oklch(0.627 0.194 149.214);
-  --success-foreground: oklch(0.982 0.018 155.826);
-  --warning: oklch(0.666 0.179 58.318);
-  --warning-foreground: oklch(0.208 0.042 265.755);
-  --info: oklch(0.685 0.169 237.323);
-  --info-foreground: oklch(0.985 0.003 247.858);
-
-  --chart-1: oklch(0.609 0.126 221.723);
-  --chart-2: oklch(0.627 0.194 149.214);
-  --chart-3: oklch(0.685 0.169 237.323);
-  --chart-4: oklch(0.769 0.188 70.08);
-  --chart-5: oklch(0.606 0.25 292.717);
-
-  --sidebar: oklch(0.985 0.003 247.858);
-  --sidebar-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-primary: oklch(0.52 0.105 223.128);
-  --sidebar-primary-foreground: oklch(0.985 0.013 202);
-  --sidebar-accent: oklch(0.956 0.045 203.388);
-  --sidebar-accent-foreground: oklch(0.45 0.085 224.283);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.609 0.126 221.723);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-  --background: oklch(0.208 0.042 265.755);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.279 0.041 260.031);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.279 0.041 260.031);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-
-  --primary: oklch(0.789 0.154 211.53);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.372 0.044 257.287);
-  --accent-foreground: oklch(0.865 0.127 207.078);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.208 0.042 265.755);
-
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.789 0.154 211.53);
-
-  --success: oklch(0.723 0.219 149.579);
-  --success-foreground: oklch(0.208 0.042 265.755);
-  --warning: oklch(0.769 0.188 70.08);
-  --warning-foreground: oklch(0.208 0.042 265.755);
-  --info: oklch(0.685 0.169 237.323);
-  --info-foreground: oklch(0.208 0.042 265.755);
-
-  --chart-1: oklch(0.789 0.154 211.53);
-  --chart-2: oklch(0.723 0.219 149.579);
-  --chart-3: oklch(0.685 0.169 237.323);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.606 0.25 292.717);
-
-  --sidebar: oklch(0.279 0.041 260.031);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.789 0.154 211.53);
-  --sidebar-primary-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-accent: oklch(0.372 0.044 257.287);
-  --sidebar-accent-foreground: oklch(0.865 0.127 207.078);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.789 0.154 211.53);
-  }
-}
-
-@theme inline {
-  --font-sans: var(--cpms-font-family);
-  --font-mono: var(--cpms-font-family-mono);
-
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
-  --color-info: var(--info);
-  --color-info-foreground: var(--info-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-@layer base {
-  *,
-  ::after,
-  ::before {
-    border-color: var(--border);
-  }
-
-  body {
-    background-color: var(--background);
-    color: var(--foreground);
-  }
-}
-
 /**
- * CPMS 客户端设计令牌。
- * 基于 ui-ux-pro-max 技能制定的 Fresh Minimal / Enterprise Gateway 统一设计系统。
- * 所有窗口（主窗口、通知子窗口、调试抽屉）共用同一套视觉变量，
- * 颜色、字号、圆角、间距一律从这里取值，禁止在组件里写裸色值。
+ * CPMS 客户端设计令牌（hex 调色板，兼容 webkit2gtk 2.20 老内核）。
+ * 颜色由原 oklch / color-mix 落地为静态 hex；主色=清新青 cyan-700 #0e7490。
+ * 所有窗口共用，组件内禁止写裸色值，一律取 --cpms-* 变量。
  */
 
 /* Plus Jakarta Sans 本地字体（支持 Tauri 离线环境） */
@@ -216,14 +42,14 @@
   --cpms-font-family: 'Plus Jakarta Sans', Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
   --cpms-font-family-mono: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
 
-  /* 字号体系：基础 16px，符合 WCAG 可读性 */
+  /* 字号 */
   --cpms-font-size-xs: 11px;
   --cpms-font-size-small: 12px;
   --cpms-font-size-base: 14px;
   --cpms-font-size-xl: 18px;
   --cpms-font-size-2xl: 20px;
 
-  /* 行高体系 */
+  /* 行高 */
   --cpms-line-height-tight: 1.25;
   --cpms-line-height-small: 1.4;
   --cpms-line-height-base: 1.5;
@@ -235,52 +61,51 @@
   --cpms-font-weight-semibold: 600;
   --cpms-font-weight-bold: 700;
 
-  /* —— 颜色：统一派生自上方 shadcn 令牌（单一色板来源，随明暗自动切换）—— */
   /* 文字颜色 */
-  --cpms-color-text-primary: var(--foreground);
-  --cpms-color-text-secondary: color-mix(in oklch, var(--foreground) 78%, var(--background));
-  --cpms-color-text-muted: var(--muted-foreground);
-  --cpms-color-text-disabled: var(--muted-foreground);
-  --cpms-color-text-on-primary: var(--primary-foreground);
+  --cpms-color-text-primary: #0f172a;
+  --cpms-color-text-secondary: #424958;
+  --cpms-color-text-muted: #64748b;
+  --cpms-color-text-disabled: #64748b;
+  --cpms-color-text-on-primary: #ecfeff;
 
   /* 背景与表面 */
-  --cpms-color-bg-app: var(--background);
-  --cpms-color-bg-panel: var(--card);
-  --cpms-color-surface: var(--card);
-  --cpms-color-bg-hover: var(--secondary);
-  --cpms-color-bg-code: var(--muted);
+  --cpms-color-bg-app: #f8fafc;
+  --cpms-color-bg-panel: #ffffff;
+  --cpms-color-surface: #ffffff;
+  --cpms-color-bg-hover: #f1f5f9;
+  --cpms-color-bg-code: #f1f5f9;
 
   /* 边框与分隔 */
-  --cpms-color-border: var(--border);
-  --cpms-color-border-strong: color-mix(in oklch, var(--border), var(--foreground) 25%);
+  --cpms-color-border: #e2e8f0;
+  --cpms-color-border-strong: #adb4bf;
 
   /* 前景/品牌色（深青；标题栏、重点表面） */
-  --cpms-color-foreground: color-mix(in oklch, var(--primary), black 18%);
+  --cpms-color-foreground: #0b5f76;
 
-  /* 主色（清新青） */
-  --cpms-color-primary: var(--primary);
-  --cpms-color-primary-hover: color-mix(in oklch, var(--primary), black 12%);
-  --cpms-color-primary-active: color-mix(in oklch, var(--primary), black 22%);
-  --cpms-color-primary-bg: color-mix(in oklch, var(--primary) 14%, var(--background));
-  --cpms-color-primary-border: color-mix(in oklch, var(--primary) 38%, var(--background));
-  --cpms-color-primary-text: var(--primary);
+  /* 主色（清新青 cyan-700） */
+  --cpms-color-primary: #0e7490;
+  --cpms-color-primary-hover: #0c667f;
+  --cpms-color-primary-active: #0b5a70;
+  --cpms-color-primary-bg: #d7e8ee;
+  --cpms-color-primary-border: #9fc7d3;
+  --cpms-color-primary-text: #0e7490;
 
-  /* 成功（清爽绿，软色调） */
-  --cpms-color-success-bg: color-mix(in oklch, var(--success) 15%, var(--background));
-  --cpms-color-success-border: color-mix(in oklch, var(--success) 30%, var(--background));
-  --cpms-color-success-text: var(--success);
+  /* 成功（清爽绿） */
+  --cpms-color-success-bg: #d6ede1;
+  --cpms-color-success-border: #b4e0c7;
+  --cpms-color-success-text: #16a34a;
 
   /* 警告 */
-  --cpms-color-warning: var(--warning);
-  --cpms-color-warning-bg: color-mix(in oklch, var(--warning) 15%, var(--background));
-  --cpms-color-warning-border: color-mix(in oklch, var(--warning) 30%, var(--background));
-  --cpms-color-warning-text: var(--warning);
+  --cpms-color-warning: #d97706;
+  --cpms-color-warning-bg: #f3e6d7;
+  --cpms-color-warning-border: #efd3b2;
+  --cpms-color-warning-text: #d97706;
 
   /* 危险 */
-  --cpms-color-danger: var(--destructive);
-  --cpms-color-danger-bg: color-mix(in oklch, var(--destructive) 12%, var(--background));
-  --cpms-color-danger-border: color-mix(in oklch, var(--destructive) 28%, var(--background));
-  --cpms-color-danger-text: var(--destructive);
+  --cpms-color-danger: #dc2626;
+  --cpms-color-danger-bg: #f5e1e2;
+  --cpms-color-danger-border: #f0bfc0;
+  --cpms-color-danger-text: #dc2626;
 
   /* 圆角 */
   --cpms-radius-small: 6px;
@@ -292,7 +117,7 @@
   /* 标题栏 */
   --cpms-headerbar-height: 35px;
 
-  /* 间距体系（4pt 网格） */
+  /* 间距（4pt 网格） */
   --cpms-space-1: 4px;
   --cpms-space-2: 8px;
   --cpms-space-3: 12px;
@@ -300,17 +125,15 @@
   --cpms-space-5: 20px;
   --cpms-space-8: 32px;
   --cpms-space-10: 40px;
-
-  /* 兼容性别名（旧代码使用） */
   --cpms-space-base: var(--cpms-space-3);
 
-  /* 阴影：基于前景色 #020617，权威、克制的投影 */
+  /* 阴影 */
   --cpms-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
   --cpms-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
   --cpms-shadow-md: 0 8px 20px rgba(15, 23, 42, 0.08);
   --cpms-shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12);
 
-  /* 动效：150-300ms，优先 transform/opacity */
+  /* 动效 */
   --cpms-duration-fast: 150ms;
   --cpms-duration-base: 200ms;
   --cpms-easing-base: cubic-bezier(0.4, 0, 0.2, 1);
@@ -321,10 +144,6 @@
   --cpms-scrollbar-thumb-hover: #94a3b8;
 }
 
-/**
- * 暗色模式：颜色令牌已由 shadcn 派生并随系统 prefers-color-scheme 自动切换，
- * 此处仅覆盖阴影与滚动条（Tauri webview 跟随系统主题）。
- */
 @media (prefers-color-scheme: dark) {
   :root {
     --cpms-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.25);
@@ -381,4 +200,27 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Element UI 主题对齐品牌青色 */
+.el-button--primary {
+  background-color: var(--cpms-color-primary);
+  border-color: var(--cpms-color-primary);
+}
+
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background-color: var(--cpms-color-primary-hover);
+  border-color: var(--cpms-color-primary-hover);
+}
+
+.el-checkbox__input.is-checked .el-checkbox__inner,
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--cpms-color-primary);
+  border-color: var(--cpms-color-primary);
+}
+
+.el-input__inner:focus,
+.el-textarea__inner:focus {
+  border-color: var(--cpms-color-primary);
 }

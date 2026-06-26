@@ -5,10 +5,15 @@ const { latestError } = useAppError();
 </script>
 
 <template>
-  <Alert v-if="latestError" class="error-notice" :variant="latestError.level === 'error' ? 'destructive' : 'default'">
-    <AlertTitle>{{ latestError.message }}</AlertTitle>
-    <AlertDescription>{{ `${latestError.source} / ${latestError.code}` }}</AlertDescription>
-  </Alert>
+  <el-alert
+    v-if="latestError"
+    class="error-notice"
+    :type="latestError.level === 'error' ? 'error' : 'info'"
+    :title="latestError.message"
+    :description="`${latestError.source} / ${latestError.code}`"
+    :closable="false"
+    show-icon
+  />
 </template>
 
 <style scoped>

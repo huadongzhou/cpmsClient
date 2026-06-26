@@ -1,12 +1,4 @@
 <script setup lang="ts" name="EntryView">
-import {
-  CircleX,
-  Link,
-  LoaderCircle,
-  MonitorCog,
-  Pencil,
-  TriangleAlert,
-} from "@lucide/vue";
 import { message } from "@/services/ui/message";
 import { setClientIframeUrl } from "@/api/tauri/desktop";
 
@@ -66,19 +58,19 @@ function useRecentUrl() {
 <template>
   <main class="entry-view">
     <section class="entry-card">
-      <div class="grid gap-3 justify-items-center mb-8">
+      <div class="entry-head">
         <div class="entry-icon">
-          <MonitorCog class="entry-icon-svg" />
+          <i class="el-icon-monitor entry-icon-svg" />
         </div>
         <h1 class="entry-title">CPMS Client</h1>
       </div>
 
-      <div class="grid gap-3">
+      <div class="entry-body">
         <div class="entry-input-wrap" :class="{ 'has-error': error }">
           <span class="entry-input-prefix" aria-hidden="true">
-            <Link />
+            <i class="el-icon-link" />
           </span>
-          <Input
+          <input
             v-model="url"
             class="entry-input"
             type="text"
@@ -92,42 +84,42 @@ function useRecentUrl() {
             type="button"
             @click="url = ''"
           >
-            <CircleX />
+            <i class="el-icon-circle-close" />
           </button>
         </div>
 
         <p v-if="error" class="entry-error" role="alert">
-          <TriangleAlert />
+          <i class="el-icon-warning entry-error-icon" />
           <span>{{ error }}</span>
         </p>
 
-          <Button
-            variant="default"
-            class="entry-submit"
-            :disabled="!isSubmittable"
-            @click="loadUrl()"
-          >
-            <LoaderCircle v-if="loading" class="animate-spin" />
-            <span>{{ loading ? "正在加载…" : "加载页面" }}</span>
-          </Button>
+        <button
+          class="entry-submit"
+          type="button"
+          :disabled="!isSubmittable"
+          @click="loadUrl()"
+        >
+          <i v-if="loading" class="el-icon-loading" />
+          <span>{{ loading ? "正在加载…" : "加载页面" }}</span>
+        </button>
 
-        <div v-if="hasRecentUrl" class="flex items-center justify-center gap-2 mt-1">
+        <div v-if="hasRecentUrl" class="entry-recent">
           <span class="entry-recent-label">最近使用</span>
-          <Button
-            variant="secondary"
+          <button
+            type="button"
             class="entry-recent-chip"
             :disabled="loading"
             @click="loadUrl(recentUrl)"
           >
             {{ recentUrl }}
-          </Button>
+          </button>
           <button
             type="button"
             class="entry-recent-action"
             title="填入"
             @click="useRecentUrl"
           >
-            <Pencil />
+            <i class="el-icon-edit" />
           </button>
         </div>
 
@@ -140,8 +132,9 @@ function useRecentUrl() {
 <style scoped>
 .entry-view {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
@@ -163,9 +156,21 @@ function useRecentUrl() {
   text-align: center;
 }
 
+.entry-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: var(--cpms-space-8);
+}
+
+.entry-head > * + * {
+  margin-top: var(--cpms-space-3);
+}
+
 .entry-icon {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 64px;
   height: 64px;
   color: var(--cpms-color-text-on-primary);
@@ -175,10 +180,8 @@ function useRecentUrl() {
 }
 
 .entry-icon-svg {
-  width: 28px;
-  height: 28px;
+  font-size: 28px;
   color: currentcolor;
-  fill: currentcolor;
 }
 
 .entry-title {
@@ -187,6 +190,15 @@ function useRecentUrl() {
   font-weight: var(--cpms-font-weight-bold);
   line-height: var(--cpms-line-height-tight);
   color: var(--cpms-color-text-primary);
+}
+
+.entry-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-body > * + * {
+  margin-top: var(--cpms-space-3);
 }
 
 .entry-input-wrap {
@@ -209,8 +221,9 @@ function useRecentUrl() {
 .entry-input-prefix {
   position: absolute;
   left: 14px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--cpms-color-text-muted);
   pointer-events: none;
   font-size: 16px;
@@ -258,8 +271,9 @@ function useRecentUrl() {
 .entry-input-clear {
   position: absolute;
   right: 8px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
   padding: 0;
@@ -339,19 +353,12 @@ function useRecentUrl() {
   cursor: not-allowed;
 }
 
-.entry-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: var(--cpms-color-text-on-primary);
-  border-radius: 50%;
-  animation: entry-spin 0.8s linear infinite;
-}
-
-@keyframes entry-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.entry-recent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cpms-space-2);
+  margin-top: var(--cpms-space-1);
 }
 
 .entry-recent-label {
@@ -391,8 +398,9 @@ function useRecentUrl() {
 }
 
 .entry-recent-action {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 44px;
   padding: 0;
@@ -436,10 +444,6 @@ function useRecentUrl() {
 
   .entry-submit:hover:not(:disabled) {
     transform: none;
-  }
-
-  .entry-spinner {
-    animation: none;
   }
 }
 </style>

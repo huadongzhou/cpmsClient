@@ -1,6 +1,5 @@
 <script setup lang="ts" name="LogView">
 import { storeToRefs } from "pinia";
-import { Copy, FileText, Inbox, LoaderCircle, RefreshCw, Trash2 } from "@lucide/vue";
 import { getClientLogState } from "@/api/tauri/log";
 import { confirmAction, message } from "@/services/ui/message";
 import { useLogStore } from "@/stores/log";
@@ -148,49 +147,52 @@ function levelClass(level: string) {
 <template>
   <main class="logs-view">
     <section class="toolbar">
-      <div class="flex items-center gap-3">
-        <Select v-model="activeCategory">
-          <SelectTrigger class="w-40">
-            <SelectValue placeholder="类别" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="category in categories" :key="category" :value="category">
-              {{ category }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+      <div class="toolbar-left">
+        <el-select v-model="activeCategory" placeholder="类别" size="small" class="category-select">
+          <el-option
+            v-for="category in categories"
+            :key="category"
+            :label="category"
+            :value="category"
+          />
+        </el-select>
         <span class="entry-count">共 {{ formattedLogEntries.length }} 条</span>
       </div>
-      <div class="flex gap-2">
-        <Button variant="outline" :disabled="fileStateLoading" @click="refreshFileState">
-          <LoaderCircle v-if="fileStateLoading" class="animate-spin" />
-          <RefreshCw v-else />
+      <div class="toolbar-right">
+        <el-button
+          plain
+          size="small"
+          icon="el-icon-refresh-right"
+          :loading="fileStateLoading"
+          @click="refreshFileState"
+        >
           刷新
-        </Button>
-        <Button variant="outline" @click="copyLogs">
-          <Copy />
+        </el-button>
+        <el-button plain size="small" icon="el-icon-document-copy" @click="copyLogs">
           复制
-        </Button>
-        <Button variant="outline" class="text-destructive hover:bg-destructive/10" @click="confirmClearLogs">
-          <Trash2 />
+        </el-button>
+        <el-button
+          plain
+          size="small"
+          icon="el-icon-delete"
+          class="clear-button"
+          @click="confirmClearLogs"
+        >
           清空
-        </Button>
+        </el-button>
       </div>
     </section>
 
     <section v-if="fileState" class="file-state">
-      <div class="flex items-center gap-2 min-w-0">
-        <FileText class="file-state-icon" />
+      <div class="file-state-main">
+        <i class="el-icon-document file-state-icon" />
         <span class="file-path" :title="fileState.path">{{ fileState.path }}</span>
       </div>
       <span class="file-size">{{ formatFileSize(fileState.sizeBytes) }}</span>
     </section>
 
     <section class="log-panel">
-      <Empty v-if="filteredEntries.length === 0" class="logs-empty">
-        <Inbox class="logs-empty-icon" />
-        <p>暂无客户端日志</p>
-      </Empty>
+      <el-empty v-if="filteredEntries.length === 0" description="暂无客户端日志" class="logs-empty" />
       <div v-else class="log-text">
         <div
           v-for="entry in formattedLogEntries"
@@ -228,9 +230,35 @@ function levelClass(level: string) {
   flex-wrap: wrap;
 }
 
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-3);
+}
+
+.toolbar-right {
+  display: flex;
+  gap: var(--cpms-space-2);
+}
+
+.category-select {
+  width: 160px;
+}
+
 .entry-count {
   font-size: var(--cpms-font-size-small);
   color: var(--cpms-color-text-muted);
+}
+
+.clear-button {
+  color: var(--cpms-color-danger-text);
+}
+
+.clear-button:hover,
+.clear-button:focus {
+  color: var(--cpms-color-danger-text);
+  border-color: var(--cpms-color-danger-text);
+  background: var(--cpms-color-danger-bg-soft, var(--cpms-color-bg-hover));
 }
 
 .file-state {
@@ -246,9 +274,15 @@ function levelClass(level: string) {
   font-size: var(--cpms-font-size-small);
 }
 
+.file-state-main {
+  display: flex;
+  align-items: center;
+  gap: var(--cpms-space-2);
+  min-width: 0;
+}
+
 .file-state-icon {
-  width: 16px;
-  height: 16px;
+  font-size: 16px;
   flex: none;
   color: var(--cpms-color-text-muted);
 }
@@ -259,14 +293,7 @@ function levelClass(level: string) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--cpms-space-2);
   color: var(--cpms-color-text-muted);
-}
-
-.logs-empty-icon {
-  width: 48px;
-  height: 48px;
-  opacity: 0.6;
 }
 
 .file-path {
@@ -291,6 +318,7 @@ function levelClass(level: string) {
   border: 1px solid var(--cpms-color-border);
   border-radius: var(--cpms-radius-panel);
   box-shadow: var(--cpms-shadow-xs);
+  overflow: auto;
 }
 
 .log-text {
