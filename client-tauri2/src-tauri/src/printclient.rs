@@ -151,6 +151,27 @@ fn print_client_candidate_dirs() -> Vec<PathBuf> {
         }
     }
 
+    // 4. Linux 常见安装目录猜测（系统级 + 用户级）。
+    #[cfg(target_os = "linux")]
+    {
+        for base in ["/opt", "/usr/local", "/usr/local/share", "/usr/share"] {
+            let base_path = PathBuf::from(base);
+            dirs.push(base_path.join("PrintClient"));
+            dirs.push(base_path.join("printclient"));
+            dirs.push(base_path.join("DriverClient"));
+            dirs.push(base_path.join("cpms").join("PrintClient"));
+            dirs.push(base_path.join("CPMS").join("PrintClient"));
+            dirs.push(base_path.join("Insolu").join("PrintClient"));
+        }
+        if let Ok(home) = std::env::var("HOME") {
+            let home_path = PathBuf::from(home);
+            dirs.push(home_path.join("PrintClient"));
+            dirs.push(home_path.join(".config").join("PrintClient"));
+            dirs.push(home_path.join(".local").join("share").join("PrintClient"));
+            dirs.push(home_path.join("Insolu").join("PrintClient"));
+        }
+    }
+
     dirs
 }
 
@@ -203,9 +224,52 @@ fn scan_process_exe_dir() -> Option<PathBuf> {
     PathBuf::from(path).parent().map(|dir| dir.to_path_buf())
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
 fn scan_process_exe_dir() -> Option<PathBuf> {
-    // 非 Windows 平台没有 PrintClient.exe 进程，按进程名发现不适用。
+    // 遍历 /proc，按进程名（comm）匹配运行中的 PrintClient，取其可执行文件所在目录。
+    const PROCESS_NAME_CANDIDATES: [&str; 4] =
+        ["PrintClient", "printclient", "DriverClient", "driverclient"];
+
+    for entry in fs::read_dir("/proc").ok()?.flatten() {
+        let pid_dir = entry.path();
+        // 仅看纯数字的 pid 目录。
+        let is_pid = pid_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit()))
+            .unwrap_or(false);
+        if !is_pid {
+            continue;
+        }
+
+        // 进程名：/proc/<pid>/comm（内核截断到 15 字符，候选名均在范围内）。
+        let matched = fs::read_to_string(pid_dir.join("comm"))
+            .ok()
+            .map(|comm| {
+                let name = comm.trim();
+                PROCESS_NAME_CANDIDATES
+                    .iter()
+                    .any(|candidate| name.eq_ignore_ascii_case(candidate))
+            })
+            .unwrap_or(false);
+        if !matched {
+            continue;
+        }
+
+        // /proc/<pid>/exe 符号链接 → 可执行文件全路径 → 取所在目录。
+        if let Ok(exe_path) = fs::read_link(pid_dir.join("exe")) {
+            if let Some(dir) = exe_path.parent() {
+                return Some(dir.to_path_buf());
+            }
+        }
+    }
+
+    None
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+fn scan_process_exe_dir() -> Option<PathBuf> {
+    // 其余平台暂不支持按进程名发现 PrintClient。
     None
 }
 
